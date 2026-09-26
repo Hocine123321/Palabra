@@ -21,6 +21,7 @@ final class AppEnvironment {
     private(set) var hasAPIKey: Bool
     var selectedModelID: String? { didSet { settings.selectedModelID = selectedModelID } }
     var libraryLayout: SettingsStore.LibraryLayout { didSet { settings.libraryLayout = libraryLayout } }
+    var appearanceMode: SettingsStore.AppearanceMode { didSet { settings.appearanceMode = appearanceMode } }
     var hasCompletedOnboarding: Bool { didSet { settings.hasCompletedOnboarding = hasCompletedOnboarding } }
 
     init(ai: AIClient, repository: WordRepository, catalogue: ModelCatalogue, keychain: KeychainStore, settings: SettingsStore) {
@@ -32,6 +33,7 @@ final class AppEnvironment {
         hasAPIKey = keychain.read() != nil
         selectedModelID = settings.selectedModelID
         libraryLayout = settings.libraryLayout
+        appearanceMode = settings.appearanceMode
         hasCompletedOnboarding = settings.hasCompletedOnboarding
         catalogue.loadCacheIfPresent()
     }
