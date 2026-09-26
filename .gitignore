@@ -1,0 +1,7 @@
+*.xcodeproj
+Config/Info.plist
+build/
+DerivedData/
+.DS_Store
+__pycache__/
+*.xcresult

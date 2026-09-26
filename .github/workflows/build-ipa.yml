@@ -1,0 +1,97 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The IPA job is independent of the test job, so a flaky UI test never blocks the deliverable.
+  ipa:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Archive (unsigned)
+        shell: bash
+        run: |
+          mkdir -p build
+          xcodebuild archive \
+            -project Palabra.xcodeproj -scheme Palabra -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/Palabra.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tee build/archive.log | tail -n 40
+      - name: Package IPA
+        run: |
+          rm -rf Payload && mkdir Payload
+          cp -R build/Palabra.xcarchive/Products/Applications/Palabra.app Payload/
+          zip -qry build/Palabra-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Palabra-unsigned-ipa
+          path: build/Palabra-unsigned.ipa
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: archive-log
+          path: build/archive.log
+
+  tests:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)['devices']
+          c = sorted((rt, x['udid']) for rt, ds in d.items() if 'iOS' in rt for x in ds if x['name'].startswith('iPhone'))
+          print(c[-1][1])")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+      - name: Unit tests
+        shell: bash
+        env:
+          TEST_RUNNER_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          mkdir -p build
+          xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:PalabraTests -resultBundlePath build/unit.xcresult \
+            | tail -n 80
+      - name: UI tests
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:PalabraUITests -resultBundlePath build/ui.xcresult \
+            | tail -n 80
+      - name: Export UI screenshots
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p build/screenshots
+          xcrun xcresulttool export attachments --path build/ui.xcresult --output-path build/screenshots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            build/unit.xcresult
+            build/ui.xcresult
+            build/screenshots
+          retention-days: 14

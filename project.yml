@@ -1,0 +1,64 @@
+name: Palabra
+options:
+  bundleIdPrefix: dev.palabra
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: targeted
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  Palabra:
+    type: application
+    platform: iOS
+    sources:
+      - path: Palabra
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: Palabra
+        UILaunchScreen: {}
+        UIUserInterfaceStyle: Light
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.palabra.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+  PalabraTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PalabraTests
+    dependencies:
+      - target: Palabra
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.palabra.tests
+        GENERATE_INFOPLIST_FILE: YES
+  PalabraUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: PalabraUITests
+    dependencies:
+      - target: Palabra
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.palabra.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Palabra:
+    build:
+      targets:
+        Palabra: all
+    test:
+      targets:
+        - PalabraTests
+        - PalabraUITests
