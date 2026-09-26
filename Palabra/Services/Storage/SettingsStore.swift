@@ -7,12 +7,19 @@ final class SettingsStore {
         case list
     }
 
+    enum AppearanceMode: String, CaseIterable {
+        case system
+        case light
+        case dark
+    }
+
     private let defaults: UserDefaults
 
     private enum Keys {
         static let selectedModelID = "selectedModelID"
         static let libraryLayout = "libraryLayout"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let appearanceMode = "appearanceMode"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -32,5 +39,10 @@ final class SettingsStore {
     var hasCompletedOnboarding: Bool {
         get { defaults.bool(forKey: Keys.hasCompletedOnboarding) }
         set { defaults.set(newValue, forKey: Keys.hasCompletedOnboarding) }
+    }
+
+    var appearanceMode: AppearanceMode {
+        get { AppearanceMode(rawValue: defaults.string(forKey: Keys.appearanceMode) ?? "") ?? .system }
+        set { defaults.set(newValue.rawValue, forKey: Keys.appearanceMode) }
     }
 }
