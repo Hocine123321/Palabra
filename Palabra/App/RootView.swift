@@ -17,6 +17,7 @@ struct RootView: View {
                 }
         }
         .tint(Theme.accent)
+        .preferredColorScheme(environment.appearanceMode.colorScheme)
         .fullScreenCover(isPresented: onboardingBinding) {
             OnboardingView()
         }
