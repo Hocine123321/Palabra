@@ -44,6 +44,14 @@ struct SettingsView: View {
                 catalogueStatusRow
             }
 
+            Section("Appearance") {
+                Picker("Theme", selection: appearanceBinding) {
+                    Text("System").tag(SettingsStore.AppearanceMode.system)
+                    Text("Light").tag(SettingsStore.AppearanceMode.light)
+                    Text("Dark").tag(SettingsStore.AppearanceMode.dark)
+                }
+            }
+
             Section("Library") {
                 Picker("Layout", selection: layoutBinding) {
                     Text("Grid").tag(SettingsStore.LibraryLayout.grid)
@@ -115,6 +123,10 @@ struct SettingsView: View {
                 Button("Cancel") { isEditingKey = false; keyError = nil }
             }
         }
+    }
+
+    private var appearanceBinding: Binding<SettingsStore.AppearanceMode> {
+        Binding(get: { environment.appearanceMode }, set: { environment.appearanceMode = $0 })
     }
 
     private var layoutBinding: Binding<SettingsStore.LibraryLayout> {
