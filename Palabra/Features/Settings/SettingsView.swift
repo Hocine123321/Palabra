@@ -52,6 +52,17 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Language") {
+                Picker("App Language", selection: appLanguageBinding) {
+                    Text("English").tag(SupportedLanguage.english)
+                    Text("Arabic").tag(SupportedLanguage.arabic)
+                }
+                Picker("AI Language", selection: aiLanguageBinding) {
+                    Text("English").tag(SupportedLanguage.english)
+                    Text("Arabic").tag(SupportedLanguage.arabic)
+                }
+            }
+
             Section("Library") {
                 Picker("Layout", selection: layoutBinding) {
                     Text("Grid").tag(SettingsStore.LibraryLayout.grid)
@@ -123,6 +134,14 @@ struct SettingsView: View {
                 Button("Cancel") { isEditingKey = false; keyError = nil }
             }
         }
+    }
+
+    private var appLanguageBinding: Binding<SupportedLanguage> {
+        Binding(get: { environment.appLanguage }, set: { environment.appLanguage = $0 })
+    }
+
+    private var aiLanguageBinding: Binding<SupportedLanguage> {
+        Binding(get: { environment.aiLanguage }, set: { environment.aiLanguage = $0 })
     }
 
     private var appearanceBinding: Binding<SettingsStore.AppearanceMode> {

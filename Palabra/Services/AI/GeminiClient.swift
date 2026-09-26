@@ -41,15 +41,15 @@ final class GeminiClient: AIClient {
         return .success(all)
     }
 
-    func generateWord(_ input: String, apiKey: String, model: AIModel) async -> Result<WordContent, AIError> {
+    func generateWord(_ input: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<WordContent, AIError> {
         let maxTokens = min(8192, model.outputTokenLimit ?? 8192)
-        let firstBody = ResponseSchema.wordRequestBody(word: input, systemInstruction: Prompts.wordSystemInstruction, maxOutputTokens: maxTokens, useSchema: true)
+        let firstBody = ResponseSchema.wordRequestBody(word: input, systemInstruction: Prompts.wordSystemInstruction(for: language), maxOutputTokens: maxTokens, useSchema: true)
 
         switch await callGenerate(model: model, apiKey: apiKey, body: firstBody, timeout: 60) {
         case .success(let text):
-            return decodeAndValidate(text)
+            return decodeAndValidate(text, language: language)
         case .failure(let error) where shouldRetryWithoutSchema(error):
-            let fallbackBody = ResponseSchema.wordRequestBody(word: input, systemInstruction: Prompts.wordSystemInstructionWithSchemaDescribed, maxOutputTokens: maxTokens, useSchema: false)
+            let fallbackBody = ResponseSchema.wordRequestBody(word: input, systemInstruction: Prompts.wordSystemInstructionWithSchemaDescribed(for: language), maxOutputTokens: maxTokens, useSchema: false)
             switch await callGenerate(model: model, apiKey: apiKey, body: fallbackBody, timeout: 60) {
             case .success(let text): return decodeAndValidate(text)
             case .failure(let error2): return .failure(error2)
@@ -59,14 +59,14 @@ final class GeminiClient: AIClient {
         }
     }
 
-    func sendChat(apiKey: String, model: AIModel, word: WordContent, history: [ChatMessage], newMessage: String) async -> Result<String, AIError> {
+    func sendChat(apiKey: String, model: AIModel, word: WordContent, history: [ChatMessage], newMessage: String, language: SupportedLanguage) async -> Result<String, AIError> {
         let maxTokens = min(4096, model.outputTokenLimit ?? 4096)
         var contents: [[String: Any]] = ChatHistoryBuilder.build(from: history).map {
             ["role": $0.role == .user ? "user" : "model", "parts": [["text": $0.text]]]
         }
         contents.append(["role": "user", "parts": [["text": newMessage]]])
         let body: [String: Any] = [
-            "systemInstruction": ["parts": [["text": Prompts.chatSystemInstruction(for: word)]]],
+            "systemInstruction": ["parts": [["text": Prompts.chatSystemInstruction(for: word, language: language)]]],
             "contents": contents,
             "generationConfig": ["temperature": 0.6, "maxOutputTokens": maxTokens]
         ]
@@ -170,12 +170,13 @@ final class GeminiClient: AIClient {
         return .success(text)
     }
 
-    private func decodeAndValidate(_ text: String) -> Result<WordContent, AIError> {
+    private func decodeAndValidate(_ text: String, language: SupportedLanguage) -> Result<WordContent, AIError> {
         let cleaned = stripCodeFences(text)
         guard let data = cleaned.data(using: .utf8),
-              let content = try? JSONDecoder().decode(WordContent.self, from: data) else {
+              var content = try? JSONDecoder().decode(WordContent.self, from: data) else {
             return .failure(.malformedResponse)
         }
+        content.contentLanguage = language
         return ContentValidator.validate(content)
     }
 

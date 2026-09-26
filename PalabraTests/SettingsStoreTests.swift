@@ -20,6 +20,8 @@ final class SettingsStoreTests: XCTestCase {
         let store = SettingsStore(defaults: defaults)
         XCTAssertEqual(store.libraryLayout, .grid)
         XCTAssertEqual(store.appearanceMode, .system)
+        XCTAssertEqual(store.appLanguage, .english)
+        XCTAssertEqual(store.aiLanguage, .english)
         XCTAssertFalse(store.hasCompletedOnboarding)
         XCTAssertNil(store.selectedModelID)
     }
@@ -29,12 +31,16 @@ final class SettingsStoreTests: XCTestCase {
         store.selectedModelID = "models/gemini-2.5-flash"
         store.libraryLayout = .list
         store.appearanceMode = .dark
+        store.appLanguage = .arabic
+        store.aiLanguage = .arabic
         store.hasCompletedOnboarding = true
 
         let reloaded = SettingsStore(defaults: defaults)
         XCTAssertEqual(reloaded.selectedModelID, "models/gemini-2.5-flash")
         XCTAssertEqual(reloaded.libraryLayout, .list)
         XCTAssertEqual(reloaded.appearanceMode, .dark)
+        XCTAssertEqual(reloaded.appLanguage, .arabic)
+        XCTAssertEqual(reloaded.aiLanguage, .arabic)
         XCTAssertTrue(reloaded.hasCompletedOnboarding)
     }
 }

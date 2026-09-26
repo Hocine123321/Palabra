@@ -20,6 +20,8 @@ final class SettingsStore {
         static let libraryLayout = "libraryLayout"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let appearanceMode = "appearanceMode"
+        static let appLanguage = "appLanguage"
+        static let aiLanguage = "aiLanguage"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -44,5 +46,15 @@ final class SettingsStore {
     var appearanceMode: AppearanceMode {
         get { AppearanceMode(rawValue: defaults.string(forKey: Keys.appearanceMode) ?? "") ?? .system }
         set { defaults.set(newValue.rawValue, forKey: Keys.appearanceMode) }
+    }
+
+    var appLanguage: SupportedLanguage {
+        get { SupportedLanguage(rawValue: defaults.string(forKey: Keys.appLanguage) ?? "") ?? .english }
+        set { defaults.set(newValue.rawValue, forKey: Keys.appLanguage) }
+    }
+
+    var aiLanguage: SupportedLanguage {
+        get { SupportedLanguage(rawValue: defaults.string(forKey: Keys.aiLanguage) ?? "") ?? .english }
+        set { defaults.set(newValue.rawValue, forKey: Keys.aiLanguage) }
     }
 }

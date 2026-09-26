@@ -14,23 +14,23 @@ final class StubAIClient: AIClient {
         return .success(Self.sampleModels)
     }
 
-    func generateWord(_ input: String, apiKey: String, model: AIModel) async -> Result<WordContent, AIError> {
+    func generateWord(_ input: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<WordContent, AIError> {
         try? await Task.sleep(nanoseconds: 400_000_000)
         if input.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "fallo" {
             return .failure(.rateLimited)
         }
-        return .success(Self.sampleContent(for: input))
+        return .success(Self.sampleContent(for: input, language: language))
     }
 
-    func sendChat(apiKey: String, model: AIModel, word: WordContent, history: [ChatMessage], newMessage: String) async -> Result<String, AIError> {
+    func sendChat(apiKey: String, model: AIModel, word: WordContent, history: [ChatMessage], newMessage: String, language: SupportedLanguage) async -> Result<String, AIError> {
         try? await Task.sleep(nanoseconds: 300_000_000)
         if newMessage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "fallo" {
             return .failure(.rateLimited)
         }
-        return .success("Think of \"\(word.word)\" this way: \(newMessage)")
+        return .success(language == .arabic ? "فكّر في \"\(word.word)\" بهذه الطريقة: \(newMessage)" : "Think of \"\(word.word)\" this way: \(newMessage)")
     }
 
-    static func sampleContent(for input: String) -> WordContent {
+    static func sampleContent(for input: String, language: SupportedLanguage = .english) -> WordContent {
         let word = input.trimmingCharacters(in: .whitespacesAndNewlines)
         let display = word.isEmpty ? "palabra" : word
         return WordContent(
@@ -43,7 +43,8 @@ final class StubAIClient: AIClient {
             meaning: .init(translations: ["(sample translation)"], explanation: "Placeholder content from the stub AI client, used for previews and UI tests."),
             usage: .init(explanation: "Sample usage explanation.", register: "neutral", nuance: nil),
             forms: .init(partOfSpeech: "noun", groups: [.init(label: "Singular / Plural", items: [.init(form: display, note: nil)])]),
-            similarWords: [.init(word: "ejemplo", difference: "A generic related word shown for previews.")]
+            similarWords: [.init(word: "ejemplo", difference: "A generic related word shown for previews.")],
+            contentLanguage: language
         )
     }
 }

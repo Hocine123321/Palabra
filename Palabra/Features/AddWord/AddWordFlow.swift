@@ -51,7 +51,7 @@ final class AddWordFlow: Identifiable {
             phase = .failed(environment.selectedModelID == nil ? .noModelSelected : .modelUnavailable(environment.selectedModelID ?? ""))
             return
         }
-        switch await environment.ai.generateWord(inputWord, apiKey: apiKey, model: model) {
+        switch await environment.ai.generateWord(inputWord, apiKey: apiKey, model: model, language: environment.aiLanguage) {
         case .success(let content):
             interpretedDifferently = WordKey.identity(content.word) != WordKey.identity(inputWord)
             phase = .loaded(content)

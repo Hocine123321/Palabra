@@ -18,6 +18,8 @@ struct RootView: View {
         }
         .tint(Theme.accent)
         .preferredColorScheme(environment.appearanceMode.colorScheme)
+        .environment(\.locale, environment.appLanguage.locale)
+        .environment(\.layoutDirection, environment.appLanguage.layoutDirection)
         .fullScreenCover(isPresented: onboardingBinding) {
             OnboardingView()
         }

@@ -8,6 +8,6 @@ final class MockAIClient: AIClient, @unchecked Sendable {
     var sendChatResult: Result<String, AIError> = .failure(.malformedResponse)
 
     func listModels(apiKey: String) async -> Result<[AIModel], AIError> { listModelsResult }
-    func generateWord(_ input: String, apiKey: String, model: AIModel) async -> Result<WordContent, AIError> { generateWordResult }
-    func sendChat(apiKey: String, model: AIModel, word: WordContent, history: [ChatMessage], newMessage: String) async -> Result<String, AIError> { sendChatResult }
+    func generateWord(_ input: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<WordContent, AIError> { generateWordResult }
+    func sendChat(apiKey: String, model: AIModel, word: WordContent, history: [ChatMessage], newMessage: String, language: SupportedLanguage) async -> Result<String, AIError> { sendChatResult }
 }

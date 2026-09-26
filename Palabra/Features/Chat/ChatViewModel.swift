@@ -56,7 +56,7 @@ final class ChatViewModel {
             persist()
             return
         }
-        switch await environment.ai.sendChat(apiKey: apiKey, model: model, word: word, history: history, newMessage: newMessage) {
+        switch await environment.ai.sendChat(apiKey: apiKey, model: model, word: word, history: history, newMessage: newMessage, language: environment.aiLanguage) {
         case .success(let text):
             messages.append(ChatMessage(role: .assistant, text: text))
         case .failure(let error):

@@ -22,6 +22,8 @@ final class AppEnvironment {
     var selectedModelID: String? { didSet { settings.selectedModelID = selectedModelID } }
     var libraryLayout: SettingsStore.LibraryLayout { didSet { settings.libraryLayout = libraryLayout } }
     var appearanceMode: SettingsStore.AppearanceMode { didSet { settings.appearanceMode = appearanceMode } }
+    var appLanguage: SupportedLanguage { didSet { settings.appLanguage = appLanguage } }
+    var aiLanguage: SupportedLanguage { didSet { settings.aiLanguage = aiLanguage } }
     var hasCompletedOnboarding: Bool { didSet { settings.hasCompletedOnboarding = hasCompletedOnboarding } }
 
     init(ai: AIClient, repository: WordRepository, catalogue: ModelCatalogue, keychain: KeychainStore, settings: SettingsStore) {
@@ -34,6 +36,8 @@ final class AppEnvironment {
         selectedModelID = settings.selectedModelID
         libraryLayout = settings.libraryLayout
         appearanceMode = settings.appearanceMode
+        appLanguage = settings.appLanguage
+        aiLanguage = settings.aiLanguage
         hasCompletedOnboarding = settings.hasCompletedOnboarding
         catalogue.loadCacheIfPresent()
     }

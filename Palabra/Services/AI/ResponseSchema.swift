@@ -12,13 +12,13 @@ enum ResponseSchema {
                 "type": "ARRAY", "minItems": 3, "maxItems": 3,
                 "items": [
                     "type": "OBJECT",
-                    "propertyOrdering": ["context", "spanish", "english"],
+                    "propertyOrdering": ["context", "spanish", "translation"],
                     "properties": [
                         "context": ["type": "STRING"],
                         "spanish": ["type": "STRING"],
-                        "english": ["type": "STRING"]
+                        "translation": ["type": "STRING"]
                     ],
-                    "required": ["context", "spanish", "english"]
+                    "required": ["context", "spanish", "translation"]
                 ]
             ],
             "meaning": [
