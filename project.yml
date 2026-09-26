@@ -22,7 +22,6 @@ targets:
       properties:
         CFBundleDisplayName: Palabra
         UILaunchScreen: {}
-        UIUserInterfaceStyle: Light
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
