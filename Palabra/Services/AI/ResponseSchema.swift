@@ -102,4 +102,53 @@ enum ResponseSchema {
             "generationConfig": generationConfig
         ]
     }
+
+    // MARK: - Study planner (flashcards / quiz)
+
+    static let flashcardArraySchema: [String: Any] = [
+        "type": "ARRAY",
+        "minItems": 1,
+        "items": [
+            "type": "OBJECT",
+            "propertyOrdering": ["front", "back", "hint"],
+            "properties": [
+                "front": ["type": "STRING"],
+                "back": ["type": "STRING"],
+                "hint": ["type": "STRING", "nullable": true]
+            ],
+            "required": ["front", "back"]
+        ]
+    ]
+
+    static let quizArraySchema: [String: Any] = [
+        "type": "ARRAY",
+        "minItems": 1,
+        "items": [
+            "type": "OBJECT",
+            "propertyOrdering": ["question", "options", "correctIndex", "explanation"],
+            "properties": [
+                "question": ["type": "STRING"],
+                "options": ["type": "ARRAY", "minItems": 4, "maxItems": 4, "items": ["type": "STRING"]],
+                "correctIndex": ["type": "INTEGER"],
+                "explanation": ["type": "STRING", "nullable": true]
+            ],
+            "required": ["question", "options", "correctIndex"]
+        ]
+    ]
+
+    static func notesRequestBody(notes: String, systemInstruction: String, schema: [String: Any], maxOutputTokens: Int, useSchema: Bool) -> [String: Any] {
+        var generationConfig: [String: Any] = [
+            "temperature": 0.5,
+            "maxOutputTokens": maxOutputTokens
+        ]
+        if useSchema {
+            generationConfig["responseMimeType"] = "application/json"
+            generationConfig["responseSchema"] = schema
+        }
+        return [
+            "systemInstruction": ["parts": [["text": systemInstruction]]],
+            "contents": [["role": "user", "parts": [["text": notes]]]],
+            "generationConfig": generationConfig
+        ]
+    }
 }

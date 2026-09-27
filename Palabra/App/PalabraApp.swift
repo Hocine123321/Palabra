@@ -11,7 +11,7 @@ struct PalabraApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
-        let schema = Schema([Word.self])
+        let schema = Schema([Word.self, Flashcard.self])
 
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -23,6 +23,9 @@ struct PalabraApp: App {
             let context = ModelContext(container)
             for word in (try? context.fetch(FetchDescriptor<Word>())) ?? [] {
                 context.delete(word)
+            }
+            for card in (try? context.fetch(FetchDescriptor<Flashcard>())) ?? [] {
+                context.delete(card)
             }
             try? context.save()
         }
@@ -41,6 +44,7 @@ struct PalabraApp: App {
             let env = AppEnvironment(
                 ai: StubAIClient(),
                 repository: SwiftDataWordRepository(context: ModelContext(container)),
+                flashcardRepository: SwiftDataFlashcardRepository(context: ModelContext(container)),
                 catalogue: catalogue,
                 keychain: keychain,
                 settings: settings

@@ -79,6 +79,46 @@ final class GeminiClient: AIClient {
         }
     }
 
+    func generateFlashcards(from notes: String, subject: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<[FlashcardDraft], AIError> {
+        let maxTokens = min(8192, model.outputTokenLimit ?? 8192)
+        let instruction = Prompts.flashcardSystemInstruction(subject: subject, for: language)
+        let body = ResponseSchema.notesRequestBody(notes: notes, systemInstruction: instruction, schema: ResponseSchema.flashcardArraySchema, maxOutputTokens: maxTokens, useSchema: true)
+
+        switch await callGenerate(model: model, apiKey: apiKey, body: body, timeout: 60) {
+        case .success(let text):
+            return decodeArray(text)
+        case .failure(let error) where shouldRetryWithoutSchema(error):
+            let describedInstruction = instruction + "\n\nRespond with a single JSON array and nothing else — no code fences, no commentary — of objects shaped {\"front\": string, \"back\": string, \"hint\": string (optional)}."
+            let fallbackBody = ResponseSchema.notesRequestBody(notes: notes, systemInstruction: describedInstruction, schema: ResponseSchema.flashcardArraySchema, maxOutputTokens: maxTokens, useSchema: false)
+            switch await callGenerate(model: model, apiKey: apiKey, body: fallbackBody, timeout: 60) {
+            case .success(let text): return decodeArray(text)
+            case .failure(let error2): return .failure(error2)
+            }
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
+    func generateQuiz(from notes: String, subject: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<[QuizQuestion], AIError> {
+        let maxTokens = min(8192, model.outputTokenLimit ?? 8192)
+        let instruction = Prompts.quizSystemInstruction(subject: subject, for: language)
+        let body = ResponseSchema.notesRequestBody(notes: notes, systemInstruction: instruction, schema: ResponseSchema.quizArraySchema, maxOutputTokens: maxTokens, useSchema: true)
+
+        switch await callGenerate(model: model, apiKey: apiKey, body: body, timeout: 60) {
+        case .success(let text):
+            return decodeArray(text)
+        case .failure(let error) where shouldRetryWithoutSchema(error):
+            let describedInstruction = instruction + "\n\nRespond with a single JSON array and nothing else — no code fences, no commentary — of objects shaped {\"question\": string, \"options\": [string] (exactly 4), \"correctIndex\": number, \"explanation\": string (optional)}."
+            let fallbackBody = ResponseSchema.notesRequestBody(notes: notes, systemInstruction: describedInstruction, schema: ResponseSchema.quizArraySchema, maxOutputTokens: maxTokens, useSchema: false)
+            switch await callGenerate(model: model, apiKey: apiKey, body: fallbackBody, timeout: 60) {
+            case .success(let text): return decodeArray(text)
+            case .failure(let error2): return .failure(error2)
+            }
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
     // MARK: - Shared plumbing
 
     private func callGenerate(model: AIModel, apiKey: String, body: [String: Any], timeout: TimeInterval) async -> Result<String, AIError> {
@@ -178,6 +218,16 @@ final class GeminiClient: AIClient {
         }
         content.contentLanguage = language
         return ContentValidator.validate(content)
+    }
+
+    private func decodeArray<T: Decodable>(_ text: String) -> Result<[T], AIError> {
+        let cleaned = stripCodeFences(text)
+        guard let data = cleaned.data(using: .utf8),
+              let items = try? JSONDecoder().decode([T].self, from: data),
+              !items.isEmpty else {
+            return .failure(.malformedResponse)
+        }
+        return .success(items)
     }
 
     private func stripCodeFences(_ text: String) -> String {

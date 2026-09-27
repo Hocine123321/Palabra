@@ -1,6 +1,12 @@
 # Palabra
 
-A native iPhone app for learning Spanish vocabulary with Google AI. Enter a word you met at school; the app asks a Google AI model for three example paragraphs, meaning and usage, word forms and similar words, saves it permanently, and lets you ask follow-up questions about it.
+A native iPhone app that started as a Spanish vocabulary tool and is growing into a broader study helper.
+Enter a word you met at school; the app asks a Google AI model for three example paragraphs, meaning and
+usage, word forms and similar words, saves it permanently, and lets you ask follow-up questions about it.
+
+It also now includes a **Study Planner**: paste any class notes (any subject) and generate flashcards
+scheduled with spaced repetition, or generate a short quiz to self-test immediately. See
+[`web/README.md`](web/README.md) for a browser-based companion with the same two features.
 
 ## Build and install (no Mac required)
 
@@ -24,11 +30,12 @@ Some sideload tools rewrite the bundle id; if it changes, the on-device library 
 
 ~~~
 Palabra/App          app entry, dependency container, navigation router
-Palabra/Domain       models, validation, keys, pure logic
-Palabra/Services     Google AI client, model catalogue, storage
+Palabra/Domain       models, validation, keys, pure logic (incl. spaced repetition)
+Palabra/Services     Google AI client, model catalogue, storage (words + flashcards)
 Palabra/DesignSystem theme, glass, motion, shared components
-Palabra/Features     onboarding, library, add-word, detail, chat, settings
+Palabra/Features     onboarding, library, add-word, detail, chat, settings, study planner
 PalabraTests         unit tests
 PalabraUITests       UI tests (stubbed AI)
 project.yml          XcodeGen project definition
+web/                 browser-based companion: notes → flashcards / quiz, no backend
 ~~~

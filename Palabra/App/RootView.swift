@@ -13,6 +13,12 @@ struct RootView: View {
                         SettingsView()
                     case .wordDetail(let id):
                         WordDetailHost(wordID: id)
+                    case .studyPlanner:
+                        StudyPlannerView()
+                    case .flashcardReview(let subject):
+                        FlashcardReviewView(subject: subject)
+                    case .quizGenerator:
+                        QuizGeneratorView()
                     }
                 }
         }

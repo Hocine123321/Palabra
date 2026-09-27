@@ -43,6 +43,12 @@ struct LibraryView: View {
                 .accessibilityLabel(environment.libraryLayout == .grid ? "Switch to readability layout" : "Switch to grid layout")
             }
             ToolbarItem(placement: .topBarTrailing) {
+                Button { environment.router.openStudyPlanner() } label: {
+                    Image(systemName: "graduationcap")
+                }
+                .accessibilityLabel("Study Planner")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { environment.router.openSettings() } label: {
                     Image(systemName: "gearshape")
                 }

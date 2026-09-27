@@ -30,6 +30,27 @@ final class StubAIClient: AIClient {
         return .success(language == .arabic ? "فكّر في \"\(word.word)\" بهذه الطريقة: \(newMessage)" : "Think of \"\(word.word)\" this way: \(newMessage)")
     }
 
+    func generateFlashcards(from notes: String, subject: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<[FlashcardDraft], AIError> {
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        if notes.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "fallo" {
+            return .failure(.rateLimited)
+        }
+        return .success([
+            FlashcardDraft(front: "Sample question about \(subject.isEmpty ? "your notes" : subject)", back: "Sample answer drawn from the pasted notes.", hint: nil),
+            FlashcardDraft(front: "Second sample question", back: "Second sample answer.", hint: "A short hint")
+        ])
+    }
+
+    func generateQuiz(from notes: String, subject: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<[QuizQuestion], AIError> {
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        if notes.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "fallo" {
+            return .failure(.rateLimited)
+        }
+        return .success([
+            QuizQuestion(question: "Sample question about \(subject.isEmpty ? "your notes" : subject)?", options: ["Correct option", "Wrong option A", "Wrong option B", "Wrong option C"], correctIndex: 0, explanation: "Placeholder explanation from the stub AI client.")
+        ])
+    }
+
     static func sampleContent(for input: String, language: SupportedLanguage = .english) -> WordContent {
         let word = input.trimmingCharacters(in: .whitespacesAndNewlines)
         let display = word.isEmpty ? "palabra" : word

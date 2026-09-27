@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Palabra Study — Flashcards &amp; Quizzes</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <h1>Palabra Study</h1>
+    <p class="subtitle">The web companion to the Palabra iOS app — turn any class notes into flashcards and quizzes.</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab="settings">Settings</button>
+    <button class="tab-btn" data-tab="flashcards">Flashcards</button>
+    <button class="tab-btn" data-tab="review">Review</button>
+    <button class="tab-btn" data-tab="quiz">Quiz</button>
+  </nav>
+
+  <main>
+    <section id="tab-settings" class="tab-panel active">
+      <div class="card">
+        <h2>Google AI API Key</h2>
+        <p class="hint">Your key stays in this browser (localStorage) and is sent only to Google's Generative Language API. Get a free key at
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.</p>
+        <label for="api-key">API key</label>
+        <input id="api-key" type="password" placeholder="AIza…" autocomplete="off">
+        <label for="model-select">Model</label>
+        <select id="model-select">
+          <option value="models/gemini-2.5-flash">Gemini 2.5 Flash (fast, recommended)</option>
+          <option value="models/gemini-2.5-pro">Gemini 2.5 Pro (most capable)</option>
+        </select>
+        <button id="save-settings" class="primary">Save</button>
+        <p id="settings-status" class="status"></p>
+      </div>
+    </section>
+
+    <section id="tab-flashcards" class="tab-panel">
+      <div class="card">
+        <h2>Add Flashcards from Notes</h2>
+        <label for="fc-subject">Subject</label>
+        <input id="fc-subject" type="text" placeholder="e.g. Biology, French Revolution">
+        <label for="fc-notes">Paste your class notes</label>
+        <textarea id="fc-notes" rows="10" placeholder="Paste anything: lecture notes, a textbook chapter, a study guide…"></textarea>
+        <button id="fc-generate" class="primary">Generate Flashcards</button>
+        <p id="fc-status" class="status"></p>
+        <div id="fc-drafts" class="draft-list"></div>
+        <button id="fc-save" class="primary" hidden>Save Selected</button>
+      </div>
+    </section>
+
+    <section id="tab-review" class="tab-panel">
+      <div class="card">
+        <h2>Review Due Flashcards</h2>
+        <div class="review-controls">
+          <label for="review-subject">Subject</label>
+          <select id="review-subject"></select>
+          <span id="review-due-count" class="due-badge"></span>
+        </div>
+        <div id="review-area"></div>
+      </div>
+      <div class="card">
+        <h2>All Flashcards</h2>
+        <div id="all-cards-list" class="draft-list"></div>
+      </div>
+    </section>
+
+    <section id="tab-quiz" class="tab-panel">
+      <div class="card">
+        <h2>Generate a Quiz from Notes</h2>
+        <label for="quiz-subject">Subject</label>
+        <input id="quiz-subject" type="text" placeholder="e.g. Cell Biology, WWII">
+        <label for="quiz-notes">Paste your class notes</label>
+        <textarea id="quiz-notes" rows="10" placeholder="Paste anything: lecture notes, a textbook chapter, a study guide…"></textarea>
+        <button id="quiz-generate" class="primary">Generate Quiz</button>
+        <p id="quiz-status" class="status"></p>
+        <div id="quiz-area"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Early scaffold — mirrors the iOS app's spaced-repetition flashcards and AI quiz generator. Data is stored only in this browser.</p>
+  </footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

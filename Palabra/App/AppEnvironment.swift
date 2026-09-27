@@ -12,6 +12,7 @@ import Observation
 final class AppEnvironment {
     let ai: AIClient
     let repository: WordRepository
+    let flashcardRepository: FlashcardRepository
     let catalogue: ModelCatalogue
     var router = Router()
 
@@ -26,9 +27,10 @@ final class AppEnvironment {
     var aiLanguage: SupportedLanguage { didSet { settings.aiLanguage = aiLanguage } }
     var hasCompletedOnboarding: Bool { didSet { settings.hasCompletedOnboarding = hasCompletedOnboarding } }
 
-    init(ai: AIClient, repository: WordRepository, catalogue: ModelCatalogue, keychain: KeychainStore, settings: SettingsStore) {
+    init(ai: AIClient, repository: WordRepository, flashcardRepository: FlashcardRepository, catalogue: ModelCatalogue, keychain: KeychainStore, settings: SettingsStore) {
         self.ai = ai
         self.repository = repository
+        self.flashcardRepository = flashcardRepository
         self.catalogue = catalogue
         self.keychain = keychain
         self.settings = settings
@@ -65,6 +67,7 @@ final class AppEnvironment {
         AppEnvironment(
             ai: GeminiClient(),
             repository: SwiftDataWordRepository(context: modelContext),
+            flashcardRepository: SwiftDataFlashcardRepository(context: modelContext),
             catalogue: ModelCatalogue(),
             keychain: KeychainStore(),
             settings: SettingsStore()
