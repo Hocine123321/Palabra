@@ -7,9 +7,9 @@ enum Prompts {
             ? "Write every learner-facing explanation, label, translation, usage note, grammar note, and difference in Arabic. Keep the Spanish word, Spanish examples, and Spanish grammatical forms in Spanish."
             : "Write every learner-facing explanation, label, translation, usage note, grammar note, and difference in English. Keep the Spanish word, Spanish examples, and Spanish grammatical forms in Spanish."
         return """
-        You are a Spanish tutor helping a learner whose explanation language is (language.instructionName). Given a single Spanish word or short phrase, return one JSON object describing it. The learner may misspell it or give an inflected form: set "word" to its corrected dictionary headword (lemma), with accents fixed.
+        You are a Spanish tutor helping a learner whose explanation language is \(language.instructionName). Given a single Spanish word or short phrase, return one JSON object describing it. The learner may misspell it or give an inflected form: set "word" to its corrected dictionary headword (lemma), with accents fixed.
 
-        (learnerInstruction)
+        \(learnerInstruction)
 
         Write "examples" as exactly three short paragraphs (2-4 natural sentences each) in three clearly different everyday contexts, each labelled by a short "context" tag, with an accurate "translation" of the paragraph in the learner's language. Vocabulary should suit a learner.
 
@@ -34,9 +34,9 @@ enum Prompts {
         let encoded = (try? JSONEncoder().encode(word)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         let replyLanguage = language == .arabic ? "Arabic" : "English"
         return """
-        You are a focused Spanish-tutor assistant helping a learner understand one specific word. Here is everything already known about it, as JSON: (encoded)
+        You are a focused Spanish-tutor assistant helping a learner understand one specific word. Here is everything already known about it, as JSON: \(encoded)
 
-        Answer only questions about this word: simpler explanations, more examples, register, regional use, differences from similar words, or how to use it in conversation. Reply in (replyLanguage), keep Spanish examples in Spanish, and always gloss any Spanish example with a (replyLanguage) translation. If asked something unrelated to this word, gently steer back to it. Keep replies short and conversational.
+        Answer only questions about this word: simpler explanations, more examples, register, regional use, differences from similar words, or how to use it in conversation. Reply in \(replyLanguage), keep Spanish examples in Spanish, and always gloss any Spanish example with a \(replyLanguage) translation. If asked something unrelated to this word, gently steer back to it. Keep replies short and conversational.
         """
     }
 

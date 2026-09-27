@@ -57,7 +57,7 @@ struct OnboardingView: View {
                 .autocorrectionDisabled()
                 .padding(.horizontal, Theme.Spacing.xl)
             if let keyError {
-                Text(keyError).font(.footnote).foregroundStyle(Theme.error)
+                Text(LocalizedStringKey(keyError)).font(.footnote).foregroundStyle(Theme.error)
             }
             Button {
                 Task { await saveAndFinish() }

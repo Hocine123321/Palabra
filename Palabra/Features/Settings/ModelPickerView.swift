@@ -49,7 +49,7 @@ struct ModelPickerView: View {
         case .loading:
             ProgressView("Loading models…")
         case .failed(let error, _):
-            ErrorBanner(message: error.userMessage, retryTitle: "Retry", onRetry: { Task { await refresh() } })
+            ErrorBanner(message: LocalizedStringKey(error.userMessage), retryTitle: "Retry", onRetry: { Task { await refresh() } })
         default:
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 Text("No models yet.")

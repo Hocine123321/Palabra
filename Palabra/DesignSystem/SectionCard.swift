@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A collapsible glass card used for each of the four word-detail sections.
 struct SectionCard<Content: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
     @State private var isExpanded = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

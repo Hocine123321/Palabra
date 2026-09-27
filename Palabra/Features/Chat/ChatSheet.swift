@@ -110,7 +110,7 @@ private struct MessageBubble: View {
             if message.role == .assistant { Spacer(minLength: 40) }
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 if message.status == .failed {
-                    Text(message.errorText ?? "Something went wrong.")
+                    Text(LocalizedStringKey(message.errorText ?? "Something went wrong. Try again."))
                         .foregroundStyle(Theme.error)
                     Button("Retry", action: onRetry)
                         .font(.caption.weight(.semibold))

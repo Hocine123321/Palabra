@@ -73,4 +73,44 @@
 "The AI response couldn't be read. Try again." = "تعذر قراءة استجابة الذكاء الاصطناعي. حاول مرة أخرى.";
 "The AI response was incomplete. Try again." = "كانت استجابة الذكاء الاصطناعي غير مكتملة. حاول مرة أخرى.";
 "You're offline. Check your connection and try again." = "أنت غير متصل بالإنترنت. تحقق من الاتصال وحاول مرة أخرى.";
-"Your library is empty" = "مكتبتك فارغة";
+
+/* Previously missing static strings (onboarding, settings, model picker). */
+"Palabra uses your own Google AI API key to generate explanations. Get one free at aistudio.google.com." = "يستخدم Palabra مفتاح Google AI API الخاص بك لإنشاء الشروحات. احصل على واحد مجانًا من aistudio.google.com.";
+"Meet a Spanish word, get an AI explanation with examples, forms and similar words, and keep it in your library for good." = "تعرّف على كلمة إسبانية، واحصل على شرح بالذكاء الاصطناعي مع أمثلة وتصريفات وكلمات مشابهة، واحتفظ بها في مكتبتك للأبد.";
+"Remove Key" = "إزالة المفتاح";
+"Delete All" = "حذف الكل";
+"Open Existing" = "فتح الموجودة";
+"Your selected model is no longer available." = "النموذج الذي اخترته لم يعد متاحًا.";
+"Choose a Google AI model in Settings" = "اختر نموذج Google AI من الإعدادات";
+"Edit word" = "تعديل الكلمة";
+"Not selected" = "لم يتم التحديد";
+"Showing the last saved list." = "يتم عرض آخر قائمة محفوظة.";
+
+/* Jump-bar short section labels (Features/WordDetail/WordContentView.swift WordSection). */
+"Forms" = "التصريفات";
+"Similar" = "مشابهة";
+
+/* AIError.userMessage — fixed (non-interpolated) cases only. Cases with
+   embedded runtime values (modelUnavailable, blocked(reason), unknown) are
+   intentionally left in English: by the time they reach the UI they're
+   already a single concatenated String, not a LocalizedStringKey, so a
+   translation table lookup can't substitute the value. */
+"Choose a Google AI model in Settings." = "اختر نموذج Google AI من الإعدادات.";
+"The request took too long. Try again." = "استغرق الطلب وقتًا طويلاً. حاول مرة أخرى.";
+"That API key isn't valid. Check it in Settings." = "مفتاح API هذا غير صالح. تحقق منه في الإعدادات.";
+"Your API key doesn't have permission for this request." = "مفتاح API الخاص بك لا يملك صلاحية لهذا الطلب.";
+"You've hit Google's rate limit. Wait a moment and try again." = "لقد وصلت إلى حد الاستخدام لدى Google. انتظر لحظة وحاول مرة أخرى.";
+"Google's servers had a problem. Try again in a bit." = "واجهت خوادم Google مشكلة. حاول مرة أخرى بعد قليل.";
+"The response was blocked." = "تم حظر الاستجابة.";
+"The response was cut off before it finished. Try again." = "تم قطع الاستجابة قبل اكتمالها. حاول مرة أخرى.";
+"Google didn't return any usable models." = "لم تُرجع Google أي نماذج قابلة للاستخدام.";
+
+/* Dynamic strings interpolated directly inside a Text/confirmationDialog
+   literal — SwiftUI turns these into %@/%lld-style format keys automatically,
+   so the key here must match that generated pattern exactly. */
+"Delete all %lld words? This can't be undone." = "هل تريد حذف كل الكلمات البالغ عددها %lld؟ لا يمكن التراجع عن هذا.";
+"\"%@\" is already in your Library" = "\"%@\" موجودة بالفعل في مكتبتك";
+"Delete \"%@\"?" = "هل تريد حذف \"%@\"؟";
+"No saved words match \"%@\"." = "لا توجد كلمات محفوظة مطابقة لـ \"%@\".";
+"Interpreted as \"%@\"" = "تم تفسيرها على أنها \"%@\"";
+"Updated %@" = "آخر تحديث %@";

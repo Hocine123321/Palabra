@@ -1,9 +1,12 @@
 import SwiftUI
 
 /// Wraps its children onto new lines when they don't fit — used for
-/// translation/similar-word chip rows and form lists.
+/// translation/similar-word chip rows and form lists. Mirrors for RTL: in a
+/// right-to-left environment (Arabic App Language) rows fill from the
+/// trailing edge instead of the leading one.
 struct FlowLayout: Layout {
     var spacing: CGFloat = Theme.Spacing.sm
+    @Environment(\.layoutDirection) private var layoutDirection
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .infinity
@@ -25,17 +28,25 @@ struct FlowLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var origin = bounds.origin
+        let isRTL = layoutDirection == .rightToLeft
+        var origin = CGPoint(x: isRTL ? bounds.maxX : bounds.minX, y: bounds.origin.y)
         var lineHeight: CGFloat = 0
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if origin.x + size.width > bounds.maxX, origin.x > bounds.minX {
-                origin.x = bounds.minX
+            let wouldOverflow = isRTL ? (origin.x - size.width < bounds.minX) : (origin.x + size.width > bounds.maxX)
+            let atLineStart = isRTL ? (origin.x < bounds.maxX) : (origin.x > bounds.minX)
+            if wouldOverflow, atLineStart {
+                origin.x = isRTL ? bounds.maxX : bounds.minX
                 origin.y += lineHeight + spacing
                 lineHeight = 0
             }
-            subview.place(at: origin, proposal: .unspecified)
-            origin.x += size.width + spacing
+            if isRTL {
+                subview.place(at: CGPoint(x: origin.x - size.width, y: origin.y), proposal: .unspecified)
+                origin.x -= size.width + spacing
+            } else {
+                subview.place(at: origin, proposal: .unspecified)
+                origin.x += size.width + spacing
+            }
             lineHeight = max(lineHeight, size.height)
         }
     }

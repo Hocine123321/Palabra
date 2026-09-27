@@ -157,9 +157,12 @@ final class GeminiClientTests: XCTestCase {
             }
             return (200, responseJSON(parts: [["text": sampleContentJSON()]]))
         }
-        let result = await client.generateWord("hablar", apiKey: "key", model: model)
-        guard case .success = result else { return XCTFail("expected success, got \(result)") }
+        let result = await client.generateWord("hablar", apiKey: "key", model: model, language: .arabic)
+        guard case .success(let content) = result else { return XCTFail("expected success, got \(result)") }
         XCTAssertEqual(calls.value, 2)
+        // The fallback (no-schema) path must thread `language` through too, not just the
+        // happy path — this is exactly what a missing argument at the call site would break.
+        XCTAssertEqual(content.contentLanguage, .arabic)
     }
 
     // MARK: - listModels
@@ -199,5 +202,59 @@ final class GeminiClientTests: XCTestCase {
         MockURLProtocol.handler = { [self] _ in (200, responseJSON(parts: [["text": ""]], finishReason: "STOP")) }
         let result = await client.sendChat(apiKey: "key", model: model, word: sampleContent(), history: [], newMessage: "hi")
         XCTAssertEqual(result, .failure(.malformedResponse))
+    }
+
+    // MARK: - Language-aware prompts
+    //
+    // Regression coverage for a prior bug where the system-instruction template
+    // used unescaped "(name)" placeholders instead of Swift's "\(name)"
+    // interpolation, so the learner's language and the chat's word context
+    // were never actually sent to the model.
+
+    private func capturedSystemInstruction(from request: URLRequest?) -> String? {
+        guard let data = request?.httpBody,
+              let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let instruction = body["systemInstruction"] as? [String: Any],
+              let parts = instruction["parts"] as? [[String: Any]] else { return nil }
+        return parts.first?["text"] as? String
+    }
+
+    func testGenerateWordSendsArabicLanguageInstruction() async {
+        let captured = Box<URLRequest?>(nil)
+        MockURLProtocol.handler = { [self] request in
+            captured.value = request
+            return (200, responseJSON(parts: [["text": sampleContentJSON()]]))
+        }
+        _ = await client.generateWord("hablar", apiKey: "key", model: model, language: .arabic)
+        let instruction = capturedSystemInstruction(from: captured.value)
+        XCTAssertEqual(instruction?.contains("explanation language is Arabic"), true)
+        XCTAssertEqual(instruction?.contains("Write every learner-facing explanation"), true)
+        XCTAssertEqual(instruction?.contains("(learnerInstruction)"), false)
+        XCTAssertEqual(instruction?.contains("(language.instructionName)"), false)
+    }
+
+    func testGenerateWordSendsEnglishLanguageInstructionByDefault() async {
+        let captured = Box<URLRequest?>(nil)
+        MockURLProtocol.handler = { [self] request in
+            captured.value = request
+            return (200, responseJSON(parts: [["text": sampleContentJSON()]]))
+        }
+        _ = await client.generateWord("hablar", apiKey: "key", model: model, language: .english)
+        let instruction = capturedSystemInstruction(from: captured.value)
+        XCTAssertEqual(instruction?.contains("explanation language is English"), true)
+    }
+
+    func testSendChatIncludesWordContextJSON() async {
+        let captured = Box<URLRequest?>(nil)
+        MockURLProtocol.handler = { [self] request in
+            captured.value = request
+            return (200, responseJSON(parts: [["text": "reply"]]))
+        }
+        _ = await client.sendChat(apiKey: "key", model: model, word: sampleContent(), history: [], newMessage: "hi", language: .arabic)
+        let instruction = capturedSystemInstruction(from: captured.value)
+        XCTAssertEqual(instruction?.contains("hablar"), true)
+        XCTAssertEqual(instruction?.contains("Reply in Arabic"), true)
+        XCTAssertEqual(instruction?.contains("(encoded)"), false)
+        XCTAssertEqual(instruction?.contains("(replyLanguage)"), false)
     }
 }

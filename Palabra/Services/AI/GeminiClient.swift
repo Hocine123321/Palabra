@@ -51,7 +51,7 @@ final class GeminiClient: AIClient {
         case .failure(let error) where shouldRetryWithoutSchema(error):
             let fallbackBody = ResponseSchema.wordRequestBody(word: input, systemInstruction: Prompts.wordSystemInstructionWithSchemaDescribed(for: language), maxOutputTokens: maxTokens, useSchema: false)
             switch await callGenerate(model: model, apiKey: apiKey, body: fallbackBody, timeout: 60) {
-            case .success(let text): return decodeAndValidate(text)
+            case .success(let text): return decodeAndValidate(text, language: language)
             case .failure(let error2): return .failure(error2)
             }
         case .failure(let error):

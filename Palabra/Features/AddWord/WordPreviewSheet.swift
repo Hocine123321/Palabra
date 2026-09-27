@@ -30,7 +30,7 @@ struct WordPreviewSheet: View {
                     VStack {
                         Spacer()
                         ErrorBanner(
-                            message: error.userMessage,
+                            message: LocalizedStringKey(error.userMessage),
                             retryTitle: error.isRetryable ? "Retry" : nil,
                             onRetry: error.isRetryable ? { Task { await flow.retry() } } : nil,
                             secondaryTitle: "Edit word",
@@ -70,7 +70,7 @@ struct WordPreviewSheet: View {
         return false
     }
 
-    private var saveTitle: String {
+    private var saveTitle: LocalizedStringKey {
         if case .regenerate = flow.mode { return "Replace" }
         return "Save"
     }

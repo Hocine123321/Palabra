@@ -1,6 +1,15 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The result of a library import, kept structured (rather than a
+/// pre-formatted String) so the count-bearing case can still be displayed
+/// with a real, localizable `Text` interpolation.
+private enum ImportResultMessage {
+    case imported(count: Int, skipped: Int)
+    case invalidFile
+    case unreadable
+}
+
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var keyInput = ""
@@ -12,7 +21,7 @@ struct SettingsView: View {
     @State private var showModelPicker = false
     @State private var exportURL: URL?
     @State private var showImporter = false
-    @State private var importResultMessage: String?
+    @State private var importResultMessage: ImportResultMessage?
 
     var body: some View {
         Form {
@@ -24,8 +33,11 @@ struct SettingsView: View {
                     HStack {
                         Text("Model")
                         Spacer()
-                        Text(environment.selectedModel?.displayName ?? "Not selected")
-                            .foregroundStyle(Theme.inkSecondary)
+                        if let name = environment.selectedModel?.displayName {
+                            Text(name).foregroundStyle(Theme.inkSecondary)
+                        } else {
+                            Text("Not selected").foregroundStyle(Theme.inkSecondary)
+                        }
                         if environment.selectedModelID != nil, environment.selectedModel == nil {
                             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.error)
                         }
@@ -85,7 +97,9 @@ struct SettingsView: View {
                     Label("Import Library", systemImage: "square.and.arrow.down")
                 }
                 if let importResultMessage {
-                    Text(importResultMessage).font(.footnote).foregroundStyle(Theme.inkSecondary)
+                    importResultText(importResultMessage)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.inkSecondary)
                 }
                 Button("Delete All Words", role: .destructive) { showDeleteAllConfirm = true }
             }
@@ -122,7 +136,7 @@ struct SettingsView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             if let keyError {
-                Text(keyError).font(.footnote).foregroundStyle(Theme.error)
+                Text(LocalizedStringKey(keyError)).font(.footnote).foregroundStyle(Theme.error)
             }
             Button {
                 Task { await saveKey() }
@@ -162,9 +176,14 @@ struct SettingsView: View {
                 .font(.footnote)
                 .foregroundStyle(Theme.inkSecondary)
         case .failed(let error, let hasCache):
-            Text(hasCache ? "\(error.userMessage) Showing the last saved list." : error.userMessage)
-                .font(.footnote)
-                .foregroundStyle(Theme.error)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(LocalizedStringKey(error.userMessage))
+                if hasCache {
+                    Text("Showing the last saved list.")
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(Theme.error)
         }
     }
 
@@ -193,23 +212,35 @@ struct SettingsView: View {
         return (try? data.write(to: url, options: .atomic)) != nil ? url : nil
     }
 
+    @ViewBuilder
+    private func importResultText(_ result: ImportResultMessage) -> some View {
+        switch result {
+        case .imported(let count, let skipped):
+            Text("Imported \(count), skipped \(skipped).")
+        case .invalidFile:
+            Text("That file isn't a Palabra export.")
+        case .unreadable:
+            Text("Couldn't read that file.")
+        }
+    }
+
     private func handleImport(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else {
-                importResultMessage = "Couldn't read that file."
+                importResultMessage = .unreadable
                 return
             }
             do {
                 let outcome = try environment.repository.importData(data)
-                importResultMessage = "Imported \(outcome.imported), skipped \(outcome.skipped)."
+                importResultMessage = .imported(count: outcome.imported, skipped: outcome.skipped)
             } catch {
-                importResultMessage = "That file isn't a Palabra export."
+                importResultMessage = .invalidFile
             }
         case .failure:
-            importResultMessage = "Couldn't read that file."
+            importResultMessage = .unreadable
         }
     }
 }

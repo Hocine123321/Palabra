@@ -21,6 +21,10 @@ targets:
       path: Config/Info.plist
       properties:
         CFBundleDisplayName: Palabra
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations:
+          - en
+          - ar
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

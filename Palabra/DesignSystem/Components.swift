@@ -1,10 +1,22 @@
 import SwiftUI
 
 struct Chip: View {
-    let text: String
+    private let label: Text
+
+    /// Verbatim text — for AI-generated or user-entered content (a word,
+    /// a part of speech, an example's context tag) that must never be run
+    /// through the localization table.
+    init(text: String) {
+        label = Text(text)
+    }
+
+    /// Localized app-chrome text (e.g. a fixed jump-bar section label).
+    init(titleKey: LocalizedStringKey) {
+        label = Text(titleKey)
+    }
 
     var body: some View {
-        Text(text)
+        label
             .font(.caption.weight(.medium))
             .padding(.horizontal, Theme.Spacing.sm)
             .padding(.vertical, 4)
@@ -16,12 +28,17 @@ struct Chip: View {
 
 /// Readable-reason error card with an optional retry and a second action
 /// (e.g. "Edit word", "Open Settings").
+///
+/// `message` is typed `LocalizedStringKey` (not `String`) so that callers
+/// passing pre-built text — like `AIError.userMessage` — actually get
+/// looked up in Localizable.strings; a plain `String` would render verbatim
+/// and silently ignore the current App Language.
 struct ErrorBanner: View {
-    let message: String
+    let message: LocalizedStringKey
     var systemImage: String = "exclamationmark.triangle"
-    var retryTitle: String? = "Retry"
+    var retryTitle: LocalizedStringKey? = "Retry"
     var onRetry: (() -> Void)?
-    var secondaryTitle: String?
+    var secondaryTitle: LocalizedStringKey?
     var onSecondary: (() -> Void)?
 
     var body: some View {
@@ -48,8 +65,8 @@ struct ErrorBanner: View {
 
 struct EmptyStateView: View {
     let systemImage: String
-    let title: String
-    let message: String
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey
 
     var body: some View {
         VStack(spacing: Theme.Spacing.md) {

@@ -56,7 +56,7 @@ struct WordDetailView: View {
                     Button {
                         withAnimation(Motion.standard) { proxy.scrollTo(section, anchor: .top) }
                     } label: {
-                        Chip(text: section.title)
+                        Chip(titleKey: section.title)
                     }
                 }
             }
