@@ -75,4 +75,25 @@ final class SwiftDataWordRepositoryTests: XCTestCase {
         XCTAssertEqual(secondImport, ImportResult(imported: 0, skipped: 1))
         XCTAssertEqual(freshRepository.allWords().count, 1)
     }
+
+    func testUpdatePronunciationStoresAndClearsAudio() {
+        let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
+        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio)
+
+        let audio = Data([1, 2, 3, 4])
+        repository.updatePronunciation(id: word.id, audio: audio)
+        XCTAssertEqual(repository.find(key: "hablar")?.pronunciationAudio, audio)
+
+        repository.updatePronunciation(id: word.id, audio: nil)
+        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio)
+    }
+
+    func testReplaceContentClearsStalePronunciationAudio() {
+        let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
+        repository.updatePronunciation(id: word.id, audio: Data([9, 9, 9]))
+
+        repository.replaceContent(id: word.id, content: sampleContent(word: "hablar (regenerated)"), rawJSON: Data("new".utf8))
+
+        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio)
+    }
 }

@@ -84,6 +84,18 @@
 "Choose a Google AI model in Settings" = "اختر نموذج Google AI من الإعدادات";
 "Edit word" = "تعديل الكلمة";
 "Not selected" = "لم يتم التحديد";
+
+/* Pronunciation (Gemini TTS) — Settings section, word-detail button, notices. */
+"Pronunciation" = "النطق";
+"Pronunciation Model" = "نموذج النطق";
+"Choose a Pronunciation Model" = "اختر نموذج النطق";
+"Used to generate spoken audio for the words you save." = "يُستخدم لإنشاء الصوت المنطوق للكلمات التي تحفظها.";
+"Hear pronunciation" = "استمع إلى النطق";
+"Play pronunciation" = "تشغيل النطق";
+"Generating pronunciation…" = "جارٍ إنشاء النطق…";
+"Pronunciation unavailable. Tap to retry." = "النطق غير متاح. اضغط لإعادة المحاولة.";
+"Choose a pronunciation model in Settings." = "اختر نموذج النطق من الإعدادات.";
+"Your pronunciation model is no longer available. Choose another in Settings." = "نموذج النطق الذي اخترته لم يعد متاحًا. اختر نموذجًا آخر من الإعدادات.";
 "Showing the last saved list." = "يتم عرض آخر قائمة محفوظة.";
 
 /* Jump-bar short section labels (Features/WordDetail/WordContentView.swift WordSection). */

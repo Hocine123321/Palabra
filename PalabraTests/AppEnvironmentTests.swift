@@ -24,6 +24,7 @@ final class AppEnvironmentTests: XCTestCase {
             ai: StubAIClient(),
             repository: SwiftDataWordRepository(context: ModelContext(container)),
             catalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
+            ttsCatalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             keychain: keychain,
             settings: SettingsStore(defaults: UserDefaults(suiteName: "aenv-\(UUID().uuidString)") ?? .standard)
         )
@@ -51,5 +52,20 @@ final class AppEnvironmentTests: XCTestCase {
         let env = makeEnvironment()
         env.selectedModelID = "models/does-not-exist"
         XCTAssertNil(env.selectedModel)
+    }
+
+    func testSelectedTTSModelResolvesFromCatalogueByID() async {
+        let env = makeEnvironment()
+        let client = MockAIClient()
+        client.listModelsResult = .success([AIModel(id: "models/gemini-2.5-flash-tts", displayName: "Flash TTS", description: nil, inputTokenLimit: nil, outputTokenLimit: nil)])
+        await env.ttsCatalogue.refresh(apiKey: "key", using: client)
+        env.selectedTTSModelID = "models/gemini-2.5-flash-tts"
+        XCTAssertEqual(env.selectedTTSModel?.id, "models/gemini-2.5-flash-tts")
+    }
+
+    func testSelectedTTSModelIsNilWhenSelectionMissingFromCatalogue() {
+        let env = makeEnvironment()
+        env.selectedTTSModelID = "models/does-not-exist-tts"
+        XCTAssertNil(env.selectedTTSModel)
     }
 }

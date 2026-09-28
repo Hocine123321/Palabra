@@ -18,6 +18,12 @@ final class Word {
     var createdAt: Date
     var updatedAt: Date
     var chatData: Data
+    /// Cached pronunciation audio (a complete WAV file) from Gemini TTS, or
+    /// `nil` if it hasn't been generated yet (including for words imported
+    /// from a library export, which never carry audio — see
+    /// `LibraryExporter`). Not exported/imported: it's a local cache of
+    /// something regenerable, not learned content.
+    var pronunciationAudio: Data?
 
     init(spanish: String, key: String, searchKey: String, content: WordContent, rawJSON: Data, createdAt: Date = Date()) {
         id = UUID()
@@ -31,6 +37,7 @@ final class Word {
         self.createdAt = createdAt
         updatedAt = createdAt
         chatData = (try? JSONEncoder().encode([ChatMessage]())) ?? Data()
+        pronunciationAudio = nil
     }
 
     var content: WordContent {

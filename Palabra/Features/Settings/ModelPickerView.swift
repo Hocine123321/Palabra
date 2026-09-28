@@ -1,18 +1,26 @@
 import SwiftUI
 
+/// Lists models from a `ModelCatalogue` and lets the person pick one,
+/// writing the choice into `selection`. Shared by the "Choose a Model" (text
+/// generation) and "Choose a Pronunciation Model" (TTS) screens in
+/// Settings — they differ only in which catalogue and which stored
+/// selection they point at.
 struct ModelPickerView: View {
+    let title: LocalizedStringKey
+    let catalogue: ModelCatalogue
+    @Binding var selection: String?
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             List {
-                if environment.catalogue.models.isEmpty {
+                if catalogue.models.isEmpty {
                     emptyOrLoadingContent
                 } else {
-                    ForEach(environment.catalogue.models) { model in
+                    ForEach(catalogue.models) { model in
                         Button {
-                            environment.selectedModelID = model.id
+                            selection = model.id
                             dismiss()
                         } label: {
                             HStack {
@@ -23,19 +31,19 @@ struct ModelPickerView: View {
                                     }
                                 }
                                 Spacer()
-                                if model.id == environment.selectedModelID {
+                                if model.id == selection {
                                     Image(systemName: "checkmark").foregroundStyle(Theme.accent)
                                 }
                             }
                         }
                     }
-                    if let selected = environment.selectedModelID, !environment.catalogue.models.contains(where: { $0.id == selected }) {
+                    if let selected = selection, !catalogue.models.contains(where: { $0.id == selected }) {
                         Label("Your selected model is no longer available.", systemImage: "exclamationmark.triangle")
                             .foregroundStyle(Theme.error)
                     }
                 }
             }
-            .navigationTitle("Choose a Model")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
@@ -45,7 +53,7 @@ struct ModelPickerView: View {
 
     @ViewBuilder
     private var emptyOrLoadingContent: some View {
-        switch environment.catalogue.status {
+        switch catalogue.status {
         case .loading:
             ProgressView("Loading models…")
         case .failed(let error, _):
@@ -60,6 +68,6 @@ struct ModelPickerView: View {
 
     private func refresh() async {
         guard let apiKey = environment.apiKey else { return }
-        await environment.catalogue.refresh(apiKey: apiKey, using: environment.ai)
+        await catalogue.refresh(apiKey: apiKey, using: environment.ai)
     }
 }

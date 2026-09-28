@@ -24,6 +24,10 @@ enum APIKeyEntry {
         if environment.selectedModelID == nil {
             environment.selectedModelID = DefaultModelPicker.pick(from: environment.catalogue.models)?.id
         }
+        // Also pick a default pronunciation model so spoken audio works
+        // without a trip to Settings. This never affects the outcome below —
+        // key validity is decided by the text catalogue alone.
+        await environment.ensureTTSModelSelected()
 
         if case .failed(let error, _) = environment.catalogue.status {
             return .savedWithWarning(error)

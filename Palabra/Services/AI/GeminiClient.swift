@@ -79,6 +79,35 @@ final class GeminiClient: AIClient {
         }
     }
 
+    func synthesizeSpeech(_ text: String, apiKey: String, model: AIModel) async -> Result<Data, AIError> {
+        let body: [String: Any] = [
+            "contents": [[
+                "role": "user",
+                "parts": [["text": text]]
+            ]],
+            "generationConfig": [
+                "responseModalities": ["AUDIO"],
+                "speechConfig": [
+                    "voiceConfig": [
+                        "prebuiltVoiceConfig": ["voiceName": "Kore"]
+                    ]
+                ]
+            ]
+        ]
+        let url = baseURL.appendingPathComponent("\(model.id):generateContent")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue(apiKey.trimmed, forHTTPHeaderField: "x-goog-api-key")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        switch await perform(request) {
+        case .failure(let error): return .failure(error)
+        case .success(let data): return extractAudio(from: data)
+        }
+    }
+
     // MARK: - Shared plumbing
 
     private func callGenerate(model: AIModel, apiKey: String, body: [String: Any], timeout: TimeInterval) async -> Result<String, AIError> {
@@ -170,6 +199,26 @@ final class GeminiClient: AIClient {
         return .success(text)
     }
 
+    private func extractAudio(from data: Data) -> Result<Data, AIError> {
+        guard let decoded = try? JSONDecoder().decode(GeminiGenerateResponse.self, from: data) else {
+            return .failure(.malformedResponse)
+        }
+        if let blockReason = decoded.promptFeedback?.blockReason {
+            return .failure(.blocked(blockReason))
+        }
+        guard let candidate = decoded.candidates?.first else {
+            return .failure(.malformedResponse)
+        }
+        if candidate.finishReason == "SAFETY" {
+            return .failure(.blocked(candidate.finishReason))
+        }
+        guard let inline = (candidate.content?.parts ?? []).compactMap({ $0.inlineData }).first,
+              let raw = Data(base64Encoded: inline.data) else {
+            return .failure(candidate.finishReason == "MAX_TOKENS" ? .truncated : .malformedResponse)
+        }
+        return .success(WAVAudio.normalize(raw, mimeType: inline.mimeType))
+    }
+
     private func decodeAndValidate(_ text: String, language: SupportedLanguage) -> Result<WordContent, AIError> {
         let cleaned = stripCodeFences(text)
         guard let data = cleaned.data(using: .utf8),
@@ -216,6 +265,11 @@ private struct GeminiGenerateResponse: Decodable {
             struct Part: Decodable {
                 var text: String?
                 var thought: Bool?
+                var inlineData: InlineData?
+            }
+            struct InlineData: Decodable {
+                var mimeType: String?
+                var data: String
             }
             var parts: [Part]?
         }

@@ -41,6 +41,7 @@ final class ChatViewModelTests: XCTestCase {
             ai: client,
             repository: repository,
             catalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
+            ttsCatalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             keychain: keychain,
             settings: SettingsStore(defaults: UserDefaults(suiteName: "chat-\(UUID().uuidString)") ?? .standard)
         )

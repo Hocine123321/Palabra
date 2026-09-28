@@ -15,6 +15,7 @@ protocol WordRepository {
     func insert(spanish: String, key: String, searchKey: String, content: WordContent, rawJSON: Data) -> Word
     func replaceContent(id: UUID, content: WordContent, rawJSON: Data)
     func updateChat(id: UUID, messages: [ChatMessage])
+    func updatePronunciation(id: UUID, audio: Data?)
     func delete(id: UUID)
     func deleteAll()
     func allWords() -> [Word]
@@ -48,12 +49,22 @@ final class SwiftDataWordRepository: WordRepository {
         word.content = content
         word.rawJSON = rawJSON
         word.updatedAt = Date()
+        // The corrected headword can change on regeneration, so any cached
+        // pronunciation would be for the wrong word — clear it and let the
+        // caller re-trigger synthesis for the new content.
+        word.pronunciationAudio = nil
         try? context.save()
     }
 
     func updateChat(id: UUID, messages: [ChatMessage]) {
         guard let word = fetchByID(id) else { return }
         word.chat = messages
+        try? context.save()
+    }
+
+    func updatePronunciation(id: UUID, audio: Data?) {
+        guard let word = fetchByID(id) else { return }
+        word.pronunciationAudio = audio
         try? context.save()
     }
 

@@ -26,6 +26,10 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Word Forms"].exists)
         XCTAssertTrue(app.buttons["Similar Words"].exists)
 
+        // Gemini TTS runs in the background after saving; once the (stubbed)
+        // audio is back, the play button appears next to the headword.
+        XCTAssertTrue(app.buttons["Play pronunciation"].waitForExistence(timeout: 5))
+
         app.buttons["Ask about this word"].tap()
         let chatField = app.textFields["Ask about this word…"]
         XCTAssertTrue(chatField.waitForExistence(timeout: 5))

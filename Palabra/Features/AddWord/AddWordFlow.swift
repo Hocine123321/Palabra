@@ -60,8 +60,10 @@ final class AddWordFlow: Identifiable {
         }
     }
 
-    /// Writes the loaded content through the repository. Returns `nil` if
-    /// there is nothing loaded yet to save.
+    /// Writes the loaded content through the repository, then kicks off
+    /// pronunciation generation in the background (silently, if configured —
+    /// see `AppEnvironment.requestPronunciationIfConfigured`). Returns `nil`
+    /// if there is nothing loaded yet to save.
     @discardableResult
     func save() -> Word? {
         guard case .loaded(let content) = phase else { return nil }
@@ -79,6 +81,10 @@ final class AddWordFlow: Identifiable {
         case .regenerate(let existingID, _):
             environment.repository.replaceContent(id: existingID, content: content, rawJSON: rawData)
         }
-        return environment.repository.find(key: key)
+        let saved = environment.repository.find(key: key)
+        if let saved {
+            environment.requestPronunciationIfConfigured(for: saved)
+        }
+        return saved
     }
 }

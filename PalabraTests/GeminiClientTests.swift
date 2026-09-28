@@ -257,4 +257,75 @@ final class GeminiClientTests: XCTestCase {
         XCTAssertEqual(instruction?.contains("(encoded)"), false)
         XCTAssertEqual(instruction?.contains("(replyLanguage)"), false)
     }
+
+    // MARK: - synthesizeSpeech
+
+    private let ttsModel = AIModel(id: "models/gemini-2.5-flash-tts", displayName: "Gemini 2.5 Flash TTS", description: nil, inputTokenLimit: nil, outputTokenLimit: nil)
+
+    private func requestBody(from request: URLRequest?) -> [String: Any]? {
+        guard let data = request?.httpBody else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    func testSynthesizeSpeechSendsExpectedRequestShape() async {
+        let captured = Box<URLRequest?>(nil)
+        let wav = WAVAudio.wav(fromPCM: Data([1, 2, 3]), sampleRate: 24000, channels: 1, bitsPerSample: 16)
+        MockURLProtocol.handler = { [self] request in
+            captured.value = request
+            return (200, responseJSON(parts: [["inlineData": ["mimeType": "audio/wav", "data": wav.base64EncodedString()]]]))
+        }
+        _ = await client.synthesizeSpeech("hablar", apiKey: "key", model: ttsModel)
+
+        XCTAssertEqual(captured.value?.url?.absoluteString.contains("models/gemini-2.5-flash-tts:generateContent"), true)
+        let body = requestBody(from: captured.value)
+        let contents = body?["contents"] as? [[String: Any]]
+        let parts = contents?.first?["parts"] as? [[String: Any]]
+        XCTAssertEqual(parts?.first?["text"] as? String, "hablar")
+
+        let generationConfig = body?["generationConfig"] as? [String: Any]
+        XCTAssertEqual(generationConfig?["responseModalities"] as? [String], ["AUDIO"])
+        let speechConfig = generationConfig?["speechConfig"] as? [String: Any]
+        let voiceConfig = speechConfig?["voiceConfig"] as? [String: Any]
+        let prebuilt = voiceConfig?["prebuiltVoiceConfig"] as? [String: Any]
+        XCTAssertEqual(prebuilt?["voiceName"] as? String, "Kore")
+    }
+
+    func testSynthesizeSpeechPassesThroughCompleteWAV() async {
+        let wav = WAVAudio.wav(fromPCM: Data([10, 20, 30, 40]), sampleRate: 24000, channels: 1, bitsPerSample: 16)
+        MockURLProtocol.handler = { [self] _ in
+            (200, responseJSON(parts: [["inlineData": ["mimeType": "audio/wav", "data": wav.base64EncodedString()]]]))
+        }
+        let result = await client.synthesizeSpeech("hablar", apiKey: "key", model: ttsModel)
+        guard case .success(let data) = result else { return XCTFail("expected success, got \(result)") }
+        XCTAssertEqual(data, wav)
+    }
+
+    func testSynthesizeSpeechWrapsHeaderlessPCM() async {
+        let pcm = Data(repeating: 0x42, count: 200)
+        MockURLProtocol.handler = { [self] _ in
+            (200, responseJSON(parts: [["inlineData": ["mimeType": "audio/L16;codec=pcm;rate=24000", "data": pcm.base64EncodedString()]]]))
+        }
+        let result = await client.synthesizeSpeech("hablar", apiKey: "key", model: ttsModel)
+        guard case .success(let data) = result else { return XCTFail("expected success, got \(result)") }
+        XCTAssertEqual(data.count, 44 + pcm.count)
+        XCTAssertEqual(Array(data.prefix(4)), Array("RIFF".utf8))
+    }
+
+    func testSynthesizeSpeechFailsWhenNoInlineAudio() async {
+        MockURLProtocol.handler = { [self] _ in (200, responseJSON(parts: [["text": "no audio here"]])) }
+        let result = await client.synthesizeSpeech("hablar", apiKey: "key", model: ttsModel)
+        XCTAssertEqual(result, .failure(.malformedResponse))
+    }
+
+    func testSynthesizeSpeechPropagatesBlockedReason() async {
+        MockURLProtocol.handler = { [self] _ in (200, responseJSON(parts: [["text": "x"]], blockReason: "SAFETY")) }
+        let result = await client.synthesizeSpeech("hablar", apiKey: "key", model: ttsModel)
+        XCTAssertEqual(result, .failure(.blocked("SAFETY")))
+    }
+
+    func testSynthesizeSpeechMapsHTTPErrorsLikeOtherEndpoints() async {
+        MockURLProtocol.handler = { _ in (429, Data()) }
+        let result = await client.synthesizeSpeech("hablar", apiKey: "key", model: ttsModel)
+        XCTAssertEqual(result, .failure(.rateLimited))
+    }
 }

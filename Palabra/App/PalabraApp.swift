@@ -38,15 +38,28 @@ struct PalabraApp: App {
             settings.hasCompletedOnboarding = !arguments.contains("-UITestOnboarding")
 
             let catalogue = ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+            let ttsCatalogue = ModelCatalogue(
+                cacheFileName: "TTSModelCatalogue.json",
+                filter: TTSModelFilter.apply,
+                cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            )
             let env = AppEnvironment(
                 ai: StubAIClient(),
                 repository: SwiftDataWordRepository(context: ModelContext(container)),
                 catalogue: catalogue,
+                ttsCatalogue: ttsCatalogue,
                 keychain: keychain,
                 settings: settings
             )
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id
+                env.selectedTTSModelID = StubAIClient.sampleModels.last?.id
+                // A selected ID only resolves to a model once its catalogue is
+                // populated, so load both from the stub (a ~0.2s delay).
+                Task {
+                    await env.catalogue.refresh(apiKey: "uitest-stub-key", using: env.ai)
+                    await env.ttsCatalogue.refresh(apiKey: "uitest-stub-key", using: env.ai)
+                }
             }
             if let seedIndex = arguments.firstIndex(of: "-UITestSeed"),
                seedIndex + 1 < arguments.count,

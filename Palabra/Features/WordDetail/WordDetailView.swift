@@ -15,7 +15,10 @@ struct WordDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                     jumpBar(proxy: proxy)
-                    WordContentView(content: word.content)
+                    PronunciationNotice(word: word)
+                    WordContentView(content: word.content) {
+                        PronunciationButton(word: word)
+                    }
                 }
                 .padding(Theme.Spacing.md)
             }

@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var showRemoveKeyConfirm = false
     @State private var showDeleteAllConfirm = false
     @State private var showModelPicker = false
+    @State private var showTTSModelPicker = false
     @State private var exportURL: URL?
     @State private var showImporter = false
     @State private var importResultMessage: ImportResultMessage?
@@ -53,7 +54,41 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(!environment.hasAPIKey)
-                catalogueStatusRow
+                catalogueStatusRow(environment.catalogue.status)
+            }
+
+            Section {
+                Button {
+                    showTTSModelPicker = true
+                } label: {
+                    HStack {
+                        Text("Pronunciation Model")
+                        Spacer()
+                        if let name = environment.selectedTTSModel?.displayName {
+                            Text(name).foregroundStyle(Theme.inkSecondary)
+                        } else {
+                            Text("Not selected").foregroundStyle(Theme.inkSecondary)
+                        }
+                        if environment.selectedTTSModelID != nil, environment.selectedTTSModel == nil {
+                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.error)
+                        }
+                    }
+                }
+                Button {
+                    Task { await refreshTTSModels() }
+                } label: {
+                    HStack {
+                        Text("Refresh Models")
+                        Spacer()
+                        if case .loading = environment.ttsCatalogue.status { ProgressView() }
+                    }
+                }
+                .disabled(!environment.hasAPIKey)
+                catalogueStatusRow(environment.ttsCatalogue.status)
+            } header: {
+                Text("Pronunciation")
+            } footer: {
+                Text("Used to generate spoken audio for the words you save.")
             }
 
             Section("Appearance") {
@@ -105,7 +140,20 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
-        .sheet(isPresented: $showModelPicker) { ModelPickerView() }
+        .sheet(isPresented: $showModelPicker) {
+            ModelPickerView(
+                title: "Choose a Model",
+                catalogue: environment.catalogue,
+                selection: Binding(get: { environment.selectedModelID }, set: { environment.selectedModelID = $0 })
+            )
+        }
+        .sheet(isPresented: $showTTSModelPicker) {
+            ModelPickerView(
+                title: "Choose a Pronunciation Model",
+                catalogue: environment.ttsCatalogue,
+                selection: Binding(get: { environment.selectedTTSModelID }, set: { environment.selectedTTSModelID = $0 })
+            )
+        }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json], onCompletion: handleImport)
         .confirmationDialog("Remove your API key?", isPresented: $showRemoveKeyConfirm) {
             Button("Remove", role: .destructive) { environment.removeAPIKey() }
@@ -167,8 +215,8 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private var catalogueStatusRow: some View {
-        switch environment.catalogue.status {
+    private func catalogueStatusRow(_ status: ModelCatalogue.Status) -> some View {
+        switch status {
         case .idle, .loading:
             EmptyView()
         case .loaded(let date):
@@ -203,6 +251,11 @@ struct SettingsView: View {
     private func refreshModels() async {
         guard let apiKey = environment.apiKey else { return }
         await environment.catalogue.refresh(apiKey: apiKey, using: environment.ai)
+    }
+
+    private func refreshTTSModels() async {
+        guard let apiKey = environment.apiKey else { return }
+        await environment.ttsCatalogue.refresh(apiKey: apiKey, using: environment.ai)
     }
 
     private func writeExportFile() -> URL? {

@@ -4,6 +4,12 @@ import Observation
 /// The cached, filtered list of Google AI models. Loads its disk cache once
 /// at launch; `refresh` replaces the cache only on a non-empty success and
 /// otherwise leaves the previous good list in place.
+///
+/// Shared by the text-generation model catalogue and the pronunciation (TTS)
+/// model catalogue: both list the same underlying `models.list` endpoint,
+/// they just keep different models from it (`ModelFilter` vs
+/// `TTSModelFilter`) and cache to different files so the two selections
+/// don't clobber each other.
 @MainActor
 @Observable
 final class ModelCatalogue {
@@ -18,9 +24,15 @@ final class ModelCatalogue {
     private(set) var status: Status = .idle
 
     private let cacheURL: URL
+    private let filter: ([AIModel]) -> [AIModel]
 
-    init(cacheDirectory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]) {
-        cacheURL = cacheDirectory.appendingPathComponent("ModelCatalogue.json")
+    init(
+        cacheFileName: String = "ModelCatalogue.json",
+        filter: @escaping ([AIModel]) -> [AIModel] = ModelFilter.apply,
+        cacheDirectory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    ) {
+        cacheURL = cacheDirectory.appendingPathComponent(cacheFileName)
+        self.filter = filter
     }
 
     struct Snapshot: Codable {
@@ -43,7 +55,7 @@ final class ModelCatalogue {
         case .failure(let error):
             status = .failed(error, hasCache: !models.isEmpty)
         case .success(let raw):
-            let filtered = ModelFilter.apply(raw)
+            let filtered = filter(raw)
             guard !filtered.isEmpty else {
                 status = .failed(.emptyCatalogue, hasCache: !models.isEmpty)
                 return

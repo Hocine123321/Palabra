@@ -24,11 +24,13 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.aiLanguage, .english)
         XCTAssertFalse(store.hasCompletedOnboarding)
         XCTAssertNil(store.selectedModelID)
+        XCTAssertNil(store.selectedTTSModelID)
     }
 
     func testValuesPersistAcrossInstances() {
         let store = SettingsStore(defaults: defaults)
         store.selectedModelID = "models/gemini-2.5-flash"
+        store.selectedTTSModelID = "models/gemini-2.5-flash-tts"
         store.libraryLayout = .list
         store.appearanceMode = .dark
         store.appLanguage = .arabic
@@ -37,6 +39,7 @@ final class SettingsStoreTests: XCTestCase {
 
         let reloaded = SettingsStore(defaults: defaults)
         XCTAssertEqual(reloaded.selectedModelID, "models/gemini-2.5-flash")
+        XCTAssertEqual(reloaded.selectedTTSModelID, "models/gemini-2.5-flash-tts")
         XCTAssertEqual(reloaded.libraryLayout, .list)
         XCTAssertEqual(reloaded.appearanceMode, .dark)
         XCTAssertEqual(reloaded.appLanguage, .arabic)

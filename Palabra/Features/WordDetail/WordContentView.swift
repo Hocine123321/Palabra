@@ -18,16 +18,23 @@ enum WordSection: String, CaseIterable, Identifiable {
 
 /// Renders the four required sections (examples, meaning & usage, forms,
 /// similar words) for a `WordContent`. Shared by the Add-word preview sheet
-/// and the word detail screen.
-struct WordContentView: View {
+/// and the word detail screen. `Accessory` is an optional trailing view next
+/// to the headword — the word detail screen uses it for the pronunciation
+/// button; the preview sheet (before the word is even saved, so there's
+/// nothing to pronounce yet) uses the plain `init(content:)` below instead.
+struct WordContentView<Accessory: View>: View {
     let content: WordContent
+    @ViewBuilder var accessory: () -> Accessory
     @State private var revealedExamples: Set<Int> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-            Text(content.word)
-                .font(Theme.Font.serif(32))
-                .foregroundStyle(Theme.ink)
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
+                Text(content.word)
+                    .font(Theme.Font.serif(32))
+                    .foregroundStyle(Theme.ink)
+                accessory()
+            }
 
             SectionCard(title: "Example Paragraphs", systemImage: "text.quote") {
                 VStack(alignment: .leading, spacing: Theme.Spacing.md) {
@@ -117,5 +124,15 @@ struct WordContentView: View {
     private func formLabel(_ item: WordContent.Forms.FormGroup.FormItem) -> String {
         guard let note = item.note, !note.isEmpty else { return item.form }
         return "\(item.form) (\(note))"
+    }
+}
+
+extension WordContentView where Accessory == EmptyView {
+    /// No trailing accessory next to the headword — used by the Add-word
+    /// preview sheet, where the word isn't saved yet so there's nothing to
+    /// attach a pronunciation button to.
+    init(content: WordContent) {
+        self.content = content
+        self.accessory = { EmptyView() }
     }
 }

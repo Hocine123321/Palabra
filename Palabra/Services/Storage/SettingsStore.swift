@@ -17,6 +17,7 @@ final class SettingsStore {
 
     private enum Keys {
         static let selectedModelID = "selectedModelID"
+        static let selectedTTSModelID = "selectedTTSModelID"
         static let libraryLayout = "libraryLayout"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let appearanceMode = "appearanceMode"
@@ -31,6 +32,11 @@ final class SettingsStore {
     var selectedModelID: String? {
         get { defaults.string(forKey: Keys.selectedModelID) }
         set { defaults.set(newValue, forKey: Keys.selectedModelID) }
+    }
+
+    var selectedTTSModelID: String? {
+        get { defaults.string(forKey: Keys.selectedTTSModelID) }
+        set { defaults.set(newValue, forKey: Keys.selectedTTSModelID) }
     }
 
     var libraryLayout: LibraryLayout {
