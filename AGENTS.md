@@ -8,7 +8,7 @@ A native iPhone (SwiftUI + SwiftData, iOS 17) **study app** powered by the user'
 
 - **Today:** one feature, **Vocabulary** — a library of Spanish words, each with AI-generated examples, meaning, forms, similar words, a follow-up chat and pronunciation audio.
 - **Planned:** a second top-level page (next to the Vocabulary library) that holds AI study tools. It does not exist yet. New tools go in their own folder under `Features/` (see "Adding a feature").
-- **Naming:** the app is still called "Palabra" (display name, Xcode target/module, folder, repo). That is the *old, Spanish* name and a rename is pending. Do not rename the target, module, bundle id or folder piecemeal.
+- **Naming:** the app is called **Palabra** and keeps that name. It is the product name, not a claim that the app is Spanish-only: the Xcode target/module, the `Palabra/` folder, the display name and the bundle id all stay `Palabra`. Do not propose or start a rename.
 
 ## Layout
 
