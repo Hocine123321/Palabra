@@ -1,8 +1,8 @@
 import XCTest
 @testable import Palabra
 
-final class LibraryExporterTests: XCTestCase {
-    private func item(word: String = "hablar") -> LibraryExporter.Item {
+final class VocabularyLibraryExporterTests: XCTestCase {
+    private func item(word: String = "hablar") -> VocabularyLibraryExporter.Item {
         let content = WordContent(
             word: word,
             examples: [
@@ -15,7 +15,7 @@ final class LibraryExporterTests: XCTestCase {
             forms: .init(partOfSpeech: "verb", groups: [.init(label: "Present", items: [.init(form: "hablo", note: nil)])]),
             similarWords: [.init(word: "conversar", difference: "more formal")]
         )
-        return LibraryExporter.Item(
+        return VocabularyLibraryExporter.Item(
             content: content,
             raw: Data("{}".utf8),
             createdAt: Date(timeIntervalSince1970: 1_700_000_000),
@@ -25,8 +25,8 @@ final class LibraryExporterTests: XCTestCase {
     }
 
     func testEncodeDecodeRoundTripsQuotesNewlinesAndEmoji() throws {
-        let data = LibraryExporter.encode(items: [item()])
-        let envelope = try LibraryExporter.decode(data)
+        let data = VocabularyLibraryExporter.encode(items: [item()])
+        let envelope = try VocabularyLibraryExporter.decode(data)
         XCTAssertEqual(envelope.app, "Palabra")
         XCTAssertEqual(envelope.words.first?.content.examples[0].spanish, "Dijo \"hola\".")
         XCTAssertEqual(envelope.words.first?.content.examples[0].english, "He said \"hi\".\nA second line.")
@@ -39,18 +39,18 @@ final class LibraryExporterTests: XCTestCase {
             var app = "Palabra"
             var version = 99
             var exportedAt = Date()
-            var words: [LibraryExporter.Item] = []
+            var words: [VocabularyLibraryExporter.Item] = []
         }
         let data = try! JSONEncoder().encode(BadEnvelope())
-        XCTAssertThrowsError(try LibraryExporter.decode(data)) { error in
-            XCTAssertEqual(error as? LibraryExporter.ExportError, .unsupportedVersion(99))
+        XCTAssertThrowsError(try VocabularyLibraryExporter.decode(data)) { error in
+            XCTAssertEqual(error as? VocabularyLibraryExporter.ExportError, .unsupportedVersion(99))
         }
     }
 
     func testDecodeRejectsMalformedData() {
         let garbage = Data("not json".utf8)
-        XCTAssertThrowsError(try LibraryExporter.decode(garbage)) { error in
-            XCTAssertEqual(error as? LibraryExporter.ExportError, .malformed)
+        XCTAssertThrowsError(try VocabularyLibraryExporter.decode(garbage)) { error in
+            XCTAssertEqual(error as? VocabularyLibraryExporter.ExportError, .malformed)
         }
     }
 }

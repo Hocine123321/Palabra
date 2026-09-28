@@ -11,7 +11,7 @@ explains words in) but shipped broken. Fixed here:
    Any real build (including the repo's own GitHub Actions workflow) would
    have failed outright.
 
-2. **The AI Language setting did nothing.** `Prompts.swift`'s prompt
+2. **The AI Language setting did nothing.** `VocabularyPrompts.swift`'s prompt
    templates used bare `(name)` instead of Swift's `\(name)` string
    interpolation. That's not interpolation at all — it's literal text. So:
    - The instruction telling Gemini which language to explain in was never

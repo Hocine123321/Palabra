@@ -43,13 +43,13 @@ final class GeminiClient: AIClient {
 
     func generateWord(_ input: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<WordContent, AIError> {
         let maxTokens = min(8192, model.outputTokenLimit ?? 8192)
-        let firstBody = ResponseSchema.wordRequestBody(word: input, systemInstruction: Prompts.wordSystemInstruction(for: language), maxOutputTokens: maxTokens, useSchema: true)
+        let firstBody = VocabularyResponseSchema.wordRequestBody(word: input, systemInstruction: VocabularyPrompts.wordSystemInstruction(for: language), maxOutputTokens: maxTokens, useSchema: true)
 
         switch await callGenerate(model: model, apiKey: apiKey, body: firstBody, timeout: 60) {
         case .success(let text):
             return decodeAndValidate(text, language: language)
         case .failure(let error) where shouldRetryWithoutSchema(error):
-            let fallbackBody = ResponseSchema.wordRequestBody(word: input, systemInstruction: Prompts.wordSystemInstructionWithSchemaDescribed(for: language), maxOutputTokens: maxTokens, useSchema: false)
+            let fallbackBody = VocabularyResponseSchema.wordRequestBody(word: input, systemInstruction: VocabularyPrompts.wordSystemInstructionWithSchemaDescribed(for: language), maxOutputTokens: maxTokens, useSchema: false)
             switch await callGenerate(model: model, apiKey: apiKey, body: fallbackBody, timeout: 60) {
             case .success(let text): return decodeAndValidate(text, language: language)
             case .failure(let error2): return .failure(error2)
@@ -66,7 +66,7 @@ final class GeminiClient: AIClient {
         }
         contents.append(["role": "user", "parts": [["text": newMessage]]])
         let body: [String: Any] = [
-            "systemInstruction": ["parts": [["text": Prompts.chatSystemInstruction(for: word, language: language)]]],
+            "systemInstruction": ["parts": [["text": VocabularyPrompts.chatSystemInstruction(for: word, language: language)]]],
             "contents": contents,
             "generationConfig": ["temperature": 0.6, "maxOutputTokens": maxTokens]
         ]

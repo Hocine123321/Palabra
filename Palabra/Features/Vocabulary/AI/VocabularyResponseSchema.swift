@@ -2,7 +2,7 @@ import Foundation
 
 /// The Gemini `responseSchema` (OpenAPI subset) for `WordContent`, and the
 /// request bodies built from it.
-enum ResponseSchema {
+enum VocabularyResponseSchema {
     static let wordContentSchema: [String: Any] = [
         "type": "OBJECT",
         "propertyOrdering": ["word", "examples", "meaning", "usage", "forms", "similarWords"],

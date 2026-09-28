@@ -21,7 +21,7 @@ final class Word {
     /// Cached pronunciation audio (a complete WAV file) from Gemini TTS, or
     /// `nil` if it hasn't been generated yet (including for words imported
     /// from a library export, which never carry audio — see
-    /// `LibraryExporter`). Not exported/imported: it's a local cache of
+    /// `VocabularyLibraryExporter`). Not exported/imported: it's a local cache of
     /// something regenerable, not learned content.
     var pronunciationAudio: Data?
 

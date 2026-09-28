@@ -1,7 +1,7 @@
 import Foundation
 
 /// System instructions sent to Gemini, parameterized by the learner's language.
-enum Prompts {
+enum VocabularyPrompts {
     static func wordSystemInstruction(for language: SupportedLanguage) -> String {
         let learnerInstruction = language == .arabic
             ? "Write every learner-facing explanation, label, translation, usage note, grammar note, and difference in Arabic. Keep the Spanish word, Spanish examples, and Spanish grammatical forms in Spanish."

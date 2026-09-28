@@ -6,7 +6,7 @@ struct RootView: View {
     var body: some View {
         @Bindable var env = environment
         NavigationStack(path: $env.router.path) {
-            LibraryView()
+            VocabularyLibraryView()
                 .navigationDestination(for: Router.Destination.self) { destination in
                     switch destination {
                     case .settings:

@@ -2,7 +2,7 @@ import Foundation
 
 /// Pure JSON envelope for Settings > Data > Export/Import. Kept independent
 /// of SwiftData so it can be unit tested without a `ModelContainer`.
-enum LibraryExporter {
+enum VocabularyLibraryExporter {
     struct Envelope: Codable {
         var app: String
         var version: Int

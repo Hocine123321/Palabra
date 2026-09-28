@@ -1,6 +1,10 @@
 # Palabra
 
-A native iPhone app for learning Spanish vocabulary with Google AI. Enter a word you met at school; the app asks a Google AI model for three example paragraphs, meaning and usage, word forms and similar words, saves it permanently, and lets you ask follow-up questions about it.
+A native iPhone study app powered by Google AI. It is growing from a Spanish-vocabulary app into a general study app; see `AGENTS.md` for the architecture and the rules for changing it.
+
+**Vocabulary** (the current feature): enter a Spanish word; the app asks a Google AI model for three example paragraphs, meaning and usage, word forms and similar words, saves it permanently, lets you ask follow-up questions about it, and can play its pronunciation.
+
+**Planned:** a second page of AI study tools.
 
 ## Build and install (no Mac required)
 
@@ -23,12 +27,15 @@ Some sideload tools rewrite the bundle id; if it changes, the on-device library 
 ## Project layout
 
 ~~~
-Palabra/App          app entry, dependency container, navigation router
-Palabra/Domain       models, validation, keys, pure logic
-Palabra/Services     Google AI client, model catalogue, storage
-Palabra/DesignSystem theme, glass, motion, shared components
-Palabra/Features     onboarding, library, add-word, detail, chat, settings
-PalabraTests         unit tests
-PalabraUITests       UI tests (stubbed AI)
-project.yml          XcodeGen project definition
+Palabra/App                  app entry, dependency container, navigation router
+Palabra/Core                 shared by every feature: AI client, audio, model catalogue, design system, storage
+Palabra/Features/Vocabulary  the Spanish word library (domain, storage, AI prompts, pronunciation, screens)
+Palabra/Features/Settings    app-wide settings and model picker
+Palabra/Features/Onboarding  first-run screen
+PalabraTests                 unit tests (folders mirror Palabra/)
+PalabraUITests               UI tests (stubbed AI)
+docs/features                notes on shipped features
+project.yml                  XcodeGen project definition
 ~~~
+
+See `AGENTS.md` for conventions and for the names that must not change.

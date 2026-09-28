@@ -2,7 +2,7 @@ import XCTest
 
 /// Layout switching, search, and the duplicate-word confirmation dialog,
 /// seeded with `-UITestSeed` so no AI call is needed to populate the library.
-final class LibraryUITests: XCTestCase {
+final class VocabularyLibraryUITests: XCTestCase {
     private func wordElement(_ app: XCUIApplication, _ word: String) -> XCUIElement {
         app.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", word)).firstMatch
     }

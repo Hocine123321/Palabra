@@ -86,13 +86,13 @@ final class SwiftDataWordRepository: WordRepository {
 
     func exportData() -> Data {
         let items = allWords().map {
-            LibraryExporter.Item(content: $0.content, raw: $0.rawJSON, createdAt: $0.createdAt, updatedAt: $0.updatedAt, chat: $0.chat)
+            VocabularyLibraryExporter.Item(content: $0.content, raw: $0.rawJSON, createdAt: $0.createdAt, updatedAt: $0.updatedAt, chat: $0.chat)
         }
-        return LibraryExporter.encode(items: items)
+        return VocabularyLibraryExporter.encode(items: items)
     }
 
     func importData(_ data: Data) throws -> ImportResult {
-        let envelope = try LibraryExporter.decode(data)
+        let envelope = try VocabularyLibraryExporter.decode(data)
         var imported = 0
         var skipped = 0
         for item in envelope.words {

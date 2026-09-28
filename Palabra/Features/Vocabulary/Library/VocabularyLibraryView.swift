@@ -3,7 +3,7 @@ import SwiftData
 
 /// The app's main screen. Reads words live via `@Query`; every write goes
 /// through `environment.repository`.
-struct LibraryView: View {
+struct VocabularyLibraryView: View {
     @Environment(AppEnvironment.self) private var environment
     @Query(sort: \Word.createdAt, order: .reverse) private var words: [Word]
 
