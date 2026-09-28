@@ -82,7 +82,19 @@ jobs:
           xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -only-testing:PalabraTests -resultBundlePath build/unit.xcresult \
-            | tail -n 80
+            | tee build/unit.log | tail -n 80
+      - name: Surface unit-test failures as annotations
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "Unit test errors:"
+            grep -E "error:|Test Case .* failed" build/unit.log | sed 's#/Users/runner/work/Palabra/Palabra/##' | awk '!seen[$0]++' | head -60
+            echo "--- last 15 log lines:"
+            tail -n 15 build/unit.log | sed 's#/Users/runner/work/Palabra/Palabra/##'
+          } > build/unit-errors.txt
+          MSG=$(python3 -c "print(open('build/unit-errors.txt').read().replace('%','%25').replace('\\r','%0D').replace('\\n','%0A'))")
+          echo "::error title=Unit test errors::$MSG"
       - name: UI tests
         if: always()
         continue-on-error: true
