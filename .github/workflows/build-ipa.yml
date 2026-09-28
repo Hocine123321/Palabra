@@ -87,11 +87,13 @@ jobs:
         if: failure()
         shell: bash
         run: |
+          # CoreData/simulator logging is extremely noisy; drop it so real failures show.
+          grep -v 'CoreData:' build/unit.log > build/unit-clean.log || true
           {
-            echo "Unit test errors:"
-            grep -E "error:|Test Case .* failed|Failing tests|TEST FAILED|Crash|crashed|timed out|Executed [0-9]+ tests" build/unit.log | sed 's#/Users/runner/work/Palabra/Palabra/##' | awk '!seen[$0]++' | head -60 || true
-            echo "--- last 30 log lines:"
-            tail -n 30 build/unit.log | sed 's#/Users/runner/work/Palabra/Palabra/##' || true
+            echo "Unit test failures:"
+            grep -E "Test Case .* failed|Failing tests|TEST FAILED|TEST EXECUTE FAILED|Crash|crashed|timed out|Executed [0-9]+ tests|XCTAssert|: error: -\\[|: error: [A-Za-z]+\\." build/unit-clean.log | sed 's#/Users/runner/work/Palabra/Palabra/##' | awk '!seen[$0]++' | head -60 || true
+            echo "--- last 40 log lines (CoreData noise removed):"
+            tail -n 40 build/unit-clean.log | cut -c1-300 | sed 's#/Users/runner/work/Palabra/Palabra/##' || true
           } > build/unit-errors.txt || true
           MSG=$(python3 -c "print(open('build/unit-errors.txt').read().replace('%','%25').replace('\\r','%0D').replace('\\n','%0A'))")
           echo "::error title=Unit test errors::$MSG"
