@@ -28,6 +28,18 @@ jobs:
             -destination 'generic/platform=iOS' -archivePath build/Palabra.xcarchive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             | tee build/archive.log | tail -n 40
+      - name: Surface build errors as annotations
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "xcodebuild errors:"
+            grep -E 'error:' build/archive.log | sed 's#/Users/runner/work/Palabra/Palabra/##' | awk '!seen[$0]++' | head -40
+            echo "--- last 25 log lines:"
+            tail -n 25 build/archive.log | sed 's#/Users/runner/work/Palabra/Palabra/##'
+          } > build/errors.txt
+          MSG=$(python3 -c "print(open('build/errors.txt').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
+          echo "::error title=Archive errors::$MSG"
       - name: Package IPA
         run: |
           rm -rf Payload && mkdir Payload
