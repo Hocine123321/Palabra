@@ -39,6 +39,21 @@ final class StubAIClient: AIClient {
         return .success(Self.sampleAudio())
     }
 
+    func generateJSON(prompt: String, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        return .success("{}")
+    }
+
+    /// Deterministic: even-indexed words go to "Daily life", odd to "Work", with a tag from the part of speech.
+    func organizeWords(_ words: [OrganizerWordInput], existingCategories: [String], settings: OrganizerSettings, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<OrganizerBatchResult, AIError> {
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        if words.contains(where: { $0.word.lowercased() == "fallo" }) { return .failure(.rateLimited) }
+        let entries = words.enumerated().map { index, w in
+            OrganizerBatchResult.Entry(word: w.word, category: index % 2 == 0 ? "Daily life" : "Work", tags: [w.partOfSpeech.isEmpty ? "general" : w.partOfSpeech.lowercased(), "sample"])
+        }
+        return .success(OrganizerBatchResult(entries: entries))
+    }
+
     /// A short, quiet sine-wave tone — enough for previews and UI tests to
     /// exercise real `AVAudioPlayer` playback without a network call.
     static func sampleAudio(sampleRate: Int = 24000, duration: Double = 0.3, frequency: Double = 440) -> Data {

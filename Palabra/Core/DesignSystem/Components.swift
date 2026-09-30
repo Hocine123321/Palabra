@@ -18,11 +18,13 @@ struct Chip: View {
     var body: some View {
         label
             .font(.caption.weight(.medium))
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, Theme.Spacing.sm)
             .padding(.vertical, 4)
-            .background(Theme.surface, in: Capsule())
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .foregroundStyle(Theme.inkSecondary)
-            .overlay(Capsule().strokeBorder(Theme.inkSecondary.opacity(0.15)))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.inkSecondary.opacity(0.15)))
     }
 }
 

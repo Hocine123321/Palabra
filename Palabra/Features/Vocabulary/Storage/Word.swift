@@ -24,6 +24,12 @@ final class Word {
     /// `VocabularyLibraryExporter`). Not exported/imported: it's a local cache of
     /// something regenerable, not learned content.
     var pronunciationAudio: Data?
+    /// Library organization (added in 1.1). Both are optional so existing
+    /// on-device libraries migrate automatically; `nil` means "not organized yet".
+    var category: String?
+    /// JSON-encoded `[String]`. Stored as `Data?` like the other list fields so
+    /// the on-device schema stays simple.
+    var tagsData: Data?
 
     init(spanish: String, key: String, searchKey: String, content: WordContent, rawJSON: Data, createdAt: Date = Date()) {
         id = UUID()
@@ -38,6 +44,13 @@ final class Word {
         updatedAt = createdAt
         chatData = (try? JSONEncoder().encode([ChatMessage]())) ?? Data()
         pronunciationAudio = nil
+        category = nil
+        tagsData = nil
+    }
+
+    var tags: [String] {
+        get { tagsData.flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? [] }
+        set { tagsData = newValue.isEmpty ? nil : (try? JSONEncoder().encode(newValue)) }
     }
 
     var content: WordContent {

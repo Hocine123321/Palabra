@@ -21,12 +21,13 @@ Palabra/
     Catalogue/          model catalogue, model filters, default-model picker, API-key entry
     DesignSystem/       Theme, glass surfaces, motion, shared components
     Localization/       SupportedLanguage (app language / AI language: en, ar)
-    Storage/            KeychainStore (API key), SettingsStore (UserDefaults)
+    Storage/            KeychainStore (API key), SettingsStore (UserDefaults), OrganizerSettings
   Features/
     Onboarding/         first-run screen
     Settings/           settings + model picker (app-wide, not vocabulary-specific)
     Vocabulary/         the Spanish word library
-      Domain/           WordContent, WordKey, ContentValidator, Honeycomb, chat types
+      Domain/           WordContent, WordKey, ContentValidator, Honeycomb, chat types, LibraryOrganization (tag/section cleanup)
+      Organization/     LibraryOrganizer (batch AI re-organize), LibrarySections (grouping/search), sectioned view, organize sheet, organization settings
       Storage/          Word (SwiftData), WordRepository, VocabularyLibraryExporter
       AI/               VocabularyPrompts, VocabularyResponseSchema
       Pronunciation/    PronunciationService, PronunciationButton
@@ -48,7 +49,7 @@ New files under `Palabra/`, `PalabraTests/` and `PalabraUITests/` are picked up 
 
 1. **Dependency direction:** `Features/*` may use `Core/*`. `Core/*` must not use `Features/*`. Features must not use each other's internals.
 2. **Known places where this is not true yet** (deliberate leftovers, fix them when the first non-vocabulary tool needs the same code — do not copy them):
-   - `AIClient` / `GeminiClient` / `StubAIClient` still carry vocabulary-specific methods (`generateWord`, `sendChat`) and use `WordContent`, `ChatMessage`, `ContentValidator`, `VocabularyPrompts`, `VocabularyResponseSchema`. A general tool needs a generic "send this prompt/schema, get JSON or text back" method on the client, with the vocabulary calls built on top of it.
+   - `AIClient` now has a generic `generateJSON(prompt:systemInstruction:schema:...)` for new tools to build on. It still also carries vocabulary-specific methods (`generateWord`, `sendChat`, `organizeWords`) and uses `WordContent`, `ChatMessage`, `ContentValidator`, `VocabularyPrompts`, `VocabularyResponseSchema`. A general tool needs a generic "send this prompt/schema, get JSON or text back" method on the client, with the vocabulary calls built on top of it.
    - `Theme` (tile tints) calls `WordKey.tintIndex`.
    - `SettingsStore.LibraryLayout` is a vocabulary UI setting stored in Core.
    - `AppEnvironment` owns the `WordRepository`, the `PronunciationService` and `requestPronunciationIfConfigured(for: Word)`; `Router.Destination` has a `wordDetail` case; `PalabraApp` builds the SwiftData schema as `[Word.self]`.
@@ -59,8 +60,8 @@ New files under `Palabra/`, `PalabraTests/` and `PalabraUITests/` are picked up 
 Changing any of these silently loses the user's saved words, settings or API key unless you also write a migration and test it:
 
 - Bundle id `dev.palabra.app` and the Keychain service `dev.palabra.app.google`.
-- The SwiftData entity `Word` and its stored property names (`spanish`, `key`, `searchKey`, `contentData`, `rawJSON`, `chatData`, `pronunciationAudio`, ...). Renaming a `@Model` class or stored property changes the on-device schema.
-- UserDefaults keys in `SettingsStore.Keys`.
+- The SwiftData entity `Word` and its stored property names (`spanish`, `key`, `searchKey`, `contentData`, `rawJSON`, `chatData`, `pronunciationAudio`, `category`, `tagsData`, ...). Renaming a `@Model` class or stored property changes the on-device schema.
+- UserDefaults keys in `SettingsStore.Keys` (including `organizerSettings`, a JSON blob that must keep decoding when fields are added; `OrganizerSettings` has a tolerant decoder).
 - The JSON keys inside `WordContent` (including `spanish` / `english` / `translation` on examples) — stored data and Gemini's response schema both use them.
 - The library export envelope (`app: "Palabra"`, `version`) written by `VocabularyLibraryExporter`; old exports must keep importing.
 
@@ -78,6 +79,19 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - When the archive or a unit-test step fails, the workflow prints the compiler / test errors as an annotation on the failed job, so they can be read through the GitHub API without downloading logs.
 - A green `ipa` job means the app compiles; it does not prove the app works on a device. Check behaviour changes with tests.
 - Swift settings: `SWIFT_VERSION 5.0`, `SWIFT_STRICT_CONCURRENCY targeted`.
+
+## Layout safety (learned the hard way)
+
+- A custom `Layout` must never report a size wider than the width it was proposed, and should propose that width to its children (`FlowLayout` does). Otherwise one long AI string stretches the whole screen.
+- Never use AI-supplied strings as `ForEach` identity (`id: \.label`, `id: \.self`): duplicates break the view. Use the enumerated offset.
+- AI output that is displayed must be capped in `ContentValidator` (see the Word Forms limits).
+
+## Library organization
+
+- Each `Word` has an optional `category` (one section) and `tagsData` (JSON `[String]`). `nil` category = not organized yet. Both are excluded from library export on purpose.
+- "Re-organize Library" (`LibraryOrganizer`) works in batches of `batchSize`, writes nothing until every batch succeeds, and sends known section names to later batches so names are reused. Words the AI omits go to "Other".
+- New words are placed by `AppEnvironment.requestOrganizationIfConfigured` (respects `OrganizerSettings.autoOrganizeNewWords`). Regenerating a word keeps its placement.
+- Search matches word, translation, section and tags; `#tag` searches tags only.
 
 ## Adding a feature (for example a study tool)
 

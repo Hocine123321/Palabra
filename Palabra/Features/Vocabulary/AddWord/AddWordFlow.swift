@@ -84,6 +84,8 @@ final class AddWordFlow: Identifiable {
         let saved = environment.repository.find(key: key)
         if let saved {
             environment.requestPronunciationIfConfigured(for: saved)
+            // A regenerated word keeps its existing section and tags.
+            if saved.category == nil { environment.requestOrganizationIfConfigured(for: saved) }
         }
         return saved
     }

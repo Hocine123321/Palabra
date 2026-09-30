@@ -27,6 +27,9 @@ final class AppEnvironment {
     var appearanceMode: SettingsStore.AppearanceMode { didSet { settings.appearanceMode = appearanceMode } }
     var appLanguage: SupportedLanguage { didSet { settings.appLanguage = appLanguage } }
     var aiLanguage: SupportedLanguage { didSet { settings.aiLanguage = aiLanguage } }
+    var organizerSettings: OrganizerSettings { didSet { settings.organizerSettings = organizerSettings } }
+    /// Session-only progress/result of a library re-organization.
+    @ObservationIgnored let organizer = LibraryOrganizer()
     var hasCompletedOnboarding: Bool { didSet { settings.hasCompletedOnboarding = hasCompletedOnboarding } }
 
     init(ai: AIClient, repository: WordRepository, catalogue: ModelCatalogue, ttsCatalogue: ModelCatalogue, keychain: KeychainStore, settings: SettingsStore) {
@@ -43,6 +46,7 @@ final class AppEnvironment {
         appearanceMode = settings.appearanceMode
         appLanguage = settings.appLanguage
         aiLanguage = settings.aiLanguage
+        organizerSettings = settings.organizerSettings
         hasCompletedOnboarding = settings.hasCompletedOnboarding
         catalogue.loadCacheIfPresent()
         ttsCatalogue.loadCacheIfPresent()
@@ -104,6 +108,27 @@ final class AppEnvironment {
             await ensureTTSModelSelected()
             guard selectedTTSModel != nil else { return }
             await pronunciation.generate(for: word, using: self)
+        }
+    }
+
+    /// Best-effort, silent: gives a freshly saved word its section and tags,
+    /// reusing existing section names. Does nothing without a key/model or when
+    /// the user turned auto-organizing off; a failure just leaves the word
+    /// unorganized (the next "Re-organize library" picks it up).
+    func requestOrganizationIfConfigured(for word: Word) {
+        guard organizerSettings.autoOrganizeNewWords, hasAPIKey, let apiKey = self.apiKey, let model = selectedModel else { return }
+        let id = word.id
+        let input = OrganizerWordInput(word: word.spanish, translation: word.translation, partOfSpeech: word.partOfSpeech)
+        let prefs = organizerSettings
+        let language = aiLanguage
+        let existing = Array(Set(repository.allWords().compactMap(\.category))).sorted()
+        Task { [ai, repository] in
+            guard case .success(let result) = await ai.organizeWords([input], existingCategories: existing, settings: prefs, apiKey: apiKey, model: model, language: language),
+                  let entry = result.entries.first else { return }
+            var placement = LibraryTaxonomy.clean(WordPlacement(category: entry.category, tags: entry.tags))
+            placement.category = LibraryTaxonomy.canonicalCategory(placement.category, known: existing)
+            placement.tags = Array(placement.tags.prefix(prefs.maxTagsPerWord))
+            repository.updatePlacement(id: id, category: placement.category, tags: placement.tags)
         }
     }
 

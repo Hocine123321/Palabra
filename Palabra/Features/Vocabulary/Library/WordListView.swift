@@ -3,6 +3,7 @@ import SwiftUI
 /// The Readability Library layout: a conventional scannable list.
 struct WordListView: View {
     let words: [Word]
+    var showTags: Bool = false
     var onSelect: (Word) -> Void
     var onDeleteRequest: (Word) -> Void
 
@@ -24,6 +25,12 @@ struct WordListView: View {
                                     Text(word.translation)
                                         .font(.subheadline)
                                         .foregroundStyle(Theme.inkSecondary)
+                                }
+                                if showTags, !word.tags.isEmpty {
+                                    Text(verbatim: word.tags.map { "#\($0)" }.joined(separator: "  "))
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.accent)
+                                        .lineLimit(2)
                                 }
                             }
                             Spacer()

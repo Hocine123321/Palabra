@@ -3,6 +3,18 @@ import Foundation
 /// Validates and trims a raw AI-decoded `WordContent` before anything is saved.
 /// Nothing reaches the Library unless every rule here passes.
 enum ContentValidator {
+    /// Upper bounds for the "Word Forms" section. Some words (verbs especially)
+    /// make the model return enormous conjugation tables; these keep what is
+    /// stored and rendered to a sane size.
+    static let maxFormGroups = 12
+    static let maxFormsPerGroup = 12
+    static let maxFormLength = 60
+    static let maxNoteLength = 90
+
+    private static func clip(_ s: String, to limit: Int) -> String {
+        s.count <= limit ? s : String(s.prefix(limit - 1)) + "…"
+    }
+
     static func validate(_ raw: WordContent) -> Result<WordContent, AIError> {
         var failed: [String] = []
 
@@ -39,13 +51,14 @@ enum ContentValidator {
         if partOfSpeech.isEmpty { failed.append("forms.partOfSpeech") }
 
         var groups: [WordContent.Forms.FormGroup] = []
-        for group in raw.forms.groups {
+        for group in raw.forms.groups.prefix(maxFormGroups) {
             let label = group.label.trimmed
             let items = group.items
-                .map { WordContent.Forms.FormGroup.FormItem(form: $0.form.trimmed, note: nonEmpty($0.note)) }
+                .map { WordContent.Forms.FormGroup.FormItem(form: clip($0.form.trimmed, to: maxFormLength), note: nonEmpty($0.note).map { clip($0, to: maxNoteLength) }) }
                 .filter { !$0.form.isEmpty }
+                .prefix(maxFormsPerGroup)
             if !label.isEmpty, !items.isEmpty {
-                groups.append(.init(label: label, items: items))
+                groups.append(.init(label: clip(label, to: maxFormLength), items: Array(items)))
             }
         }
         if groups.isEmpty { failed.append("forms.groups") }

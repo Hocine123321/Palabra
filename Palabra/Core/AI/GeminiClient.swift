@@ -108,6 +108,52 @@ final class GeminiClient: AIClient {
         }
     }
 
+    func generateJSON(prompt: String, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
+        let maxTokens = min(8192, model.outputTokenLimit ?? 8192)
+        func body(useSchema: Bool) -> [String: Any] {
+            var config: [String: Any] = ["temperature": temperature, "maxOutputTokens": maxTokens]
+            if useSchema, let schema {
+                config["responseMimeType"] = "application/json"
+                config["responseSchema"] = schema
+            }
+            return [
+                "systemInstruction": ["parts": [["text": systemInstruction]]],
+                "contents": [["role": "user", "parts": [["text": prompt]]]],
+                "generationConfig": config
+            ]
+        }
+        switch await callGenerate(model: model, apiKey: apiKey, body: body(useSchema: true), timeout: 90) {
+        case .success(let text):
+            return .success(stripCodeFences(text))
+        case .failure(let error) where schema != nil && shouldRetryWithoutSchema(error):
+            switch await callGenerate(model: model, apiKey: apiKey, body: body(useSchema: false), timeout: 90) {
+            case .success(let text): return .success(stripCodeFences(text))
+            case .failure(let error2): return .failure(error2)
+            }
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
+    func organizeWords(_ words: [OrganizerWordInput], existingCategories: [String], settings: OrganizerSettings, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<OrganizerBatchResult, AIError> {
+        let input = (try? JSONEncoder().encode(words)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        let result = await generateJSON(
+            prompt: input,
+            systemInstruction: LibraryOrganizerPrompts.systemInstruction(existingCategories: existingCategories, settings: settings, language: language),
+            schema: LibraryOrganizerPrompts.batchSchema,
+            apiKey: apiKey, model: model, temperature: 0.2
+        )
+        switch result {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let text):
+            guard let data = text.data(using: .utf8), let decoded = try? JSONDecoder().decode(OrganizerBatchResult.self, from: data) else {
+                return .failure(.malformedResponse)
+            }
+            return .success(decoded)
+        }
+    }
+
     // MARK: - Shared plumbing
 
     private func callGenerate(model: AIModel, apiKey: String, body: [String: Any], timeout: TimeInterval) async -> Result<String, AIError> {

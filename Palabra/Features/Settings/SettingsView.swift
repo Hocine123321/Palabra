@@ -116,6 +116,7 @@ struct SettingsView: View {
                     Text("Readability").tag(SettingsStore.LibraryLayout.list)
                 }
                 .pickerStyle(.segmented)
+                NavigationLink("Organization") { OrganizationSettingsView() }
             }
 
             Section("Data") {

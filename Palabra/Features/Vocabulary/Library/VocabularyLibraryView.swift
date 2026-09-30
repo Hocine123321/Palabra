@@ -12,24 +12,40 @@ struct VocabularyLibraryView: View {
     @State private var activeFlow: AddWordFlow?
     @State private var duplicateCandidate: Word?
     @State private var pendingDelete: Word?
+    @State private var selectedTag: String?
+    @State private var showOrganizeSheet = false
+    @State private var showOrganizeSettings = false
 
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
             ScrollView {
+                if !words.isEmpty {
+                    TagFilterBar(tags: LibrarySections.tagCounts(words), selected: $selectedTag)
+                        .padding(.top, Theme.Spacing.sm)
+                }
                 if filteredWords.isEmpty {
                     emptyContent.padding(.top, Theme.Spacing.xl)
+                } else if showSections {
+                    SectionedLibraryView(
+                        sections: LibrarySections.group(filteredWords, order: environment.organizerSettings.sectionOrder, unorganizedTitle: "Not organized yet"),
+                        layout: environment.libraryLayout,
+                        showTags: environment.organizerSettings.showTagsInList,
+                        onSelect: open,
+                        onDeleteRequest: { pendingDelete = $0 }
+                    )
+                    .padding(.top, Theme.Spacing.md)
                 } else if environment.libraryLayout == .grid {
                     HoneycombGrid(words: filteredWords, onSelect: open, onDeleteRequest: { pendingDelete = $0 })
                         .padding(.top, Theme.Spacing.md)
                 } else {
-                    WordListView(words: filteredWords, onSelect: open, onDeleteRequest: { pendingDelete = $0 })
+                    WordListView(words: filteredWords, showTags: environment.organizerSettings.showTagsInList, onSelect: open, onDeleteRequest: { pendingDelete = $0 })
                         .padding(.top, Theme.Spacing.md)
                 }
             }
             .safeAreaInset(edge: .bottom) { bottomBar }
         }
-        .searchable(text: $searchText, prompt: "Search your words")
+        .searchable(text: $searchText, prompt: "Search words or #tags")
         .navigationTitle("Library")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -42,12 +58,35 @@ struct VocabularyLibraryView: View {
                 }
                 .accessibilityLabel(environment.libraryLayout == .grid ? "Switch to readability layout" : "Switch to grid layout")
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        showOrganizeSheet = true
+                    } label: {
+                        Label("Re-organize Library", systemImage: "sparkles.rectangle.stack")
+                    }
+                    .disabled(words.isEmpty)
+                    Button {
+                        showOrganizeSettings = true
+                    } label: {
+                        Label("Organization Settings", systemImage: "slider.horizontal.3")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("More options")
+                .accessibilityIdentifier("moreOptionsMenu")
                 Button { environment.router.openSettings() } label: {
                     Image(systemName: "gearshape")
                 }
                 .accessibilityLabel("Settings")
             }
+        }
+        .sheet(isPresented: $showOrganizeSheet) {
+            OrganizeLibrarySheet(wordCount: words.count, unorganizedCount: words.filter { $0.category == nil }.count)
+        }
+        .sheet(isPresented: $showOrganizeSettings) {
+            NavigationStack { OrganizationSettingsView() }
         }
         .sheet(item: $activeFlow) { flow in
             WordPreviewSheet(flow: flow) { saved in
@@ -76,10 +115,16 @@ struct VocabularyLibraryView: View {
         }
     }
 
+    /// Sections only make sense once at least one word has been organized.
+    private var showSections: Bool {
+        environment.organizerSettings.groupIntoSections && words.contains { $0.category != nil }
+    }
+
     private var filteredWords: [Word] {
-        let query = WordKey.search(searchText)
-        guard !query.isEmpty else { return words }
-        return words.filter { $0.searchKey.contains(query) }
+        words.filter { word in
+            LibrarySections.matches(word, query: searchText)
+                && (selectedTag.map { tag in word.tags.contains(tag) } ?? true)
+        }
     }
 
     @ViewBuilder

@@ -81,13 +81,15 @@ struct WordContentView<Accessory: View>: View {
                     Text(content.forms.partOfSpeech.capitalized)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Theme.inkSecondary)
-                    ForEach(content.forms.groups, id: \.label) { group in
+                    ForEach(Array(content.forms.groups.enumerated()), id: \.offset) { _, group in
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                             Text(group.label)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.ink)
+                                .fixedSize(horizontal: false, vertical: true)
                             FlowChips(items: group.items.map(formLabel))
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
@@ -95,7 +97,7 @@ struct WordContentView<Accessory: View>: View {
 
             SectionCard(title: "Similar Words", systemImage: "arrow.triangle.branch") {
                 VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                    ForEach(content.similarWords, id: \.word) { similar in
+                    ForEach(Array(content.similarWords.enumerated()), id: \.offset) { _, similar in
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                             Text(similar.word)
                                 .font(.body.weight(.semibold))

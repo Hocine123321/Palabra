@@ -4,6 +4,8 @@ A native iPhone study app powered by Google AI. It is growing from a Spanish-voc
 
 **Vocabulary** (the current feature): enter a Spanish word; the app asks a Google AI model for three example paragraphs, meaning and usage, word forms and similar words, saves it permanently, lets you ask follow-up questions about it, and can play its pronunciation.
 
+**Library organization:** the AI can group your words into sections and tag them; search by word, meaning, section or `#tag`. See `docs/features/library-organization.md`.
+
 **Planned:** a second page of AI study tools.
 
 ## Build and install (no Mac required)

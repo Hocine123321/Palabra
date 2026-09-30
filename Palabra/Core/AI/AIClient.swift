@@ -10,6 +10,13 @@ protocol AIClient: Sendable {
     /// no `SupportedLanguage`, unlike the explanation-generating methods
     /// above). Returns a complete, playable WAV file.
     func synthesizeSpeech(_ text: String, apiKey: String, model: AIModel) async -> Result<Data, AIError>
+    /// Generic structured call for study tools: sends `prompt` under
+    /// `systemInstruction`, optionally constrained by a Gemini `responseSchema`,
+    /// and returns the raw JSON text. Callers decode and validate it themselves.
+    /// New tools should build on this instead of adding feature-specific methods.
+    func generateJSON(prompt: String, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError>
+    /// Places a batch of saved words into sections and tags them.
+    func organizeWords(_ words: [OrganizerWordInput], existingCategories: [String], settings: OrganizerSettings, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<OrganizerBatchResult, AIError>
 }
 
 extension AIClient {

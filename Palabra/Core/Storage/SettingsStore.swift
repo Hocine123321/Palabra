@@ -23,6 +23,7 @@ final class SettingsStore {
         static let appearanceMode = "appearanceMode"
         static let appLanguage = "appLanguage"
         static let aiLanguage = "aiLanguage"
+        static let organizerSettings = "organizerSettings"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -62,5 +63,14 @@ final class SettingsStore {
     var aiLanguage: SupportedLanguage {
         get { SupportedLanguage(rawValue: defaults.string(forKey: Keys.aiLanguage) ?? "") ?? .english }
         set { defaults.set(newValue.rawValue, forKey: Keys.aiLanguage) }
+    }
+
+    var organizerSettings: OrganizerSettings {
+        get {
+            guard let data = defaults.data(forKey: Keys.organizerSettings),
+                  let value = try? JSONDecoder().decode(OrganizerSettings.self, from: data) else { return .default }
+            return value
+        }
+        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Keys.organizerSettings) }
     }
 }

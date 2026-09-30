@@ -16,6 +16,11 @@ protocol WordRepository {
     func replaceContent(id: UUID, content: WordContent, rawJSON: Data)
     func updateChat(id: UUID, messages: [ChatMessage])
     func updatePronunciation(id: UUID, audio: Data?)
+    /// Sets a word's section and tags. `nil` category clears the placement.
+    func updatePlacement(id: UUID, category: String?, tags: [String])
+    func updatePlacements(_ placements: [UUID: WordPlacement])
+    /// Removes every word's section and tags (words themselves are untouched).
+    func clearAllPlacements()
     func delete(id: UUID)
     func deleteAll()
     func allWords() -> [Word]
@@ -65,6 +70,30 @@ final class SwiftDataWordRepository: WordRepository {
     func updatePronunciation(id: UUID, audio: Data?) {
         guard let word = fetchByID(id) else { return }
         word.pronunciationAudio = audio
+        try? context.save()
+    }
+
+    func updatePlacement(id: UUID, category: String?, tags: [String]) {
+        guard let word = fetchByID(id) else { return }
+        word.category = category
+        word.tags = tags
+        try? context.save()
+    }
+
+    func updatePlacements(_ placements: [UUID: WordPlacement]) {
+        for word in allWords() {
+            guard let placement = placements[word.id] else { continue }
+            word.category = placement.category
+            word.tags = placement.tags
+        }
+        try? context.save()
+    }
+
+    func clearAllPlacements() {
+        for word in allWords() {
+            word.category = nil
+            word.tags = []
+        }
         try? context.save()
     }
 

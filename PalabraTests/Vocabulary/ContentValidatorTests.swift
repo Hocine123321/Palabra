@@ -77,4 +77,30 @@ final class ContentValidatorTests: XCTestCase {
         guard case .success(let content) = ContentValidator.validate(c) else { return XCTFail() }
         XCTAssertEqual(content.similarWords.count, 8)
     }
+
+    func testHugeFormsSectionIsCappedSoTheScreenCannotStretch() {
+        var content = validContent()
+        let longNote = String(repeating: "very long explanatory note ", count: 30)
+        let items = (0..<60).map { WordContent.Forms.FormGroup.FormItem(form: String(repeating: "hablaríamos ", count: 20), note: longNote + "\($0)") }
+        content.forms.groups = (0..<40).map { WordContent.Forms.FormGroup(label: "Group \($0)", items: items) }
+        guard case .success(let cleaned) = ContentValidator.validate(content) else { return XCTFail("should still validate") }
+        XCTAssertLessThanOrEqual(cleaned.forms.groups.count, ContentValidator.maxFormGroups)
+        for group in cleaned.forms.groups {
+            XCTAssertLessThanOrEqual(group.items.count, ContentValidator.maxFormsPerGroup)
+            for item in group.items {
+                XCTAssertLessThanOrEqual(item.form.count, ContentValidator.maxFormLength)
+                XCTAssertLessThanOrEqual(item.note?.count ?? 0, ContentValidator.maxNoteLength)
+            }
+        }
+    }
+
+    func testDuplicateFormLabelsAreKept() {
+        var content = validContent()
+        content.forms.groups = [
+            .init(label: "Present", items: [.init(form: "hablo", note: nil)]),
+            .init(label: "Present", items: [.init(form: "hablas", note: nil)])
+        ]
+        guard case .success(let cleaned) = ContentValidator.validate(content) else { return XCTFail() }
+        XCTAssertEqual(cleaned.forms.groups.count, 2)
+    }
 }
