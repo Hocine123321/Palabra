@@ -6,7 +6,14 @@ import Security
 /// this device.
 struct KeychainStore {
     private let service = "dev.palabra.app.google"
-    private let account = "api-key"
+    /// The primary key keeps the original account name, so an existing install's
+    /// key is still found after updating. The fallback key uses its own slot.
+    private let account: String
+
+    init(account: String = "api-key") { self.account = account }
+
+    /// The backup key the app switches to when the primary one keeps failing.
+    static func fallback() -> KeychainStore { KeychainStore(account: "api-key-fallback") }
 
     func read() -> String? {
         var query = baseQuery()

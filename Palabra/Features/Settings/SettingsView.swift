@@ -58,6 +58,21 @@ struct SettingsView: View {
             }
 
             Section {
+                NavigationLink {
+                    ReliabilitySettingsView()
+                } label: {
+                    HStack {
+                        Text("Reliability")
+                        Spacer()
+                        Text(environment.hasFallbackKey ? "Backup key on" : "No backup key")
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
+                }
+            } footer: {
+                Text("Automatic retries and a backup API key for when your main one fails.")
+            }
+
+            Section {
                 Button {
                     showTTSModelPicker = true
                 } label: {

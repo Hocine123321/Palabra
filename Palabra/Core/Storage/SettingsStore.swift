@@ -24,6 +24,7 @@ final class SettingsStore {
         static let appLanguage = "appLanguage"
         static let aiLanguage = "aiLanguage"
         static let organizerSettings = "organizerSettings"
+        static let retryPolicy = "retryPolicy"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -72,5 +73,14 @@ final class SettingsStore {
             return value
         }
         set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Keys.organizerSettings) }
+    }
+
+    var retryPolicy: RetryPolicy {
+        get {
+            guard let data = defaults.data(forKey: Keys.retryPolicy),
+                  let value = try? JSONDecoder().decode(RetryPolicy.self, from: data) else { return .default }
+            return value
+        }
+        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Keys.retryPolicy) }
     }
 }

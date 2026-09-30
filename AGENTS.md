@@ -86,6 +86,15 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - Never use AI-supplied strings as `ForEach` identity (`id: \.label`, `id: \.self`): duplicates break the view. Use the enumerated offset.
 - AI output that is displayed must be capped in `ContentValidator` (see the Word Forms limits).
 
+## Resilience (retries, backup key, per-error reactions)
+
+- Every screen calls `environment.ai`, which in the live app is a `ResilientAIClient` decorating `GeminiClient`. Do not add retry loops in screens; add a case to `ErrorStrategy` instead.
+- `ErrorStrategy.next` is pure and decides the reaction per error: offline waits for the network (not counted as an attempt), transient errors retry with doubling waits, quota/invalid/denied keys switch to the backup key immediately (waiting never helps), blocked/setup errors stop, everything else asks the person.
+- When automatic tries run out the person picks Try Again, Retry with Longer Waits, or Stop (`ResilienceCenter.ask`, shown by `ResilienceOverlay`). Background work (`environment.backgroundAI`) never asks; its failures appear under Settings > Reliability > Recent Problems.
+- The backup key lives in its own Keychain account (`api-key-fallback`). `KeyHealth` benches a failing key (rate limit 1 min, quota 1 h, rejected 24 h) and prefers the main key again as soon as it recovers.
+- Tests use `AppEnvironment(... resilient: false)` by default, so retries never slow them. Resilience is tested with `ScriptedAIClient` and an injected `sleep`.
+- 429 is two different things: `GeminiClient.isQuotaExhausted` reads the message to tell a per-minute limit (wait) from a spent daily quota (switch key).
+
 ## Library organization
 
 - Each `Word` has an optional `category` (one section) and `tagsData` (JSON `[String]`). `nil` category = not organized yet. Both are excluded from library export on purpose.

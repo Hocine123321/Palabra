@@ -29,7 +29,7 @@ final class PronunciationService {
     /// "no API key" / "no model selected" — so a manual (re)try always gives
     /// clear feedback. Ignored if a request for this word is already in
     /// flight, so a rapid double-tap can't fire two calls at once.
-    func generate(for word: Word, using environment: AppEnvironment) async {
+    func generate(for word: Word, using environment: AppEnvironment, quiet: Bool = false) async {
         guard status(for: word.id) != .loading else { return }
         statuses[word.id] = .loading
 
@@ -42,7 +42,7 @@ final class PronunciationService {
             statuses[word.id] = .failed(environment.selectedTTSModelID == nil ? .noModelSelected : .modelUnavailable(environment.selectedTTSModelID ?? ""))
             return
         }
-        switch await environment.ai.synthesizeSpeech(word.content.word, apiKey: apiKey, model: model) {
+        switch await (quiet ? environment.backgroundAI : environment.ai).synthesizeSpeech(word.content.word, apiKey: apiKey, model: model) {
         case .success(let audio):
             environment.repository.updatePronunciation(id: word.id, audio: audio)
             statuses[word.id] = .idle

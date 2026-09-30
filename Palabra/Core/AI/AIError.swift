@@ -12,6 +12,8 @@ enum AIError: Error, Equatable, Sendable {
     case invalidAPIKey
     case permissionDenied
     case rateLimited
+    /// Daily / billing quota is used up: waiting minutes will not help.
+    case quotaExhausted
     case serverError(Int)
     case blocked(String?)
     case truncated
@@ -32,12 +34,14 @@ enum AIError: Error, Equatable, Sendable {
             return false
         case .offline, .timeout, .rateLimited, .serverError, .truncated, .malformedResponse, .validationFailed, .emptyCatalogue, .unknown:
             return true
+        case .quotaExhausted:
+            return false
         }
     }
 
     var recovery: Recovery? {
         switch self {
-        case .missingAPIKey, .invalidAPIKey, .permissionDenied:
+        case .missingAPIKey, .invalidAPIKey, .permissionDenied, .quotaExhausted:
             return .openSettings
         case .noModelSelected, .modelUnavailable, .emptyCatalogue:
             return .chooseModel
@@ -66,6 +70,8 @@ enum AIError: Error, Equatable, Sendable {
             return "Your API key doesn't have permission for this request."
         case .rateLimited:
             return "You've hit Google's rate limit. Wait a moment and try again."
+        case .quotaExhausted:
+            return "This API key has used up its quota. Add a fallback key in Settings, or try again later."
         case .serverError:
             return "Google's servers had a problem. Try again in a bit."
         case .blocked(let reason):

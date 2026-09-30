@@ -16,6 +16,7 @@ struct RootView: View {
                     }
                 }
         }
+        .overlay(alignment: .top) { ResilienceOverlay() }
         .tint(Theme.accent)
         .preferredColorScheme(environment.appearanceMode.colorScheme)
         .environment(\.locale, environment.appLanguage.locale)

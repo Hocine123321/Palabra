@@ -10,7 +10,15 @@ import Observation
 @MainActor
 @Observable
 final class AppEnvironment {
+    /// What every screen calls. With resilience on (the live app) this is a
+    /// `ResilientAIClient` wrapping `rawAI`; otherwise it is `rawAI` itself.
     let ai: AIClient
+    /// The plain client underneath, without retries.
+    let rawAI: AIClient
+    /// Same as `ai` but never asks the person anything: for silent background work.
+    let backgroundAI: AIClient
+    /// Shared state for retries, key switching and "what should I do?" questions.
+    let resilience = ResilienceCenter()
     let repository: WordRepository
     let catalogue: ModelCatalogue
     let ttsCatalogue: ModelCatalogue
@@ -18,9 +26,13 @@ final class AppEnvironment {
     var router = Router()
 
     private let keychain: KeychainStore
+    private let fallbackKeychain: KeychainStore
     private let settings: SettingsStore
 
     private(set) var hasAPIKey: Bool
+    private(set) var hasFallbackKey: Bool
+    var retryPolicy: RetryPolicy { didSet { settings.retryPolicy = retryPolicy; policyBox.value = retryPolicy } }
+    @ObservationIgnored private let policyBox: PolicyBox
     var selectedModelID: String? { didSet { settings.selectedModelID = selectedModelID } }
     var selectedTTSModelID: String? { didSet { settings.selectedTTSModelID = selectedTTSModelID } }
     var libraryLayout: SettingsStore.LibraryLayout { didSet { settings.libraryLayout = libraryLayout } }
@@ -32,8 +44,41 @@ final class AppEnvironment {
     @ObservationIgnored let organizer = LibraryOrganizer()
     var hasCompletedOnboarding: Bool { didSet { settings.hasCompletedOnboarding = hasCompletedOnboarding } }
 
-    init(ai: AIClient, repository: WordRepository, catalogue: ModelCatalogue, ttsCatalogue: ModelCatalogue, keychain: KeychainStore, settings: SettingsStore) {
-        self.ai = ai
+    init(
+        ai: AIClient,
+        repository: WordRepository,
+        catalogue: ModelCatalogue,
+        ttsCatalogue: ModelCatalogue,
+        keychain: KeychainStore,
+        settings: SettingsStore,
+        fallbackKeychain: KeychainStore = .fallback(),
+        resilient: Bool = false,
+        connectivity: ConnectivityWaiting? = nil,
+        sleep: (@Sendable (TimeInterval) async -> Void)? = nil
+    ) {
+        self.rawAI = ai
+        let policyBox = PolicyBox(settings.retryPolicy)
+        self.policyBox = policyBox
+        let center = resilience
+        if resilient {
+            let fallbackStore = fallbackKeychain
+            let wrapped = ResilientAIClient(
+                base: ai,
+                center: center,
+                fallbackKey: { fallbackStore.read() },
+                policy: { policyBox.value },
+                connectivity: connectivity ?? NetworkMonitor(),
+                sleep: sleep ?? { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
+            )
+            self.ai = wrapped
+            self.backgroundAI = wrapped.quiet()
+        } else {
+            self.ai = ai
+            self.backgroundAI = ai
+        }
+        self.fallbackKeychain = fallbackKeychain
+        hasFallbackKey = fallbackKeychain.read() != nil
+        retryPolicy = settings.retryPolicy
         self.repository = repository
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
@@ -68,12 +113,34 @@ final class AppEnvironment {
     func saveAPIKey(_ value: String) -> Bool {
         let ok = keychain.save(value)
         hasAPIKey = keychain.read() != nil
+        resilience.updateHealth { $0.reset(.primary) }
         return ok
     }
 
     func removeAPIKey() {
         keychain.delete()
         hasAPIKey = false
+        resilience.updateHealth { $0.reset(.primary) }
+    }
+
+    var fallbackAPIKey: String? { fallbackKeychain.read() }
+
+    /// Stores the backup key. Refuses to store the same key as the primary, since
+    /// it would add nothing. Returns false if it could not be saved.
+    @discardableResult
+    func saveFallbackKey(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
+        let ok = fallbackKeychain.save(trimmed)
+        hasFallbackKey = fallbackKeychain.read() != nil
+        resilience.updateHealth { $0.reset(.fallback) }
+        return ok
+    }
+
+    func removeFallbackKey() {
+        fallbackKeychain.delete()
+        hasFallbackKey = false
+        resilience.updateHealth { $0.reset(.fallback) }
     }
 
     /// Makes sure a pronunciation (TTS) model is selected when one is
@@ -107,7 +174,7 @@ final class AppEnvironment {
         Task {
             await ensureTTSModelSelected()
             guard selectedTTSModel != nil else { return }
-            await pronunciation.generate(for: word, using: self)
+            await pronunciation.generate(for: word, using: self, quiet: true)
         }
     }
 
@@ -122,8 +189,9 @@ final class AppEnvironment {
         let prefs = organizerSettings
         let language = aiLanguage
         let existing = Array(Set(repository.allWords().compactMap(\.category))).sorted()
-        Task { [ai, repository] in
-            guard case .success(let result) = await ai.organizeWords([input], existingCategories: existing, settings: prefs, apiKey: apiKey, model: model, language: language),
+        Task { [backgroundAI, repository] in
+            // A failure here is logged by the resilient client itself ("Recent Problems").
+            guard case .success(let result) = await backgroundAI.organizeWords([input], existingCategories: existing, settings: prefs, apiKey: apiKey, model: model, language: language),
                   let entry = result.entries.first else { return }
             var placement = LibraryTaxonomy.clean(WordPlacement(category: entry.category, tags: entry.tags))
             placement.category = LibraryTaxonomy.canonicalCategory(placement.category, known: existing)
@@ -139,7 +207,19 @@ final class AppEnvironment {
             catalogue: ModelCatalogue(),
             ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply),
             keychain: KeychainStore(),
-            settings: SettingsStore()
+            settings: SettingsStore(),
+            resilient: true
         )
+    }
+}
+
+/// A tiny thread-safe holder so the retry client always reads the current policy.
+final class PolicyBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: RetryPolicy
+    init(_ value: RetryPolicy) { stored = value }
+    var value: RetryPolicy {
+        get { lock.lock(); defer { lock.unlock() }; return stored }
+        set { lock.lock(); stored = newValue; lock.unlock() }
     }
 }

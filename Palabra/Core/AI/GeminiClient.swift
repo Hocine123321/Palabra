@@ -207,13 +207,32 @@ final class GeminiClient: AIClient {
             return .unknown(status, message.isEmpty ? "Bad request" : message)
         case 403:
             return .permissionDenied
+        case 404:
+            let lower = message.lowercased()
+            if lower.contains("model") { return .modelUnavailable(Self.modelName(in: message)) }
+            return .unknown(status, message)
         case 429:
-            return .rateLimited
+            return Self.isQuotaExhausted(message) ? .quotaExhausted : .rateLimited
         case 500...599:
             return .serverError(status)
         default:
             return .unknown(status, message)
         }
+    }
+
+    /// Google reports both a per-minute rate limit and a spent daily/billing quota
+    /// as HTTP 429. Only the message tells them apart, and the difference decides
+    /// whether waiting can help at all.
+    static func isQuotaExhausted(_ message: String) -> Bool {
+        let lower = message.lowercased()
+        if lower.contains("per minute") || lower.contains("perminute") || lower.contains("per second") { return false }
+        return lower.contains("per day") || lower.contains("perday") || lower.contains("daily")
+            || lower.contains("billing") || lower.contains("quota exceeded") || lower.contains("exceeded your current quota")
+    }
+
+    static func modelName(in message: String) -> String {
+        guard let range = message.range(of: "models/[A-Za-z0-9._-]+", options: .regularExpression) else { return "" }
+        return String(message[range])
     }
 
     private func shouldRetryWithoutSchema(_ error: AIError) -> Bool {
