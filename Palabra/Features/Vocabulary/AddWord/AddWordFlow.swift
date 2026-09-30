@@ -81,7 +81,14 @@ final class AddWordFlow: Identifiable {
         case .regenerate(let existingID, _):
             environment.repository.replaceContent(id: existingID, content: content, rawJSON: rawData)
         }
-        let saved = environment.repository.find(key: key)
+        // On regenerate the headword may have been corrected, so the new key can differ
+        // from the stored one: find the word by id there, by key for a new word.
+        let saved: Word?
+        if case .regenerate(let existingID, _) = mode {
+            saved = environment.repository.allWords().first { $0.id == existingID }
+        } else {
+            saved = environment.repository.find(key: key)
+        }
         if let saved {
             environment.requestPronunciationIfConfigured(for: saved)
             // A regenerated word keeps its existing section and tags.

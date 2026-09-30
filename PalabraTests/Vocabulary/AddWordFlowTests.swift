@@ -144,6 +144,18 @@ final class AddWordFlowTests: XCTestCase {
         XCTAssertEqual(env.repository.allWords().count, 1)
     }
 
+    func testRegenerateWithCorrectedHeadwordStillReturnsTheWord() async {
+        let (env, client) = makeEnvironment(hasKey: true)
+        await selectFlashModel(env, client)
+        let existing = env.repository.insert(spanish: "aser", key: "aser", searchKey: "aser", content: content(word: "aser"), rawJSON: Data())
+        client.generateWordResult = .success(content(word: "hacer"))
+        let flow = AddWordFlow(inputWord: "aser", mode: .regenerate(existingID: existing.id, existingCreatedAt: existing.createdAt), environment: env)
+        await flow.start()
+        let saved = flow.save()
+        XCTAssertEqual(saved?.id, existing.id, "the word is found by id even though its headword key changed")
+        XCTAssertEqual(saved?.content.word, "hacer")
+    }
+
     func testSaveWhileLoadingReturnsNil() {
         let (env, _) = makeEnvironment(hasKey: true)
         let flow = AddWordFlow(inputWord: "hablar", mode: .new, environment: env)

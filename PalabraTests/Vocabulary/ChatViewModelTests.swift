@@ -36,7 +36,7 @@ final class ChatViewModelTests: XCTestCase {
         )
     }
 
-    private func makeEnvironment(client: MockAIClient) -> AppEnvironment {
+    private func makeEnvironment(client: MockAIClient) async -> AppEnvironment {
         let env = AppEnvironment(
             ai: client,
             repository: repository,
@@ -46,6 +46,9 @@ final class ChatViewModelTests: XCTestCase {
             settings: SettingsStore(defaults: UserDefaults(suiteName: "chat-\(UUID().uuidString)") ?? .standard)
         )
         env.saveAPIKey("test-key")
+        // `selectedModel` only resolves once the catalogue holds that model.
+        client.listModelsResult = .success([AIModel(id: "models/gemini-2.5-flash", displayName: "Flash", description: nil, inputTokenLimit: nil, outputTokenLimit: nil)])
+        await env.catalogue.refresh(apiKey: "test-key", using: client)
         env.selectedModelID = "models/gemini-2.5-flash"
         return env
     }
@@ -53,7 +56,7 @@ final class ChatViewModelTests: XCTestCase {
     func testSendAppendsUserAndAssistantMessagesAndPersists() async {
         let client = MockAIClient()
         client.sendChatResult = .success("¡Claro!")
-        let env = makeEnvironment(client: client)
+        let env = await makeEnvironment(client: client)
         let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: content(), rawJSON: Data())
 
         let viewModel = ChatViewModel(word: word, environment: env)
@@ -68,7 +71,7 @@ final class ChatViewModelTests: XCTestCase {
     func testSendFailureAppendsFailedMessageWithErrorText() async {
         let client = MockAIClient()
         client.sendChatResult = .failure(.rateLimited)
-        let env = makeEnvironment(client: client)
+        let env = await makeEnvironment(client: client)
         let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: content(), rawJSON: Data())
 
         let viewModel = ChatViewModel(word: word, environment: env)
@@ -82,7 +85,7 @@ final class ChatViewModelTests: XCTestCase {
     func testRetryResendsLastUserMessageAndSucceeds() async {
         let client = MockAIClient()
         client.sendChatResult = .failure(.rateLimited)
-        let env = makeEnvironment(client: client)
+        let env = await makeEnvironment(client: client)
         let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: content(), rawJSON: Data())
 
         let viewModel = ChatViewModel(word: word, environment: env)
@@ -102,7 +105,7 @@ final class ChatViewModelTests: XCTestCase {
     func testClearEmptiesMessagesAndPersists() async {
         let client = MockAIClient()
         client.sendChatResult = .success("ok")
-        let env = makeEnvironment(client: client)
+        let env = await makeEnvironment(client: client)
         let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: content(), rawJSON: Data())
 
         let viewModel = ChatViewModel(word: word, environment: env)
@@ -116,7 +119,7 @@ final class ChatViewModelTests: XCTestCase {
 
     func testSendIgnoresBlankDraft() async {
         let client = MockAIClient()
-        let env = makeEnvironment(client: client)
+        let env = await makeEnvironment(client: client)
         let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: content(), rawJSON: Data())
         let viewModel = ChatViewModel(word: word, environment: env)
         viewModel.draft = "   "

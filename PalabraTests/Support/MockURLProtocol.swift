@@ -22,7 +22,7 @@ final class MockURLProtocol: URLProtocol {
             return
         }
         do {
-            let (status, data) = try handler(request)
+            let (status, data) = try handler(Self.withBody(request))
             let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: data)
@@ -33,6 +33,24 @@ final class MockURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+
+    /// URLSession hands protocols the body as `httpBodyStream`, leaving `httpBody`
+    /// nil. Copy it back so tests can inspect what was actually sent.
+    private static func withBody(_ request: URLRequest) -> URLRequest {
+        guard request.httpBody == nil, let stream = request.httpBodyStream else { return request }
+        var copy = request
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let read = stream.read(&buffer, maxLength: buffer.count)
+            if read <= 0 { break }
+            data.append(buffer, count: read)
+        }
+        copy.httpBody = data
+        return copy
+    }
 
     static func session() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
