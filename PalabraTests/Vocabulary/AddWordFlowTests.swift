@@ -25,7 +25,7 @@ final class AddWordFlowTests: XCTestCase {
             ai: client,
             repository: SwiftDataWordRepository(context: ModelContext(container)),
             catalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
-            ttsCatalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
+            ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply, cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             keychain: keychain,
             settings: SettingsStore(defaults: UserDefaults(suiteName: "awf-\(UUID().uuidString)") ?? .standard)
         )

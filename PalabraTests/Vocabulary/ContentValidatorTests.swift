@@ -103,4 +103,11 @@ final class ContentValidatorTests: XCTestCase {
         guard case .success(let cleaned) = ContentValidator.validate(content) else { return XCTFail() }
         XCTAssertEqual(cleaned.forms.groups.count, 2)
     }
+
+    func testValidationPreservesContentLanguage() {
+        var content = validContent()
+        content.contentLanguage = .arabic
+        guard case .success(let cleaned) = ContentValidator.validate(content) else { return XCTFail() }
+        XCTAssertEqual(cleaned.contentLanguage, .arabic)
+    }
 }

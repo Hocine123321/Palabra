@@ -77,7 +77,8 @@ enum ContentValidator {
             meaning: .init(translations: translations, explanation: meaningExplanation),
             usage: .init(explanation: usageExplanation, register: register, nuance: cleanNuance),
             forms: .init(partOfSpeech: partOfSpeech, groups: groups),
-            similarWords: similar
+            similarWords: similar,
+            contentLanguage: raw.contentLanguage
         ))
     }
 

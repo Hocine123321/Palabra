@@ -97,6 +97,18 @@ jobs:
           } > build/unit-errors.txt || true
           MSG=$(python3 -c "print(open('build/unit-errors.txt').read().replace('%','%25').replace('\\r','%0D').replace('\\n','%0A'))")
           echo "::error title=Unit test errors::$MSG"
+      - name: Unit test summary
+        if: always()
+        shell: bash
+        run: |
+          # One line per suite (passed/failed counts), so the result is readable without downloading logs.
+          {
+            echo "## Unit test suites"
+            grep -E "^Test Suite '[A-Za-z]+Tests' (passed|failed)" build/unit.log | sed -E "s/ at [0-9-]+ [0-9:.]+\.?//" | awk '!seen[$0]++'
+            echo "passed cases: $(grep -cE "^Test Case .* passed" build/unit.log)  failed cases: $(grep -cE "^Test Case .* failed" build/unit.log)"
+          } | tee build/unit-summary.txt >> "$GITHUB_STEP_SUMMARY" || true
+          MSG=$(python3 -c "print(open('build/unit-summary.txt').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
+          echo "::notice title=Unit test summary::$MSG"
       - name: UI tests
         if: always()
         continue-on-error: true

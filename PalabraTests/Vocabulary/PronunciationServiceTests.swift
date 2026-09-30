@@ -26,7 +26,7 @@ final class PronunciationServiceTests: XCTestCase {
             ai: ai,
             repository: repository,
             catalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
-            ttsCatalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
+            ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply, cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             keychain: keychain,
             settings: SettingsStore(defaults: UserDefaults(suiteName: "pron-\(UUID().uuidString)") ?? .standard)
         )
