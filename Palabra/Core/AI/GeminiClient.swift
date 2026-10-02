@@ -2,9 +2,19 @@ import Foundation
 
 /// Talks to the Google Generative Language REST API (`v1beta`). The API key
 /// goes only in the `x-goog-api-key` header, never the URL.
-final class GeminiClient: AIClient {
+final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
     private let session: URLSession
     private let baseURL: URL
+    private let hintLock = NSLock()
+    private var lastHint: TimeInterval?
+
+    /// Returns (and clears) the wait Google asked for on the latest rate-limit response.
+    func takeRetryHint() -> TimeInterval? {
+        hintLock.lock(); defer { hintLock.unlock() }
+        let hint = lastHint
+        lastHint = nil
+        return hint
+    }
 
     init(session: URLSession = .shared, baseURL: URL = URL(string: "https://generativelanguage.googleapis.com/v1beta")!) {
         self.session = session
@@ -212,12 +222,22 @@ final class GeminiClient: AIClient {
             if lower.contains("model") { return .modelUnavailable(Self.modelName(in: message)) }
             return .unknown(status, message)
         case 429:
+            if let delay = (try? JSONDecoder().decode(GeminiErrorResponse.self, from: data))?.error?.details?
+                .compactMap({ Self.parseRetryDelay($0.retryDelay) }).first {
+                hintLock.lock(); lastHint = delay; hintLock.unlock()
+            }
             return Self.isQuotaExhausted(message) ? .quotaExhausted : .rateLimited
         case 500...599:
             return .serverError(status)
         default:
             return .unknown(status, message)
         }
+    }
+
+    /// "34s" or "1.5s" (protobuf duration) to seconds. Rejects anything else.
+    static func parseRetryDelay(_ text: String?) -> TimeInterval? {
+        guard let text, text.hasSuffix("s"), let value = Double(text.dropLast()), value >= 0, value.isFinite else { return nil }
+        return value
     }
 
     /// Google reports both a per-minute rate limit and a spent daily/billing quota
@@ -349,10 +369,14 @@ private struct GeminiGenerateResponse: Decodable {
 }
 
 private struct GeminiErrorResponse: Decodable {
+    struct Detail: Decodable {
+        var retryDelay: String?
+    }
     struct ErrorBody: Decodable {
         var code: Int?
         var message: String?
         var status: String?
+        var details: [Detail]?
     }
     var error: ErrorBody?
 }

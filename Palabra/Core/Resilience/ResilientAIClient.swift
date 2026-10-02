@@ -83,10 +83,12 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
         guard policy.autoRetryEnabled else { return await operation(primary) }
 
         var patientRound = 0
+        let requestID = UUID()
+        defer { Task { @MainActor [center] in center.setRetrying(nil, request: requestID) } }
         var lastError: AIError = .unknown(nil, "")
 
         while true {
-            if Task.isCancelled { await center.setRetrying(nil); return .failure(lastError == .unknown(nil, "") ? .timeout : lastError) }
+            if Task.isCancelled { await center.setRetrying(nil, request: requestID); return .failure(lastError == .unknown(nil, "") ? .timeout : lastError) }
             let fallback = fallbackKey()
             let hasFallback = fallback != nil
             let health = await center.health
@@ -94,7 +96,7 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                 // Both keys are benched: nothing to try until one recovers.
                 let error = lastError == .unknown(nil, "") ? AIError.rateLimited : lastError
                 switch await askOrGiveUp(error: error, attempts: 0, what: what, canSwitchKey: false) {
-                case .stop: await finish(what, error, "Stopped"); return .failure(error)
+                case .stop: await finish(what, error, "Stopped", request: requestID); return .failure(error)
                 case .retryNow, .retryPatiently:
                     await center.updateHealth { $0.reset(.primary); $0.reset(.fallback) }
                     continue
@@ -108,26 +110,28 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                 switch result {
                 case .success:
                     await center.updateHealth { $0.recordSuccess(slot) }
-                    await center.setRetrying(nil)
+                    await center.setRetrying(nil, request: requestID)
                     await center.setOffline(false)
                     return result
                 case .failure(let error):
                     lastError = error
                     await center.updateHealth { _ = $0.recordFailure(slot, error: error, now: self.now()) }
                     let usable = slot == .primary && hasFallback
-                    let action = ErrorStrategy.next(after: error, failedAttempts: failedAttempts, policy: policy, hasFallback: usable)
+                    // Honor the wait Google asked for, when it told us one.
+                    let hint = (base as? RetryHintProviding)?.takeRetryHint()
+                    let action = ErrorStrategy.next(after: error, failedAttempts: failedAttempts, policy: policy, hasFallback: usable, serverHint: hint)
                     switch action {
                     case .giveUp:
-                        await finish(what, error, "Not retryable")
+                        await finish(what, error, "Not retryable", request: requestID)
                         return .failure(error)
                     case .waitForNetwork:
                         await center.setOffline(true)
-                        await center.setRetrying(nil)
+                        await center.setRetrying(nil, request: requestID)
                         let back = await connectivity.waitForConnection(timeout: 45)
                         await center.setOffline(false)
                         if !back {
                             switch await askOrGiveUp(error: error, attempts: failedAttempts, what: what, canSwitchKey: false) {
-                            case .stop: await finish(what, error, "Stopped while offline"); return .failure(error)
+                            case .stop: await finish(what, error, "Stopped while offline", request: requestID); return .failure(error)
                             default: continue attemptLoop
                             }
                         }
@@ -136,20 +140,20 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                     case .retry(let after):
                         failedAttempts += 1
                         let total = ErrorStrategy.maxAttempts(for: error, policy: policy)
-                        await countdown(after, error: error, attempt: failedAttempts, of: total, usingFallback: slot == .fallback)
-                        if Task.isCancelled { await center.setRetrying(nil); return .failure(error) }
+                        await countdown(after, request: requestID, error: error, attempt: failedAttempts, of: total, usingFallback: slot == .fallback)
+                        if Task.isCancelled { await center.setRetrying(nil, request: requestID); return .failure(error) }
                         continue attemptLoop
                     case .switchKey:
-                        await center.setRetrying(nil)
+                        await center.setRetrying(nil, request: requestID)
                         await center.record(what: what, error: error, outcome: "Switched to backup key")
                         await center.post("Your main key failed, so the backup key is being used.", warning: true)
                         break attemptLoop   // re-enter outer loop; health now benches the failed key
                     case .askUser:
-                        await center.setRetrying(nil)
+                        await center.setRetrying(nil, request: requestID)
                         let choice = await askOrGiveUp(error: error, attempts: failedAttempts, what: what, canSwitchKey: usable)
                         switch choice {
                         case .stop:
-                            await finish(what, error, "Stopped by you")
+                            await finish(what, error, "Stopped by you", request: requestID)
                             return .failure(error)
                         case .retryNow:
                             failedAttempts = 0
@@ -157,7 +161,7 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                         case .retryPatiently:
                             patientRound += 1
                             let wait = policy.patientDelay(forAttempt: patientRound - 1)
-                            await countdown(wait, error: error, attempt: patientRound, of: patientRound, usingFallback: slot == .fallback)
+                            await countdown(wait, request: requestID, error: error, attempt: patientRound, of: patientRound, usingFallback: slot == .fallback)
                             failedAttempts = 0
                             continue attemptLoop
                         }
@@ -173,20 +177,20 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
         return await center.ask(ResilienceCenter.Decision(error: error, attempts: attempts, canSwitchKey: canSwitchKey, what: what))
     }
 
-    private func finish(_ what: String, _ error: AIError, _ outcome: String) async {
-        await center.setRetrying(nil)
+    private func finish(_ what: String, _ error: AIError, _ outcome: String, request requestID: UUID) async {
+        await center.setRetrying(nil, request: requestID)
         await center.record(what: what, error: error, outcome: outcome, now: now())
     }
 
     /// Waits `seconds`, updating the visible countdown once a second.
-    private func countdown(_ seconds: TimeInterval, error: AIError, attempt: Int, of total: Int, usingFallback: Bool) async {
+    private func countdown(_ seconds: TimeInterval, request requestID: UUID, error: AIError, attempt: Int, of total: Int, usingFallback: Bool) async {
         var left = Int(seconds.rounded(.up))
         while left > 0 {
-            await center.setRetrying(.init(reason: error, attempt: attempt, of: total, secondsLeft: left, usingFallbackKey: usingFallback))
+            await center.setRetrying(.init(reason: error, attempt: attempt, of: total, secondsLeft: left, usingFallbackKey: usingFallback), request: requestID)
             await sleep(1)
             if Task.isCancelled { return }
             left -= 1
         }
-        await center.setRetrying(.init(reason: error, attempt: attempt, of: total, secondsLeft: 0, usingFallbackKey: usingFallback))
+        await center.setRetrying(.init(reason: error, attempt: attempt, of: total, secondsLeft: 0, usingFallbackKey: usingFallback), request: requestID)
     }
 }

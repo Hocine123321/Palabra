@@ -99,6 +99,20 @@ final class AppEnvironment {
 
     var apiKey: String? { keychain.read() }
 
+    /// Called when Google says the selected model no longer exists. Refreshes the list and
+    /// switches to the best remaining model so the next request works, and says so.
+    /// Returns the new model's name, or nil when nothing better is available.
+    @discardableResult
+    func repairMissingModel(isTTS: Bool = false) async -> String? {
+        guard let key = apiKey else { return nil }
+        let target = isTTS ? ttsCatalogue : catalogue
+        await target.refresh(apiKey: key, using: rawAI)
+        guard let pick = DefaultModelPicker.pick(from: target.models) else { return nil }
+        if isTTS { selectedTTSModelID = pick.id } else { selectedModelID = pick.id }
+        resilience.post("Your model was removed, so I switched to \(pick.displayName).", warning: false)
+        return pick.displayName
+    }
+
     var selectedModel: AIModel? {
         guard let id = selectedModelID else { return nil }
         return catalogue.models.first { $0.id == id }

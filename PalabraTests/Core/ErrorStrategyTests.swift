@@ -99,4 +99,13 @@ final class ErrorStrategyTests: XCTestCase {
         XCTAssertFalse(AIError.quotaExhausted.canBenefitFromWaiting, "waiting never refills a spent quota")
         XCTAssertTrue(AIError.serverError(503).canBenefitFromWaiting)
     }
+
+    func testRetryDelayIsParsedFromGoogleDurations() {
+        XCTAssertEqual(GeminiClient.parseRetryDelay("34s"), 34)
+        XCTAssertEqual(GeminiClient.parseRetryDelay("1.5s"), 1.5)
+        XCTAssertNil(GeminiClient.parseRetryDelay("soon"))
+        XCTAssertNil(GeminiClient.parseRetryDelay("-3s"))
+        XCTAssertNil(GeminiClient.parseRetryDelay("nans"))
+        XCTAssertNil(GeminiClient.parseRetryDelay(nil))
+    }
 }

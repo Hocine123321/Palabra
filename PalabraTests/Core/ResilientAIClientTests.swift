@@ -192,6 +192,31 @@ final class ResilientAIClientTests: XCTestCase {
         XCTAssertNil(center.pendingDecision)
     }
 
+    func testConcurrentRetriesDoNotEraseEachOthersStatus() {
+        let center = ResilienceCenter()
+        let a = UUID(), b = UUID()
+        center.setRetrying(.init(reason: .timeout, attempt: 1, of: 3, secondsLeft: 10, usingFallbackKey: false), request: a)
+        center.setRetrying(.init(reason: .timeout, attempt: 1, of: 3, secondsLeft: 2, usingFallbackKey: false), request: b)
+        XCTAssertEqual(center.retrying?.secondsLeft, 10, "shows the longest wait")
+        center.setRetrying(nil, request: a)
+        XCTAssertEqual(center.retrying?.secondsLeft, 2, "the other request's status survives")
+        center.setRetrying(nil, request: b)
+        XCTAssertNil(center.retrying)
+    }
+
+    func testCancelledRequestLeavesTheQuestionAndClearsTheCard() async {
+        let center = ResilienceCenter()
+        let decision = ResilienceCenter.Decision(error: .rateLimited, attempts: 3, canSwitchKey: false, what: "x")
+        let task = Task { await center.ask(decision) }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertNotNil(center.pendingDecision)
+        task.cancel()
+        let result = await task.value
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(result, .stop)
+        XCTAssertNil(center.pendingDecision, "no card is left on screen for a request that is gone")
+    }
+
     func testLogKeepsOnlyRecentEntriesNewestFirst() {
         let center = ResilienceCenter()
         for i in 0..<(ResilienceCenter.maxLogEntries + 5) { center.record(what: "n\(i)", error: .timeout, outcome: "o") }

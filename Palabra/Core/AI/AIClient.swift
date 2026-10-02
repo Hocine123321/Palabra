@@ -19,6 +19,12 @@ protocol AIClient: Sendable {
     func organizeWords(_ words: [OrganizerWordInput], existingCategories: [String], settings: OrganizerSettings, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<OrganizerBatchResult, AIError>
 }
 
+/// Optional: a client that can tell how long the server asked us to wait after a rate limit.
+protocol RetryHintProviding: Sendable {
+    /// Seconds Google asked us to wait after the most recent rate-limit response, if any.
+    func takeRetryHint() -> TimeInterval?
+}
+
 extension AIClient {
     func generateWord(_ input: String, apiKey: String, model: AIModel) async -> Result<WordContent, AIError> {
         await generateWord(input, apiKey: apiKey, model: model, language: .english)

@@ -39,7 +39,12 @@ final class ResilienceCenter {
         var isWarning: Bool
     }
 
-    private(set) var retrying: Retrying?
+    /// Each in-flight request reports its own retry, so concurrent requests can't erase
+    /// each other's status. The UI shows the one with the longest wait left.
+    private(set) var retryingByRequest: [UUID: Retrying] = [:]
+    var retrying: Retrying? {
+        retryingByRequest.values.max { $0.secondsLeft < $1.secondsLeft }
+    }
     private(set) var pendingDecision: Decision?
     private(set) var notice: Notice?
     private(set) var isOffline = false
@@ -58,13 +63,15 @@ final class ResilienceCenter {
     }
 
     /// Every request currently waiting on the person. All get the same answer.
-    @ObservationIgnored private var waiters: [CheckedContinuation<RetryDecision, Never>] = []
+    @ObservationIgnored private var waiters: [UUID: CheckedContinuation<RetryDecision, Never>] = [:]
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
     static let maxLogEntries = 30
 
     // MARK: state the client reports
 
-    func setRetrying(_ value: Retrying?) { retrying = value }
+    func setRetrying(_ value: Retrying?, request: UUID) {
+        if let value { retryingByRequest[request] = value } else { retryingByRequest[request] = nil }
+    }
     func setOffline(_ value: Bool) { isOffline = value }
     func updateHealth(_ transform: (inout KeyHealth) -> Void) {
         transform(&health)
@@ -96,15 +103,28 @@ final class ResilienceCenter {
     /// Suspends the calling request until the person answers. Only one question is shown at
     /// a time; concurrent requests join it and all receive the same answer.
     func ask(_ decision: Decision) async -> RetryDecision {
+        if Task.isCancelled { return .stop }
         if pendingDecision == nil { pendingDecision = decision }
-        return await withCheckedContinuation { (c: CheckedContinuation<RetryDecision, Never>) in
-            waiters.append(c)
+        let waiterID = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (c: CheckedContinuation<RetryDecision, Never>) in
+                waiters[waiterID] = c
+            }
+        } onCancel: {
+            // The screen that asked went away: stop waiting, and drop the card if nobody else needs it.
+            Task { @MainActor [weak self] in self?.abandon(waiterID) }
         }
     }
 
+    private func abandon(_ id: UUID) {
+        guard let c = waiters.removeValue(forKey: id) else { return }
+        c.resume(returning: .stop)
+        if waiters.isEmpty { pendingDecision = nil }
+    }
+
     func answer(_ choice: RetryDecision) {
-        let all = waiters
-        waiters = []
+        let all = waiters.values
+        waiters = [:]
         pendingDecision = nil
         for c in all { c.resume(returning: choice) }
     }

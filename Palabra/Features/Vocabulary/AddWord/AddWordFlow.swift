@@ -42,12 +42,17 @@ final class AddWordFlow: Identifiable {
         await generate()
     }
 
-    private func generate() async {
+    private func generate(repairedModel: Bool = false) async {
         guard environment.hasAPIKey, let apiKey = environment.apiKey else {
             phase = .failed(.missingAPIKey)
             return
         }
         guard let model = environment.selectedModel else {
+            // A saved selection that no longer exists in the catalogue: try to repair it once.
+            if environment.selectedModelID != nil, !repairedModel, await environment.repairMissingModel() != nil {
+                await generate(repairedModel: true)
+                return
+            }
             phase = .failed(environment.selectedModelID == nil ? .noModelSelected : .modelUnavailable(environment.selectedModelID ?? ""))
             return
         }
@@ -57,6 +62,10 @@ final class AddWordFlow: Identifiable {
             phase = .loaded(content)
         case .failure(let error):
             phase = .failed(error)
+            // Repair at most once per request, so a second missing model can't loop.
+            if case .modelUnavailable = error, !repairedModel, await environment.repairMissingModel() != nil {
+                await generate(repairedModel: true)
+            }
         }
     }
 

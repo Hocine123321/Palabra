@@ -61,6 +61,8 @@ final class ChatViewModel {
             messages.append(ChatMessage(role: .assistant, text: text))
         case .failure(let error):
             appendFailure(error)
+            // The failed message keeps a Retry button; fix the selection so that retry works.
+            if case .modelUnavailable = error { await environment.repairMissingModel() }
         }
         persist()
     }
