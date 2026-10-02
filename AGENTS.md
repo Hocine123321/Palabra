@@ -86,6 +86,12 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - Never use AI-supplied strings as `ForEach` identity (`id: \.label`, `id: \.self`): duplicates break the view. Use the enumerated offset.
 - AI output that is displayed must be capped in `ContentValidator` (see the Word Forms limits).
 
+## Branch workflow
+
+- All work happens on the `BETA` branch. Never commit directly to `main`.
+- When a piece of work is done and CI is green (the `ipa` build and all unit tests), open a pull request from `BETA` to `main`, then keep working on `BETA`.
+- Dispatch CI with the `build-ipa.yml` workflow on `BETA`.
+
 ## Resilience (retries, backup key, per-error reactions)
 
 - Every screen calls `environment.ai`, which in the live app is a `ResilientAIClient` decorating `GeminiClient`. Do not add retry loops in screens; add a case to `ErrorStrategy` instead.
