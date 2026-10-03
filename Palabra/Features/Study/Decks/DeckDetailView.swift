@@ -25,20 +25,24 @@ struct DeckDetailView: View {
                 .disabled(rows.isEmpty)
                 .accessibilityIdentifier("reviewDeckButton")
             }
+            .themedSection()
             Section {
                 ForEach(rows) { row in
                     VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        Text(verbatim: row.front).font(.headline)
+                        Text(verbatim: row.front).font(Theme.Font.rowTitle)
                         Text(verbatim: row.back).font(.subheadline).foregroundStyle(Theme.inkSecondary)
                     }
                 }
             }
+            .themedSection()
             if kind == .user {
                 Section {
                     Button("Delete Deck", role: .destructive) { showDeleteConfirm = true }
                 }
+                .themedSection()
             }
         }
+        .creamScreen()
         .navigationTitle(kind == .vocabulary ? Text("Vocabulary") : Text(verbatim: name))
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Delete this deck?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {

@@ -5,14 +5,13 @@ struct SectionCard<Content: View>: View {
     let title: LocalizedStringKey
     let systemImage: String
     @State private var isExpanded = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ViewBuilder var content: Content
 
     var body: some View {
         GlassSurface {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                 Button {
-                    withAnimation(Motion.respecting(Motion.standard, reduceMotion: reduceMotion)) { isExpanded.toggle() }
+                    Motion.animate(Motion.standard) { isExpanded.toggle() }
                 } label: {
                     HStack {
                         Label(title, systemImage: systemImage)

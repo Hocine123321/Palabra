@@ -26,9 +26,9 @@ struct ResilienceOverlay: View {
         .frame(maxWidth: .infinity, alignment: .top)
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.sm)
-        .animation(Motion.standard, value: center.pendingDecision?.id)
-        .animation(Motion.quick, value: center.retrying)
-        .animation(Motion.quick, value: center.isOffline)
+        .animation(Motion.reduced(Motion.standard), value: center.pendingDecision?.id)
+        .animation(Motion.reduced(Motion.quick), value: center.retrying)
+        .animation(Motion.reduced(Motion.quick), value: center.isOffline)
     }
 
     private func retryText(_ r: ResilienceCenter.Retrying) -> LocalizedStringKey {
@@ -75,7 +75,7 @@ private struct DecisionCard: View {
             VStack(spacing: Theme.Spacing.sm) {
                 if decision.error.canBenefitFromWaiting {
                     Button { onChoose(.retryNow) } label: { Text("Try Again").frame(maxWidth: .infinity) }
-                        .buttonStyle(.borderedProminent).tint(Theme.accent)
+                        .buttonStyle(.borderedProminent)
                     Button { onChoose(.retryPatiently) } label: { Text("Retry with Longer Waits").frame(maxWidth: .infinity) }
                         .buttonStyle(.bordered)
                 } else {

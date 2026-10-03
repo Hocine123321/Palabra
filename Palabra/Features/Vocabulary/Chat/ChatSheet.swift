@@ -63,7 +63,7 @@ private struct ChatBody: View {
                 }
                 .onChange(of: viewModel.messages.count) {
                     if let last = viewModel.messages.last {
-                        withAnimation(Motion.quick) { proxy.scrollTo(last.id, anchor: .bottom) }
+                        Motion.animate(Motion.quick) { proxy.scrollTo(last.id, anchor: .bottom) }
                     }
                 }
             }
@@ -129,7 +129,7 @@ private struct MessageBubble: View {
                     Rectangle().fill(.ultraThinMaterial)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
             if message.role == .user { Spacer(minLength: 40) }
         }
         .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -146,7 +146,7 @@ private struct TypingIndicator: View {
                     .fill(Theme.inkSecondary)
                     .frame(width: 6, height: 6)
                     .scaleEffect(animate ? 1 : 0.5)
-                    .animation(.easeInOut(duration: 0.5).repeatForever().delay(Double(i) * 0.15), value: animate)
+                    .animation(Motion.reduced(.easeInOut(duration: 0.5).repeatForever().delay(Double(i) * 0.15)), value: animate)
             }
         }
         .padding(Theme.Spacing.sm)

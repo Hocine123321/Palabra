@@ -21,12 +21,14 @@ struct OrganizationSettingsView: View {
             } header: {
                 Text("Appearance")
             }
+            .themedSection()
 
             Section {
                 Toggle("Organize New Words Automatically", isOn: $env.organizerSettings.autoOrganizeNewWords)
             } footer: {
                 Text("When on, each word you save gets a section and tags right away. It costs one small extra request per word.")
             }
+            .themedSection()
 
             Section {
                 Picker("Number of Sections", selection: $env.organizerSettings.granularity) {
@@ -40,6 +42,7 @@ struct OrganizationSettingsView: View {
             } footer: {
                 Text("Applies the next time you re-organize, and to new words.")
             }
+            .themedSection()
 
             Section {
                 TextField("For example: group by topic, not part of speech", text: $env.organizerSettings.customInstructions, axis: .vertical)
@@ -49,13 +52,16 @@ struct OrganizationSettingsView: View {
             } footer: {
                 Text("Optional. Guides how the AI names and groups sections.")
             }
+            .themedSection()
 
             Section {
                 Button("Remove All Sections and Tags", role: .destructive) { showClearConfirm = true }
             } footer: {
                 Text("Your words are kept. You can organize again at any time.")
             }
+            .themedSection()
         }
+        .creamScreen()
         .navigationTitle("Organization")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

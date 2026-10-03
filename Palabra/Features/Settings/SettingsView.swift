@@ -56,6 +56,7 @@ struct SettingsView: View {
                 .disabled(!environment.hasAPIKey)
                 catalogueStatusRow(environment.catalogue.status)
             }
+            .themedSection()
 
             Section {
                 NavigationLink {
@@ -71,6 +72,7 @@ struct SettingsView: View {
             } footer: {
                 Text("Automatic retries and a backup API key for when your main one fails.")
             }
+            .themedSection()
 
             Section {
                 Button {
@@ -105,6 +107,7 @@ struct SettingsView: View {
             } footer: {
                 Text("Used to generate spoken audio for the words you save.")
             }
+            .themedSection()
 
             Section("Appearance") {
                 Picker("Theme", selection: appearanceBinding) {
@@ -113,6 +116,7 @@ struct SettingsView: View {
                     Text("Dark").tag(SettingsStore.AppearanceMode.dark)
                 }
             }
+            .themedSection()
 
             Section("Language") {
                 Picker("App Language", selection: appLanguageBinding) {
@@ -124,6 +128,7 @@ struct SettingsView: View {
                     Text("Arabic").tag(SupportedLanguage.arabic)
                 }
             }
+            .themedSection()
 
             Section("Library") {
                 Picker("Layout", selection: layoutBinding) {
@@ -133,12 +138,14 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 NavigationLink("Organization") { OrganizationSettingsView() }
             }
+            .themedSection()
 
             Section("Study") {
                 Stepper(value: newCardsBinding, in: 0...100, step: 5) {
                     Text("New cards per day: \(environment.newCardsPerDay)")
                 }
             }
+            .themedSection()
 
             Section("Data") {
                 if let exportURL {
@@ -160,7 +167,9 @@ struct SettingsView: View {
                 }
                 Button("Delete All Words", role: .destructive) { showDeleteAllConfirm = true }
             }
+            .themedSection()
         }
+        .creamScreen()
         .navigationTitle("Settings")
         .sheet(isPresented: $showModelPicker) {
             ModelPickerView(

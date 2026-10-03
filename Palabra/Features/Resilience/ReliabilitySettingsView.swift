@@ -25,8 +25,10 @@ struct ReliabilitySettingsView: View {
             } footer: {
                 Text("When a request fails, the app waits and tries again, doubling the wait each time. If it still fails, it asks whether to stop or retry with much longer waits. Turn this off to be asked immediately.")
             }
+            .themedSection()
             recentProblemsSection
         }
+        .creamScreen()
         .navigationTitle("Reliability")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Remove the backup key?", isPresented: $showRemoveConfirm) {
@@ -69,6 +71,7 @@ struct ReliabilitySettingsView: View {
         } footer: {
             Text("Used automatically when your main key keeps failing, for example when it runs out of quota. Use a key from a different Google account, since keys from the same account share one quota.")
         }
+        .themedSection()
     }
 
     @ViewBuilder
@@ -147,5 +150,6 @@ struct ReliabilitySettingsView: View {
         } header: {
             Text("Recent Problems")
         }
+        .themedSection()
     }
 }

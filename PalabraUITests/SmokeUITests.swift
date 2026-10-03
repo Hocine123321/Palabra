@@ -41,7 +41,7 @@ final class SmokeUITests: XCTestCase {
         app.swipeDown()
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
-        app.buttons["Settings"].tap()
+        app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
     }
 }

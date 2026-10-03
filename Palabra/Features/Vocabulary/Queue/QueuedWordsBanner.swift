@@ -35,7 +35,7 @@ struct QueuedWordsBanner: View {
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .glassCard()
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.sm)
     }
@@ -56,7 +56,6 @@ struct QueuedWordsBanner: View {
                 Button("Retry") { onRetry(item.id) }
                     .font(.caption.weight(.semibold))
                     .buttonStyle(.bordered)
-                    .tint(Theme.accent)
             }
             Button {
                 onRemove(item.id)

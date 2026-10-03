@@ -61,7 +61,7 @@ struct VocabularyLibraryView: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
-                    withAnimation(Motion.standard) {
+                    Motion.animate(Motion.standard) {
                         environment.libraryLayout = environment.libraryLayout == .grid ? .list : .grid
                     }
                 } label: {
@@ -87,10 +87,6 @@ struct VocabularyLibraryView: View {
                 }
                 .accessibilityLabel("More options")
                 .accessibilityIdentifier("moreOptionsMenu")
-                Button { environment.router.openSettings() } label: {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityLabel("Settings")
             }
         }
         .sheet(isPresented: $showOrganizeSheet) {

@@ -42,7 +42,7 @@ private struct WordTile: View {
         ZStack {
             Circle().fill(Theme.tint(for: word.key))
             Text(word.spanish)
-                .font(Theme.Font.serif(15))
+                .font(Theme.Font.tile)
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
                 .minimumScaleFactor(0.5)

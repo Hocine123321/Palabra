@@ -11,7 +11,7 @@ struct MissingAPIKeyPrompt: View {
         .buttonStyle(.plain)
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .glassCard()
         .padding(.horizontal, Theme.Spacing.md)
     }
 }
@@ -27,7 +27,7 @@ struct MissingModelPrompt: View {
         .buttonStyle(.plain)
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .glassCard()
         .padding(.horizontal, Theme.Spacing.md)
     }
 }

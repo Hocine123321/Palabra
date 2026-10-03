@@ -44,7 +44,7 @@ struct WordPreviewSheet: View {
                         Spacer()
                         VStack(spacing: Theme.Spacing.md) {
                             Image(systemName: "wifi.slash")
-                                .font(.largeTitle)
+                                .font(Theme.Font.display)
                                 .foregroundStyle(Theme.inkSecondary)
                             Text("You're offline")
                                 .font(.headline)

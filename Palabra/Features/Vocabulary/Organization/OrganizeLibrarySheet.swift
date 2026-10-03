@@ -86,11 +86,9 @@ struct OrganizeLibrarySheet: View {
             Button {
                 organizer.start(scope: scope, environment: environment)
             } label: {
-                Text("Organize Now").frame(maxWidth: .infinity)
+                Text("Organize Now")
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.accent)
-            .controlSize(.large)
+            .buttonStyle(.primary)
             .disabled(!environment.hasAPIKey || environment.selectedModel == nil)
             .accessibilityIdentifier("organizeNowButton")
 
@@ -120,11 +118,11 @@ struct OrganizeLibrarySheet: View {
     private func finished(organized: Int, sections: Int) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             Label("Done", systemImage: "checkmark.circle.fill")
-                .font(Theme.Font.serif(22)).foregroundStyle(Theme.accent)
+                .font(Theme.Font.title).foregroundStyle(Theme.accent)
             Text("Organized \(organized) words into \(sections) sections.")
                 .foregroundStyle(Theme.ink)
             Button("Close") { organizer.dismissResult(); dismiss() }
-                .buttonStyle(.borderedProminent).tint(Theme.accent)
+                .buttonStyle(.borderedProminent)
         }
     }
 }

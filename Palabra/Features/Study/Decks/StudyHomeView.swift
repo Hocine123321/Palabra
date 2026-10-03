@@ -78,11 +78,8 @@ struct StudyHomeView: View {
                 Text("\(totalDue) due · \(totalNew) new")
                     .font(.subheadline)
             }
-            .padding(Theme.Spacing.md)
-            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(Theme.accent)
+        .buttonStyle(.primary)
         .disabled(totalDue + totalNew == 0)
         .accessibilityIdentifier("reviewAllButton")
     }
@@ -92,7 +89,7 @@ struct StudyHomeView: View {
             HStack {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     DeckTitle(name: row.name, kind: row.kind)
-                        .font(Theme.Font.serif(20))
+                        .font(Theme.Font.heading)
                         .foregroundStyle(Theme.ink)
                     Text("\(row.counts.total) cards")
                         .font(.subheadline)

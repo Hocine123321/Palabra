@@ -26,16 +26,15 @@ struct OnboardingView: View {
                 .font(.system(size: 56))
                 .foregroundStyle(Theme.accent)
             Text("Palabra")
-                .font(Theme.Font.serif(34))
+                .font(Theme.Font.display)
                 .foregroundStyle(Theme.ink)
             Text("Meet a Spanish word, get an AI explanation with examples, forms and similar words, and keep it in your library for good.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.inkSecondary)
                 .padding(.horizontal, Theme.Spacing.xl)
             Spacer()
-            Button("Continue") { withAnimation(Motion.standard) { page = 1 } }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
+            Button("Continue") { Motion.animate(Motion.standard) { page = 1 } }
+                .buttonStyle(.primary)
             Spacer(minLength: Theme.Spacing.xl)
         }
         .padding()
@@ -45,7 +44,7 @@ struct OnboardingView: View {
         VStack(spacing: Theme.Spacing.lg) {
             Spacer()
             Text("Add your Google API key")
-                .font(Theme.Font.serif(24))
+                .font(Theme.Font.title)
                 .foregroundStyle(Theme.ink)
             Text("Palabra uses your own Google AI API key to generate explanations. Get one free at aistudio.google.com.")
                 .multilineTextAlignment(.center)
@@ -64,8 +63,7 @@ struct OnboardingView: View {
             } label: {
                 if isVerifying { ProgressView() } else { Text("Save and Continue") }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.accent)
+            .buttonStyle(.primary)
             .disabled(keyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isVerifying)
             Button("Set Up Later") { environment.hasCompletedOnboarding = true }
                 .foregroundStyle(Theme.inkSecondary)

@@ -22,9 +22,9 @@ struct Chip: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, Theme.Spacing.sm)
             .padding(.vertical, 4)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
             .foregroundStyle(Theme.inkSecondary)
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.inkSecondary.opacity(0.15)))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).strokeBorder(Theme.inkSecondary.opacity(0.15)))
     }
 }
 
@@ -52,7 +52,6 @@ struct ErrorBanner: View {
                 if let retryTitle, let onRetry {
                     Button(retryTitle, action: onRetry)
                         .buttonStyle(.borderedProminent)
-                        .tint(Theme.accent)
                 }
                 if let secondaryTitle, let onSecondary {
                     Button(secondaryTitle, action: onSecondary)
@@ -76,7 +75,7 @@ struct EmptyStateView: View {
                 .font(.system(size: 44))
                 .foregroundStyle(Theme.accent)
             Text(title)
-                .font(Theme.Font.serif(20))
+                .font(Theme.Font.heading)
                 .foregroundStyle(Theme.ink)
             Text(message)
                 .font(.subheadline)
@@ -93,11 +92,11 @@ struct LoadingSkeletonBlock: View {
     @State private var pulse = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
+        RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
             .fill(Theme.inkSecondary.opacity(pulse ? 0.08 : 0.16))
             .frame(height: height)
             .onAppear {
-                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
+                Motion.animate(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
             }
     }
 }

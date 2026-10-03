@@ -34,6 +34,19 @@ enum Theme {
         static func serif(_ size: CGFloat, weight: SwiftUI.Font.Weight = .semibold) -> SwiftUI.Font {
             .system(size: size, weight: weight, design: .serif)
         }
+
+        /// Serif roles. Use these instead of ad-hoc `serif(<n>)` sizes so the same
+        /// kind of heading looks the same on every screen.
+        /// Hero word / flashcard face.
+        static let display = serif(32)
+        /// Onboarding and sheet headings.
+        static let title = serif(24)
+        /// Card titles, section titles, empty-state titles.
+        static let heading = serif(20)
+        /// A row's main text in lists.
+        static let rowTitle = serif(18)
+        /// Text inside a honeycomb tile.
+        static let tile = serif(15)
     }
 
     enum Spacing {
@@ -45,6 +58,11 @@ enum Theme {
     }
 
     enum Radius {
+        /// Skeleton blocks, small inline shapes.
+        static let small: CGFloat = 8
+        /// Chips, list rows, buttons, text fields, chat bubbles.
+        static let medium: CGFloat = 16
+        /// Cards and sheets-level surfaces.
         static let card: CGFloat = 20
         static let pill: CGFloat = 100
     }

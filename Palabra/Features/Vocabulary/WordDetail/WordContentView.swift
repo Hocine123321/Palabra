@@ -31,7 +31,7 @@ struct WordContentView<Accessory: View>: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
                 Text(content.word)
-                    .font(Theme.Font.serif(32))
+                    .font(Theme.Font.display)
                     .foregroundStyle(Theme.ink)
                 accessory()
             }
@@ -114,7 +114,7 @@ struct WordContentView<Accessory: View>: View {
     }
 
     private func toggleExample(_ index: Int) {
-        withAnimation(Motion.quick) {
+        Motion.animate(Motion.quick) {
             if revealedExamples.contains(index) {
                 revealedExamples.remove(index)
             } else {

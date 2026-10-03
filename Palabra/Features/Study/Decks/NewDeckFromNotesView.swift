@@ -11,6 +11,7 @@ struct NewDeckFromNotesView: View {
             Group {
                 if let model { content(model) } else { Color.clear }
             }
+            .background(Theme.background.ignoresSafeArea())
             .navigationTitle("New Deck")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -58,15 +59,14 @@ struct NewDeckFromNotesView: View {
             TextEditor(text: $model.notes)
                 .frame(minHeight: 220)
                 .padding(Theme.Spacing.sm)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                .glassCard()
                 .accessibilityIdentifier("notesField")
             Button {
                 Task { await model.generate() }
             } label: {
-                Text("Generate Cards").frame(maxWidth: .infinity).padding(.vertical, Theme.Spacing.sm)
+                Text("Generate Cards")
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.accent)
+            .buttonStyle(.primary)
             .disabled(!model.canGenerate)
             .accessibilityIdentifier("generateCardsButton")
             Spacer()
@@ -81,6 +81,7 @@ struct NewDeckFromNotesView: View {
                 TextField("Deck name", text: $model.title)
                     .accessibilityIdentifier("deckNameField")
             }
+            .themedSection()
             Section("Cards") {
                 ForEach($model.drafts) { $draft in
                     VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
@@ -92,6 +93,7 @@ struct NewDeckFromNotesView: View {
                 }
                 .onDelete { model.deleteDrafts(at: $0) }
             }
+            .themedSection()
             Section {
                 Button("Save Deck") {
                     if let id = model.save() {
@@ -102,6 +104,8 @@ struct NewDeckFromNotesView: View {
                 .disabled(!model.canSave)
                 .accessibilityIdentifier("saveDeckButton")
             }
+            .themedSection()
         }
+        .creamScreen()
     }
 }

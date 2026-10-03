@@ -31,7 +31,7 @@ struct SectionedLibraryView: View {
     private func header(_ section: LibrarySections.Section) -> some View {
         let isCollapsed = collapsed.contains(section.title)
         return Button {
-            withAnimation(Motion.standard) {
+            Motion.animate(Motion.standard) {
                 if isCollapsed { collapsed.remove(section.title) } else { collapsed.insert(section.title) }
             }
         } label: {
@@ -42,10 +42,10 @@ struct SectionedLibraryView: View {
                     .foregroundStyle(Theme.inkSecondary)
                 if section.isUnorganized {
                     Text(LocalizedStringKey(section.title))
-                        .font(Theme.Font.serif(20)).foregroundStyle(Theme.ink)
+                        .font(Theme.Font.heading).foregroundStyle(Theme.ink)
                 } else {
                     Text(verbatim: section.title)
-                        .font(Theme.Font.serif(20)).foregroundStyle(Theme.ink)
+                        .font(Theme.Font.heading).foregroundStyle(Theme.ink)
                 }
                 Text("\(section.words.count)")
                     .font(.caption.weight(.medium))
@@ -74,7 +74,7 @@ struct TagFilterBar: View {
                     ForEach(tags.prefix(30), id: \.tag) { item in
                         let isOn = selected == item.tag
                         Button {
-                            withAnimation(Motion.quick) { selected = isOn ? nil : item.tag }
+                            Motion.animate(Motion.quick) { selected = isOn ? nil : item.tag }
                         } label: {
                             Text(verbatim: "#\(item.tag)  \(item.count)")
                                 .font(.caption.weight(.medium))

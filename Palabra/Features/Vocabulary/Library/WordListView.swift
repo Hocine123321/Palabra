@@ -11,7 +11,7 @@ struct WordListView: View {
         LazyVStack(spacing: Theme.Spacing.sm) {
             ForEach(words, id: \.id) { word in
                 Button { onSelect(word) } label: {
-                    GlassSurface(cornerRadius: 16) {
+                    GlassSurface(cornerRadius: Theme.Radius.medium) {
                         HStack(alignment: .top, spacing: Theme.Spacing.md) {
                             Circle()
                                 .fill(Theme.tint(for: word.key))
@@ -19,7 +19,7 @@ struct WordListView: View {
                                 .padding(.top, 6)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(word.spanish)
-                                    .font(Theme.Font.serif(18))
+                                    .font(Theme.Font.rowTitle)
                                     .foregroundStyle(Theme.ink)
                                 if !word.translation.isEmpty {
                                     Text(word.translation)

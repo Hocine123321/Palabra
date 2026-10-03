@@ -57,7 +57,7 @@ struct WordDetailView: View {
             HStack(spacing: Theme.Spacing.sm) {
                 ForEach(WordSection.allCases) { section in
                     Button {
-                        withAnimation(Motion.standard) { proxy.scrollTo(section, anchor: .top) }
+                        Motion.animate(Motion.standard) { proxy.scrollTo(section, anchor: .top) }
                     } label: {
                         Chip(titleKey: section.title)
                     }

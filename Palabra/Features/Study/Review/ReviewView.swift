@@ -45,7 +45,7 @@ struct ReviewView: View {
                         if let source = card.sourceWordID { cardAccessory(source) }
                     }
                     Text(verbatim: card.front)
-                        .font(Theme.Font.serif(30))
+                        .font(Theme.Font.display)
                         .foregroundStyle(Theme.ink)
                         .multilineTextAlignment(.center)
                         .accessibilityIdentifier("cardFront")
@@ -62,7 +62,7 @@ struct ReviewView: View {
                 .frame(maxWidth: .infinity, minHeight: 220)
             }
             .contentShape(Rectangle())
-            .onTapGesture { withAnimation(Motion.quick) { model.flip() } }
+            .onTapGesture { Motion.animate(Motion.quick) { model.flip() } }
             .padding(.horizontal, Theme.Spacing.md)
 
             Spacer()
@@ -71,7 +71,7 @@ struct ReviewView: View {
                 HStack(spacing: Theme.Spacing.sm) {
                     ForEach(SRSGrade.allCases, id: \.self) { grade in
                         Button {
-                            withAnimation(Motion.quick) { model.grade(grade) }
+                            Motion.animate(Motion.quick) { model.grade(grade) }
                         } label: {
                             VStack(spacing: 2) {
                                 Text(grade.title).font(.headline)
@@ -81,19 +81,18 @@ struct ReviewView: View {
                             .padding(.vertical, Theme.Spacing.sm)
                         }
                         .buttonStyle(.bordered)
-                        .tint(grade == .again ? Theme.error : Theme.accent)
+                        .tint(grade == .again ? Theme.error : nil)
                         .accessibilityIdentifier(grade.identifier)
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.md)
             } else {
                 Button {
-                    withAnimation(Motion.quick) { model.flip() }
+                    Motion.animate(Motion.quick) { model.flip() }
                 } label: {
-                    Text("Show Answer").frame(maxWidth: .infinity).padding(.vertical, Theme.Spacing.sm)
+                    Text("Show Answer")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
+                .buttonStyle(.primary)
                 .padding(.horizontal, Theme.Spacing.md)
                 .accessibilityIdentifier("showAnswerButton")
             }
@@ -109,8 +108,8 @@ struct ReviewView: View {
                 message: model.answered == 0 ? LocalizedStringKey("Nothing is due right now.") : LocalizedStringKey("You reviewed \(model.answered) cards.")
             )
             Button("Done") { dismiss() }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
+                .buttonStyle(.primary)
+                .padding(.horizontal, Theme.Spacing.md)
                 .accessibilityIdentifier("doneButton")
         }
     }

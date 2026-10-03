@@ -15,6 +15,7 @@ struct ModelPickerView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
                 if catalogue.models.isEmpty {
                     emptyOrLoadingContent
                 } else {
@@ -42,7 +43,10 @@ struct ModelPickerView: View {
                             .foregroundStyle(Theme.error)
                     }
                 }
+                }
+                .themedSection()
             }
+            .creamScreen()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
