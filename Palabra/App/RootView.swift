@@ -5,16 +5,22 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var env = environment
-        NavigationStack(path: $env.router.path) {
-            VocabularyLibraryView()
-                .navigationDestination(for: Router.Destination.self) { destination in
-                    switch destination {
-                    case .settings:
-                        SettingsView()
-                    case .wordDetail(let id):
-                        WordDetailHost(wordID: id)
+        TabView {
+            NavigationStack(path: $env.router.path) {
+                VocabularyLibraryView()
+                    .navigationDestination(for: Router.Destination.self) { destination in
+                        switch destination {
+                        case .settings:
+                            SettingsView()
+                        case .wordDetail(let id):
+                            WordDetailHost(wordID: id)
+                        }
                     }
-                }
+            }
+            .tabItem { Label("Vocabulary", systemImage: "text.book.closed") }
+
+            StudyRootView(cardAccessory: { AnyView(VocabularyCardPronunciation(wordID: $0)) })
+                .tabItem { Label("Study", systemImage: "rectangle.stack") }
         }
         .overlay(alignment: .top) { ResilienceOverlay() }
         .tint(Theme.accent)
@@ -24,6 +30,7 @@ struct RootView: View {
         .fullScreenCover(isPresented: onboardingBinding) {
             OnboardingView()
         }
+        .onAppear { environment.syncVocabularyCards() }
     }
 
     private var onboardingBinding: Binding<Bool> {

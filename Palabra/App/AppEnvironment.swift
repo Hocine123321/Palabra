@@ -20,6 +20,8 @@ final class AppEnvironment {
     /// Shared state for retries, key switching and "what should I do?" questions.
     let resilience = ResilienceCenter()
     let repository: WordRepository
+    /// Flashcard decks and review history (Study tool).
+    let cards: CardRepository
     let catalogue: ModelCatalogue
     let ttsCatalogue: ModelCatalogue
     let pronunciation = PronunciationService()
@@ -40,6 +42,7 @@ final class AppEnvironment {
     var appLanguage: SupportedLanguage { didSet { settings.appLanguage = appLanguage } }
     var aiLanguage: SupportedLanguage { didSet { settings.aiLanguage = aiLanguage } }
     var organizerSettings: OrganizerSettings { didSet { settings.organizerSettings = organizerSettings } }
+    var newCardsPerDay: Int { didSet { settings.newCardsPerDay = newCardsPerDay } }
     /// Session-only progress/result of a library re-organization.
     @ObservationIgnored let organizer = LibraryOrganizer()
     var hasCompletedOnboarding: Bool { didSet { settings.hasCompletedOnboarding = hasCompletedOnboarding } }
@@ -54,7 +57,8 @@ final class AppEnvironment {
         fallbackKeychain: KeychainStore = .fallback(),
         resilient: Bool = false,
         connectivity: ConnectivityWaiting? = nil,
-        sleep: (@Sendable (TimeInterval) async -> Void)? = nil
+        sleep: (@Sendable (TimeInterval) async -> Void)? = nil,
+        cardRepository: CardRepository? = nil
     ) {
         self.rawAI = ai
         let policyBox = PolicyBox(settings.retryPolicy)
@@ -80,6 +84,7 @@ final class AppEnvironment {
         hasFallbackKey = fallbackKeychain.read() != nil
         retryPolicy = settings.retryPolicy
         self.repository = repository
+        self.cards = cardRepository ?? SwiftDataCardRepository.inMemory()
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
         self.keychain = keychain
@@ -92,6 +97,7 @@ final class AppEnvironment {
         appLanguage = settings.appLanguage
         aiLanguage = settings.aiLanguage
         organizerSettings = settings.organizerSettings
+        newCardsPerDay = settings.newCardsPerDay
         hasCompletedOnboarding = settings.hasCompletedOnboarding
         catalogue.loadCacheIfPresent()
         ttsCatalogue.loadCacheIfPresent()
@@ -214,6 +220,19 @@ final class AppEnvironment {
         }
     }
 
+    /// Makes the Study tool's Vocabulary deck match the library (one card per word,
+    /// headword -> translation). Idempotent and cheap; call on launch and whenever the
+    /// Study tab appears. This is the only place that knows both `Word` and Study.
+    func syncVocabularyCards() {
+        let entries = repository.allWords().compactMap { word -> VocabularyCardEntry? in
+            let front = word.spanish.trimmingCharacters(in: .whitespacesAndNewlines)
+            let back = word.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !front.isEmpty, !back.isEmpty else { return nil }
+            return VocabularyCardEntry(wordID: word.id, front: front, back: back)
+        }
+        cards.syncVocabulary(entries)
+    }
+
     static func live(modelContext: ModelContext) -> AppEnvironment {
         AppEnvironment(
             ai: GeminiClient(),
@@ -222,7 +241,8 @@ final class AppEnvironment {
             ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply),
             keychain: KeychainStore(),
             settings: SettingsStore(),
-            resilient: true
+            resilient: true,
+            cardRepository: SwiftDataCardRepository(context: modelContext)
         )
     }
 }

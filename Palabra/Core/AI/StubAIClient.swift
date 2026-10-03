@@ -41,6 +41,12 @@ final class StubAIClient: AIClient {
 
     func generateJSON(prompt: String, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
         try? await Task.sleep(nanoseconds: 300_000_000)
+        // Study "notes -> flashcards" call (its schema has a `cards` property). A prompt
+        // containing "fallo" exercises the failure path.
+        if let properties = schema?["properties"] as? [String: Any], properties["cards"] != nil {
+            if prompt.lowercased().contains("fallo") { return .failure(.rateLimited) }
+            return .success(#"{"title":"Stub deck","cards":[{"front":"Front 1","back":"Back 1"},{"front":"Front 2","back":"Back 2"},{"front":"Front 3","back":"Back 3"}]}"#)
+        }
         return .success("{}")
     }
 

@@ -134,6 +134,12 @@ struct SettingsView: View {
                 NavigationLink("Organization") { OrganizationSettingsView() }
             }
 
+            Section("Study") {
+                Stepper(value: newCardsBinding, in: 0...100, step: 5) {
+                    Text("New cards per day: \(environment.newCardsPerDay)")
+                }
+            }
+
             Section("Data") {
                 if let exportURL {
                     ShareLink(item: exportURL) {
@@ -224,6 +230,10 @@ struct SettingsView: View {
 
     private var appearanceBinding: Binding<SettingsStore.AppearanceMode> {
         Binding(get: { environment.appearanceMode }, set: { environment.appearanceMode = $0 })
+    }
+
+    private var newCardsBinding: Binding<Int> {
+        Binding(get: { environment.newCardsPerDay }, set: { environment.newCardsPerDay = $0 })
     }
 
     private var layoutBinding: Binding<SettingsStore.LibraryLayout> {
