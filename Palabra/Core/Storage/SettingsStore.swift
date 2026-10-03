@@ -25,6 +25,7 @@ final class SettingsStore {
         static let aiLanguage = "aiLanguage"
         static let organizerSettings = "organizerSettings"
         static let retryPolicy = "retryPolicy"
+        static let newCardsPerDay = "newCardsPerDay"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -73,6 +74,12 @@ final class SettingsStore {
             return value
         }
         set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Keys.organizerSettings) }
+    }
+
+    /// Daily cap on brand-new flashcards introduced in review sessions.
+    var newCardsPerDay: Int {
+        get { (defaults.object(forKey: Keys.newCardsPerDay) as? Int) ?? 20 }
+        set { defaults.set(max(0, newValue), forKey: Keys.newCardsPerDay) }
     }
 
     var retryPolicy: RetryPolicy {

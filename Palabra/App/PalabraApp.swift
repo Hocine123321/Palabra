@@ -11,7 +11,7 @@ struct PalabraApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
-        let schema = Schema([Word.self, WordQueueItem.self])
+        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self])
 
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -24,6 +24,9 @@ struct PalabraApp: App {
             for word in (try? context.fetch(FetchDescriptor<Word>())) ?? [] {
                 context.delete(word)
             }
+            for deck in (try? context.fetch(FetchDescriptor<Deck>())) ?? [] { context.delete(deck) }
+            for card in (try? context.fetch(FetchDescriptor<Card>())) ?? [] { context.delete(card) }
+            for log in (try? context.fetch(FetchDescriptor<ReviewLog>())) ?? [] { context.delete(log) }
             try? context.save()
         }
 
@@ -50,7 +53,8 @@ struct PalabraApp: App {
                 ttsCatalogue: ttsCatalogue,
                 keychain: keychain,
                 settings: settings,
-                wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container))
+                wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container)),
+                cardRepository: SwiftDataCardRepository(context: ModelContext(container))
             )
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id
@@ -75,6 +79,7 @@ struct PalabraApp: App {
                         rawJSON: Data()
                     )
                 }
+                env.syncVocabularyCards()
             }
             environment = env
         } else {

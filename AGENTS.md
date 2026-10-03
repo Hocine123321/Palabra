@@ -7,7 +7,7 @@ Read this before changing code. It explains what the app is, where things live, 
 A native iPhone (SwiftUI + SwiftData, iOS 17) **study app** powered by the user's own Google AI (Gemini) API key. It started as a Spanish-vocabulary app and is being generalized into a general study app.
 
 - **Today:** one feature, **Vocabulary** — a library of Spanish words, each with AI-generated examples, meaning, forms, similar words, a follow-up chat and pronunciation audio.
-- **Planned:** a second top-level page (next to the Vocabulary library) that holds AI study tools. It does not exist yet. New tools go in their own folder under `Features/` (see "Adding a feature").
+- **Study tab (new):** a second top-level tab next to Vocabulary (`RootView` is a `TabView`). It holds flashcards with spaced repetition: decks, a review screen, and AI card generation from pasted notes. Library words are mirrored into a system "Vocabulary" deck. See "Study (flashcards)" below. Quiz Gen and photo/PDF input are planned follow-ups; further tools go in their own folder under `Features/` (see "Adding a feature").
 - **Naming:** the app is called **Palabra** and keeps that name. It is the product name, not a claim that the app is Spanish-only: the Xcode target/module, the `Palabra/` folder, the display name and the bundle id all stay `Palabra`. Do not propose or start a rename.
 
 ## Layout
@@ -21,10 +21,17 @@ Palabra/
     Catalogue/          model catalogue, model filters, default-model picker, API-key entry
     DesignSystem/       Theme, glass surfaces, motion, shared components
     Localization/       SupportedLanguage (app language / AI language: en, ar)
+    SRS/                SRSScheduler (pure SM-2-style spaced repetition; no UI, no storage)
     Storage/            KeychainStore (API key), SettingsStore (UserDefaults), OrganizerSettings
   Features/
     Onboarding/         first-run screen
     Settings/           settings + model picker (app-wide, not vocabulary-specific)
+    Study/              flashcards + spaced repetition (the second tab)
+      Storage/          Deck, Card, ReviewLog (SwiftData), CardRepository
+      Domain/           CardDraft, VocabularyCardEntry, DeckCounts, StudyRoute, grade/interval labels
+      AI/               StudyPrompts, CardGenerator (notes -> card drafts via generateJSON)
+      Review/           ReviewViewModel (one session over a queue), ReviewView
+      Decks/            Study home, deck detail, new-deck-from-notes flow
     Vocabulary/         the Spanish word library
       Domain/           WordContent, WordKey, ContentValidator, Honeycomb, chat types, LibraryOrganization (tag/section cleanup)
       Organization/     LibraryOrganizer (batch AI re-organize), LibrarySections (grouping/search), sectioned view, organize sheet, organization settings
@@ -53,7 +60,7 @@ New files under `Palabra/`, `PalabraTests/` and `PalabraUITests/` are picked up 
    - `AIClient` now has a generic `generateJSON(prompt:systemInstruction:schema:...)` for new tools to build on. It still also carries vocabulary-specific methods (`generateWord`, `sendChat`, `organizeWords`) and uses `WordContent`, `ChatMessage`, `ContentValidator`, `VocabularyPrompts`, `VocabularyResponseSchema`. A general tool needs a generic "send this prompt/schema, get JSON or text back" method on the client, with the vocabulary calls built on top of it.
    - `Theme` (tile tints) calls `WordKey.tintIndex`.
    - `SettingsStore.LibraryLayout` is a vocabulary UI setting stored in Core.
-   - `AppEnvironment` owns the `WordRepository`, the `WordQueueRepository`/`WordQueueProcessor`, the `PronunciationService` and `requestPronunciationIfConfigured(for: Word)`; `Router.Destination` has a `wordDetail` case; `PalabraApp` builds the SwiftData schema as `[Word.self, WordQueueItem.self]`.
+   - `AppEnvironment` owns the `WordRepository`, the `WordQueueRepository`/`WordQueueProcessor`, the `CardRepository`, the `PronunciationService` and `requestPronunciationIfConfigured(for: Word)`; `Router.Destination` has a `wordDetail` case; `PalabraApp` builds the SwiftData schema as `[Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self]`.
 3. **Errors and AI calls** return `Result<_, AIError>`; nothing in the UI should crash on a bad AI response.
 
 ## Names that must NOT be changed (they are on users' devices)
@@ -64,6 +71,7 @@ Changing any of these silently loses the user's saved words, settings or API key
 - The SwiftData entity `Word` and its stored property names (`spanish`, `key`, `searchKey`, `contentData`, `rawJSON`, `chatData`, `pronunciationAudio`, `category`, `tagsData`, ...). Renaming a `@Model` class or stored property changes the on-device schema.
 - UserDefaults keys in `SettingsStore.Keys` (including `organizerSettings`, a JSON blob that must keep decoding when fields are added; `OrganizerSettings` has a tolerant decoder).
 - The JSON keys inside `WordContent` (including `spanish` / `english` / `translation` on examples) — stored data and Gemini's response schema both use them.
+- The SwiftData entities `Deck`, `Card` and `ReviewLog` and their stored properties (including the raw-value strings `kindRaw` / `phaseRaw` / `gradeRaw`; their enum raw values are append-only), and the `newCardsPerDay` key in `SettingsStore.Keys`.
 - The library export envelope (`app: "Palabra"`, `version`) written by `VocabularyLibraryExporter`; old exports must keep importing.
 - The SwiftData entity `WordQueueItem` and its stored property names (`inputWord`, `existingWordID`, `existingCreatedAt`, `languageRaw`, `createdAt`, `statusRaw`, `attempts`, `lastErrorMessage`) — same reasoning as `Word`: a rename changes the on-device schema and loses whatever's mid-flight in someone's offline queue.
 
@@ -87,6 +95,12 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - A custom `Layout` must never report a size wider than the width it was proposed, and should propose that width to its children (`FlowLayout` does). Otherwise one long AI string stretches the whole screen.
 - Never use AI-supplied strings as `ForEach` identity (`id: \.label`, `id: \.self`): duplicates break the view. Use the enumerated offset.
 - AI output that is displayed must be capped in `ContentValidator` (see the Word Forms limits).
+
+## Branch workflow
+
+- All work happens on the `BETA` branch. Never commit directly to `main`.
+- When a piece of work is done and CI is green (the `ipa` build and all unit tests), open a pull request from `BETA` to `main`, then keep working on `BETA`.
+- Dispatch CI with the `build-ipa.yml` workflow on `BETA`.
 
 ## Resilience (retries, backup key, per-error reactions)
 
@@ -112,11 +126,22 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - New words are placed by `AppEnvironment.requestOrganizationIfConfigured` (respects `OrganizerSettings.autoOrganizeNewWords`). Regenerating a word keeps its placement.
 - Search matches word, translation, section and tags; `#tag` searches tags only.
 
+## Study (flashcards)
+
+- Engine: `Deck` / `Card` / `ReviewLog` (SwiftData, plain UUID references, no `@Relationship`). `SRSScheduler` is pure and takes `now`; every grade writes the card and a `ReviewLog` in one save (`CardRepository.record`).
+- **Boundary:** Study never imports `Word`. `AppEnvironment.syncVocabularyCards()` is the only place that knows both sides: it reads the library and calls `CardRepository.syncVocabulary` with plain `VocabularyCardEntry` values. It is idempotent (keyed on `sourceWordID`), keeps scheduling state, updates text when a word is regenerated, and deletes cards (and logs) of deleted words. It runs on launch and whenever the Study tab appears. A word without a translation gets no card.
+- A mirrored word is exactly one basic card (headword -> translation). No reversed or cloze cards yet.
+- Card text is AI/user content: display it with `Text(verbatim:)`, never use it as `ForEach` identity (`CardDraft` carries its own `id`), and cap it in `CardGenerator.parse`.
+- `CardGenerator` uses the generic `generateJSON` (no new `AIClient` method, so the mocks did not change). Nothing is saved until the person confirms the preview.
+- Daily new-card cap: `SettingsStore.newCardsPerDay` (default 20). `studyQueue` subtracts cards first reviewed today.
+- Pronunciation on mirrored cards is injected from the app (`VocabularyCardPronunciation` in `RootView`), so Study stays free of Vocabulary types.
+- Spec: `docs/features/study-flashcards.md`.
+
 ## Adding a feature (for example a study tool)
 
 1. Create `Palabra/Features/<Name>/` with the same sub-folders it needs (`Domain`, `Storage`, `AI`, screens) and a matching `PalabraTests/<Name>/`.
 2. Take the AI client, model, language, API key and design system from `Core` via `AppEnvironment`. Do not build services inside views.
 3. Put anything the tool persists in its own SwiftData model, registered where `PalabraApp` builds the schema. Adding a new model is safe; changing an existing one is not (see above).
-4. Add a `Router.Destination` case (or a top-level tab once the second page exists) and wire it from `RootView`.
+4. Add a `Router.Destination` case, or give the tool its own tab/stack like Study (`RootView` is a `TabView`; Study owns its `NavigationStack` and `StudyRoute`).
 5. Use feature-prefixed names for anything that could be mistaken for app-wide (`VocabularyLibraryView`, not `LibraryView`).
 6. Add tests, push, and make sure both CI jobs compile.
