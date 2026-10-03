@@ -67,6 +67,36 @@ final class WordQueueProcessorTests: XCTestCase {
 
     // MARK: tests
 
+    /// No draining involved — just checks every precondition `process()`
+    /// relies on, so a failure here points straight at the broken piece
+    /// instead of at a timed-out drain.
+    func testEnvironmentAndQueueStateRightAfterEnqueue() async {
+        let (env, client) = makeEnvironment()
+        await selectModel(env, client)
+
+        XCTAssertTrue(env.hasAPIKey, "no API key")
+        XCTAssertNotNil(env.apiKey, "no API key value")
+        XCTAssertNotNil(env.selectedModel, "no selected model — selectedModelID=\(String(describing: env.selectedModelID)), catalogue count=\(env.catalogue.models.count)")
+        XCTAssertTrue(env.connectivity.isConnected, "connectivity.isConnected is false")
+
+        let item = env.wordQueue.enqueue(inputWord: "hablar", mode: .new, language: .english)
+        XCTAssertEqual(item.status, .pending, "wrong initial status")
+        XCTAssertEqual(env.wordQueue.allItems().count, 1, "allItems() wrong count")
+        XCTAssertEqual(env.wordQueue.allItems().first?.id, item.id, "allItems() id mismatch")
+        XCTAssertEqual(env.wordQueue.nextPending()?.id, item.id, "nextPending() did not find the enqueued item")
+
+        // Call the AI client directly — bypassing WordQueueProcessor entirely —
+        // to rule out MockAIClient/backgroundAI as the problem.
+        client.generateWordResult = .success(content(word: "hablar"))
+        let direct = await env.backgroundAI.generateWord("hablar", apiKey: env.apiKey!, model: env.selectedModel!, language: .english)
+        if case .success(let c) = direct {
+            XCTAssertEqual(c.word, "hablar")
+        } else {
+            XCTFail("direct backgroundAI.generateWord call failed: \(direct)")
+        }
+        XCTAssertEqual(client.generateWordCallCount, 1, "direct call didn't register")
+    }
+
     func testSuccessSavesWordAndRemovesFromQueue() async {
         let (env, client) = makeEnvironment()
         await selectModel(env, client)
