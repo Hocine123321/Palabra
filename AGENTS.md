@@ -108,9 +108,8 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 
 ## Branch workflow
 
-- All work happens on the `BETA` branch. Never commit directly to `main`.
-- When a piece of work is done and CI is green (the `ipa` build and all unit tests), open a pull request from `BETA` to `main`, then keep working on `BETA`.
-- Dispatch CI with the `build-ipa.yml` workflow on `BETA`.
+- All work happens directly on `main`. The `BETA` branch no longer exists.
+- Pushes to `main` run CI (`build-ipa.yml`: the `ipa` build and all unit and UI tests). Check it after every push, and fix a red build before starting new work.
 
 ## Resilience (retries, backup key, per-error reactions)
 
