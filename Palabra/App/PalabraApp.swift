@@ -11,7 +11,7 @@ struct PalabraApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
-        let schema = Schema([Word.self, Deck.self, Card.self, ReviewLog.self])
+        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self])
 
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -53,6 +53,7 @@ struct PalabraApp: App {
                 ttsCatalogue: ttsCatalogue,
                 keychain: keychain,
                 settings: settings,
+                wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container)),
                 cardRepository: SwiftDataCardRepository(context: ModelContext(container))
             )
             if !arguments.contains("-UITestNoKey") {

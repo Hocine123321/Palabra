@@ -30,7 +30,12 @@ final class ScriptedAIClient: AIClient, @unchecked Sendable {
 
 /// Connectivity that returns at once, so offline tests don't wait.
 struct InstantConnectivity: ConnectivityWaiting {
+    /// What `waitForConnection` reports.
     var comesBack = true
+    /// What the instant `isConnected` snapshot reports; independent of
+    /// `comesBack` since the two are read in different places (a pre-check
+    /// before starting a request vs. a wait after one failed).
+    var isConnected = true
     func waitForConnection(timeout: TimeInterval) async -> Bool { comesBack }
 }
 

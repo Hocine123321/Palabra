@@ -6,6 +6,7 @@ import SwiftData
 struct VocabularyLibraryView: View {
     @Environment(AppEnvironment.self) private var environment
     @Query(sort: \Word.createdAt, order: .reverse) private var words: [Word]
+    @Query(sort: \WordQueueItem.createdAt, order: .forward) private var queuedItems: [WordQueueItem]
 
     @State private var searchText = ""
     @State private var inputText = ""
@@ -20,6 +21,16 @@ struct VocabularyLibraryView: View {
         ZStack {
             Theme.background.ignoresSafeArea()
             ScrollView {
+                if !queuedItems.isEmpty {
+                    QueuedWordsBanner(
+                        items: queuedItems,
+                        onRetry: { id in
+                            environment.wordQueue.markPending(id: id, attempts: 0, lastError: nil)
+                            environment.queueProcessor.drain(environment: environment)
+                        },
+                        onRemove: { id in environment.wordQueue.remove(id: id) }
+                    )
+                }
                 if !words.isEmpty {
                     TagFilterBar(tags: LibrarySections.tagCounts(words), selected: $selectedTag)
                         .padding(.top, Theme.Spacing.sm)

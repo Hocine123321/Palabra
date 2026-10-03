@@ -35,11 +35,12 @@ Palabra/
     Vocabulary/         the Spanish word library
       Domain/           WordContent, WordKey, ContentValidator, Honeycomb, chat types, LibraryOrganization (tag/section cleanup)
       Organization/     LibraryOrganizer (batch AI re-organize), LibrarySections (grouping/search), sectioned view, organize sheet, organization settings
-      Storage/          Word (SwiftData), WordRepository, VocabularyLibraryExporter
+      Storage/          Word (SwiftData), WordRepository, VocabularyLibraryExporter, WordQueueItem/WordQueueRepository (offline queue), WordWriter (shared save logic)
       AI/               VocabularyPrompts, VocabularyResponseSchema
       Pronunciation/    PronunciationService, PronunciationButton
+      Queue/            WordQueueProcessor (drains the offline queue), QueuedWordsBanner
       Library/          VocabularyLibraryView (the home screen), grid/list, add-word bar
-      AddWord/          add / regenerate flow and preview sheet
+      AddWord/          add / regenerate flow and preview sheet (AddWordFlow has a `.queued` phase for offline)
       WordDetail/       word screen
       Chat/             follow-up chat about one word
   Resources/            Localizable.strings (ar)
@@ -59,7 +60,7 @@ New files under `Palabra/`, `PalabraTests/` and `PalabraUITests/` are picked up 
    - `AIClient` now has a generic `generateJSON(prompt:systemInstruction:schema:...)` for new tools to build on. It still also carries vocabulary-specific methods (`generateWord`, `sendChat`, `organizeWords`) and uses `WordContent`, `ChatMessage`, `ContentValidator`, `VocabularyPrompts`, `VocabularyResponseSchema`. A general tool needs a generic "send this prompt/schema, get JSON or text back" method on the client, with the vocabulary calls built on top of it.
    - `Theme` (tile tints) calls `WordKey.tintIndex`.
    - `SettingsStore.LibraryLayout` is a vocabulary UI setting stored in Core.
-   - `AppEnvironment` owns the `WordRepository`, the `CardRepository`, the `PronunciationService` and `requestPronunciationIfConfigured(for: Word)`; `Router.Destination` has a `wordDetail` case; `PalabraApp` builds the SwiftData schema as `[Word.self, Deck.self, Card.self, ReviewLog.self]`.
+   - `AppEnvironment` owns the `WordRepository`, the `WordQueueRepository`/`WordQueueProcessor`, the `CardRepository`, the `PronunciationService` and `requestPronunciationIfConfigured(for: Word)`; `Router.Destination` has a `wordDetail` case; `PalabraApp` builds the SwiftData schema as `[Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self]`.
 3. **Errors and AI calls** return `Result<_, AIError>`; nothing in the UI should crash on a bad AI response.
 
 ## Names that must NOT be changed (they are on users' devices)
@@ -72,6 +73,7 @@ Changing any of these silently loses the user's saved words, settings or API key
 - The JSON keys inside `WordContent` (including `spanish` / `english` / `translation` on examples) — stored data and Gemini's response schema both use them.
 - The SwiftData entities `Deck`, `Card` and `ReviewLog` and their stored properties (including the raw-value strings `kindRaw` / `phaseRaw` / `gradeRaw`; their enum raw values are append-only), and the `newCardsPerDay` key in `SettingsStore.Keys`.
 - The library export envelope (`app: "Palabra"`, `version`) written by `VocabularyLibraryExporter`; old exports must keep importing.
+- The SwiftData entity `WordQueueItem` and its stored property names (`inputWord`, `existingWordID`, `existingCreatedAt`, `languageRaw`, `createdAt`, `statusRaw`, `attempts`, `lastErrorMessage`) — same reasoning as `Word`: a rename changes the on-device schema and loses whatever's mid-flight in someone's offline queue.
 
 It is fine — and encouraged — to rename Swift *types* and files that are not persisted (that is how `Prompts` became `VocabularyPrompts`).
 
@@ -108,6 +110,14 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - The backup key lives in its own Keychain account (`api-key-fallback`). `KeyHealth` benches a failing key (rate limit 1 min, quota 1 h, rejected 24 h) and prefers the main key again as soon as it recovers.
 - Tests use `AppEnvironment(... resilient: false)` by default, so retries never slow them. Resilience is tested with `ScriptedAIClient` and an injected `sleep`.
 - 429 is two different things: `GeminiClient.isQuotaExhausted` reads the message to tell a per-minute limit (wait) from a spent daily quota (switch key).
+
+## Offline word queue
+
+- Adding or regenerating a word while offline doesn't fail: `AddWordFlow` checks `environment.connectivity.isConnected` before calling the AI, and also treats a `.offline` failure (the connection dropped mid-request and `ResilientAIClient` gave up) the same way — both enqueue a `WordQueueItem` and move the sheet to the `.queued` phase instead of a dead-end error.
+- `WordQueueProcessor.drain(environment:)` works the queue one item at a time, oldest first, using `environment.backgroundAI` (quiet — no retry dialog). It's triggered from `RootView` on launch and on returning to the foreground, from `AddWordFlow` right after queuing, and from the Retry button on a failed row in `QueuedWordsBanner`; calling it while already draining is a no-op.
+- Saving a generated result is shared, not duplicated: both `AddWordFlow.save()` and `WordQueueProcessor` go through `WordWriter.commit(content:mode:environment:)`.
+- **Foreground only.** There's no iOS background-execution hookup — a queue left while the app is backgrounded or killed resumes draining next time the app opens, not before. `WordQueueProcessor.run()` resets any item orphaned `.processing` by an interrupted previous run back to `.pending` for exactly this reason.
+- A `.failed` item (a setup problem like a missing key, or a non-retryable `AIError`) stops being retried automatically; the person retries or removes it from `QueuedWordsBanner`.
 
 ## Library organization
 

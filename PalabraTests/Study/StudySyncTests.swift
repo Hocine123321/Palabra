@@ -9,7 +9,7 @@ final class StudySyncTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        container = try! ModelContainer(for: Schema([Word.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        container = try! ModelContainer(for: Schema([Word.self, WordQueueItem.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
     }
 
     private func makeEnvironment() -> AppEnvironment {
@@ -19,7 +19,8 @@ final class StudySyncTests: XCTestCase {
             catalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply, cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             keychain: KeychainStore(),
-            settings: SettingsStore(defaults: UserDefaults(suiteName: "study-\(UUID().uuidString)") ?? .standard)
+            settings: SettingsStore(defaults: UserDefaults(suiteName: "study-\(UUID().uuidString)") ?? .standard),
+            wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container))
         )
     }
 

@@ -12,6 +12,10 @@ final class AddWordFlow: Identifiable {
         case loading
         case loaded(WordContent)
         case failed(AIError)
+        /// Offline: queued for `WordQueueProcessor` to generate once the
+        /// connection returns, and already saved to that queue — not lost
+        /// if the person just dismisses the sheet.
+        case queued
     }
 
     enum Mode: Equatable {
@@ -56,17 +60,36 @@ final class AddWordFlow: Identifiable {
             phase = .failed(environment.selectedModelID == nil ? .noModelSelected : .modelUnavailable(environment.selectedModelID ?? ""))
             return
         }
+        // Already offline: don't even try the request (and the resilient
+        // client's own ~45s wait-then-ask) — queue it right away.
+        guard environment.connectivity.isConnected else {
+            enqueueOffline()
+            return
+        }
         switch await environment.ai.generateWord(inputWord, apiKey: apiKey, model: model, language: environment.aiLanguage) {
         case .success(let content):
             interpretedDifferently = WordKey.identity(content.word) != WordKey.identity(inputWord)
             phase = .loaded(content)
         case .failure(let error):
+            // The connection dropped mid-request and stayed down long enough that the
+            // resilient client gave up (or the person chose "Stop" on its dialog):
+            // queue instead of a dead-end error, same as the upfront check above.
+            if error == .offline {
+                enqueueOffline()
+                return
+            }
             phase = .failed(error)
             // Repair at most once per request, so a second missing model can't loop.
             if case .modelUnavailable = error, !repairedModel, await environment.repairMissingModel() != nil {
                 await generate(repairedModel: true)
             }
         }
+    }
+
+    private func enqueueOffline() {
+        environment.wordQueue.enqueue(inputWord: inputWord, mode: mode, language: environment.aiLanguage)
+        environment.queueProcessor.drain(environment: environment)
+        phase = .queued
     }
 
     /// Writes the loaded content through the repository, then kicks off
@@ -76,33 +99,6 @@ final class AddWordFlow: Identifiable {
     @discardableResult
     func save() -> Word? {
         guard case .loaded(let content) = phase else { return nil }
-        let key = WordKey.identity(content.word)
-        let searchKey = WordKey.search(content.word)
-        let rawData = (try? JSONEncoder().encode(content)) ?? Data()
-        switch mode {
-        case .new:
-            // Guard a race: another save could have claimed this key while we were generating.
-            if let existing = environment.repository.find(key: key) {
-                environment.repository.replaceContent(id: existing.id, content: content, rawJSON: rawData)
-            } else {
-                environment.repository.insert(spanish: content.word, key: key, searchKey: searchKey, content: content, rawJSON: rawData)
-            }
-        case .regenerate(let existingID, _):
-            environment.repository.replaceContent(id: existingID, content: content, rawJSON: rawData)
-        }
-        // On regenerate the headword may have been corrected, so the new key can differ
-        // from the stored one: find the word by id there, by key for a new word.
-        let saved: Word?
-        if case .regenerate(let existingID, _) = mode {
-            saved = environment.repository.allWords().first { $0.id == existingID }
-        } else {
-            saved = environment.repository.find(key: key)
-        }
-        if let saved {
-            environment.requestPronunciationIfConfigured(for: saved)
-            // A regenerated word keeps its existing section and tags.
-            if saved.category == nil { environment.requestOrganizationIfConfigured(for: saved) }
-        }
-        return saved
+        return WordWriter.commit(content: content, mode: mode, environment: environment)
     }
 }

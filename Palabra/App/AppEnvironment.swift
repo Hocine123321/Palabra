@@ -25,6 +25,13 @@ final class AppEnvironment {
     let catalogue: ModelCatalogue
     let ttsCatalogue: ModelCatalogue
     let pronunciation = PronunciationService()
+    /// Added while offline, waiting to be generated once the connection
+    /// returns — see `WordQueueProcessor`.
+    let wordQueue: WordQueueRepository
+    @ObservationIgnored let queueProcessor = WordQueueProcessor()
+    /// Instant online/offline snapshot, shared with the resilient client so
+    /// both see the same answer. Real device state outside of tests.
+    let connectivity: ConnectivityWaiting
     var router = Router()
 
     private let keychain: KeychainStore
@@ -54,6 +61,7 @@ final class AppEnvironment {
         ttsCatalogue: ModelCatalogue,
         keychain: KeychainStore,
         settings: SettingsStore,
+        wordQueue: WordQueueRepository,
         fallbackKeychain: KeychainStore = .fallback(),
         resilient: Bool = false,
         connectivity: ConnectivityWaiting? = nil,
@@ -64,6 +72,8 @@ final class AppEnvironment {
         let policyBox = PolicyBox(settings.retryPolicy)
         self.policyBox = policyBox
         let center = resilience
+        let resolvedConnectivity = connectivity ?? NetworkMonitor()
+        self.connectivity = resolvedConnectivity
         if resilient {
             let fallbackStore = fallbackKeychain
             let wrapped = ResilientAIClient(
@@ -71,7 +81,7 @@ final class AppEnvironment {
                 center: center,
                 fallbackKey: { fallbackStore.read() },
                 policy: { policyBox.value },
-                connectivity: connectivity ?? NetworkMonitor(),
+                connectivity: resolvedConnectivity,
                 sleep: sleep ?? { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
             )
             self.ai = wrapped
@@ -87,6 +97,7 @@ final class AppEnvironment {
         self.cards = cardRepository ?? SwiftDataCardRepository.inMemory()
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
+        self.wordQueue = wordQueue
         self.keychain = keychain
         self.settings = settings
         hasAPIKey = keychain.read() != nil
@@ -241,6 +252,7 @@ final class AppEnvironment {
             ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply),
             keychain: KeychainStore(),
             settings: SettingsStore(),
+            wordQueue: SwiftDataWordQueueRepository(context: modelContext),
             resilient: true,
             cardRepository: SwiftDataCardRepository(context: modelContext)
         )

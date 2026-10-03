@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         @Bindable var env = environment
@@ -31,6 +32,13 @@ struct RootView: View {
             OnboardingView()
         }
         .onAppear { environment.syncVocabularyCards() }
+        // Picks up anything queued offline: once on launch, and again every
+        // time the app returns to the foreground (a drain already in
+        // progress, or an empty queue, makes this a no-op).
+        .task { environment.queueProcessor.drain(environment: environment) }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active { environment.queueProcessor.drain(environment: environment) }
+        }
     }
 
     private var onboardingBinding: Binding<Bool> {
