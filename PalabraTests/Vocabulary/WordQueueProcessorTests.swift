@@ -58,7 +58,15 @@ final class WordQueueProcessorTests: XCTestCase {
         env.selectedModelID = "models/gemini-2.5-flash"
     }
 
+    /// `drain()` only starts its Task; `isDraining` stays false until that Task
+    /// actually gets scheduled. Checking "is it false yet" first would race
+    /// "hasn't started" against "already finished" — so this waits to see it
+    /// become true first, then waits for it to go false again.
     private func waitUntilDone(_ processor: WordQueueProcessor) async {
+        for _ in 0..<400 {
+            if processor.isDraining { break }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
         for _ in 0..<400 {
             if !processor.isDraining { return }
             try? await Task.sleep(nanoseconds: 5_000_000)
