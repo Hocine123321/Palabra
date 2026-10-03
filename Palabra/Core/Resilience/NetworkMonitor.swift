@@ -4,6 +4,10 @@ import Network
 /// Lets a request that failed because the phone is offline wait for the connection to
 /// return, instead of burning its retries while there is no network at all.
 protocol ConnectivityWaiting: Sendable {
+    /// An instant snapshot, for callers that want to avoid starting a
+    /// request at all (e.g. queuing an add-word attempt) rather than
+    /// starting it and waiting for it to fail.
+    var isConnected: Bool { get }
     /// Returns true when the network is back, false if `timeout` passed first.
     func waitForConnection(timeout: TimeInterval) async -> Bool
 }

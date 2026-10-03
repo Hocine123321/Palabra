@@ -9,7 +9,7 @@ final class AddWordFlowTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        container = try! ModelContainer(for: Schema([Word.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        container = try! ModelContainer(for: Schema([Word.self, WordQueueItem.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         keychain = KeychainStore()
         keychain.delete()
     }
@@ -19,7 +19,7 @@ final class AddWordFlowTests: XCTestCase {
         super.tearDown()
     }
 
-    private func makeEnvironment(hasKey: Bool, selectedModelID: String? = nil) -> (AppEnvironment, MockAIClient) {
+    private func makeEnvironment(hasKey: Bool, selectedModelID: String? = nil, connectivity: ConnectivityWaiting = InstantConnectivity()) -> (AppEnvironment, MockAIClient) {
         let client = MockAIClient()
         let env = AppEnvironment(
             ai: client,
@@ -27,7 +27,9 @@ final class AddWordFlowTests: XCTestCase {
             catalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply, cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             keychain: keychain,
-            settings: SettingsStore(defaults: UserDefaults(suiteName: "awf-\(UUID().uuidString)") ?? .standard)
+            settings: SettingsStore(defaults: UserDefaults(suiteName: "awf-\(UUID().uuidString)") ?? .standard),
+            wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container)),
+            connectivity: connectivity
         )
         if hasKey { env.saveAPIKey("test-api-key") } else { env.removeAPIKey() }
         env.selectedModelID = selectedModelID
@@ -160,5 +162,50 @@ final class AddWordFlowTests: XCTestCase {
         let (env, _) = makeEnvironment(hasKey: true)
         let flow = AddWordFlow(inputWord: "hablar", mode: .new, environment: env)
         XCTAssertNil(flow.save())
+    }
+
+    // MARK: offline queueing
+
+    func testOfflineAtStartQueuesWithoutCallingTheAI() async {
+        let (env, client) = makeEnvironment(hasKey: true, connectivity: InstantConnectivity(isConnected: false))
+        await selectFlashModel(env, client)
+        client.generateWordResult = .success(content(word: "hablar"))
+
+        let flow = AddWordFlow(inputWord: "hablar", mode: .new, environment: env)
+        await flow.start()
+
+        XCTAssertEqual(flow.phase, .queued)
+        XCTAssertEqual(client.generateWordCallCount, 0, "offline should be caught before ever calling the AI")
+        XCTAssertEqual(env.wordQueue.allItems().map(\.inputWord), ["hablar"])
+        XCTAssertEqual(env.wordQueue.allItems().first?.status, .pending)
+    }
+
+    func testOfflineFailureMidRequestQueuesInstead() async {
+        let (env, client) = makeEnvironment(hasKey: true)
+        await selectFlashModel(env, client)
+        client.generateWordResult = .failure(.offline)
+
+        let flow = AddWordFlow(inputWord: "hablar", mode: .new, environment: env)
+        await flow.start()
+
+        XCTAssertEqual(flow.phase, .queued)
+        XCTAssertEqual(env.wordQueue.allItems().count, 1)
+    }
+
+    func testOfflineRegenerateQueuesWithExistingID() async {
+        let (env, client) = makeEnvironment(hasKey: true, connectivity: InstantConnectivity(isConnected: false))
+        await selectFlashModel(env, client)
+        let existing = env.repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: content(word: "hablar"), rawJSON: Data())
+
+        let flow = AddWordFlow(inputWord: "hablar", mode: .regenerate(existingID: existing.id, existingCreatedAt: existing.createdAt), environment: env)
+        await flow.start()
+
+        XCTAssertEqual(flow.phase, .queued)
+        guard let item = env.wordQueue.allItems().first else { return XCTFail("expected a queued item") }
+        if case .regenerate(let id, _) = item.mode {
+            XCTAssertEqual(id, existing.id)
+        } else {
+            XCTFail("expected a regenerate mode, got \(item.mode)")
+        }
     }
 }

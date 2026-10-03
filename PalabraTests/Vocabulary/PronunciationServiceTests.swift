@@ -10,7 +10,7 @@ final class PronunciationServiceTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        container = try! ModelContainer(for: Schema([Word.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        container = try! ModelContainer(for: Schema([Word.self, WordQueueItem.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         repository = SwiftDataWordRepository(context: ModelContext(container))
         keychain = KeychainStore()
         keychain.delete()
@@ -28,7 +28,8 @@ final class PronunciationServiceTests: XCTestCase {
             catalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply, cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             keychain: keychain,
-            settings: SettingsStore(defaults: UserDefaults(suiteName: "pron-\(UUID().uuidString)") ?? .standard)
+            settings: SettingsStore(defaults: UserDefaults(suiteName: "pron-\(UUID().uuidString)") ?? .standard),
+            wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container))
         )
     }
 

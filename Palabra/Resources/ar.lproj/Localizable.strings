@@ -161,3 +161,12 @@
 "Remove All Sections and Tags" = "إزالة كل الأقسام والوسوم";
 "Your words are kept. You can organize again at any time." = "تبقى كلماتك كما هي. يمكنك التنظيم مجددًا في أي وقت.";
 "Remove all sections and tags?" = "إزالة كل الأقسام والوسوم؟";
+
+/* Offline word queue (Features/Vocabulary/AddWord/WordPreviewSheet.swift, Features/Vocabulary/Queue/*) */
+"You're offline" = "أنت غير متصل بالإنترنت";
+"\"%@\" is queued and will be added automatically once you're back online." = "\"%@\" في قائمة الانتظار وستُضاف تلقائيًا بمجرد عودة الاتصال بالإنترنت.";
+"1 word queued" = "كلمة واحدة في قائمة الانتظار";
+"%lld words queued" = "%lld كلمات في قائمة الانتظار";
+"Waiting for connection…" = "في انتظار الاتصال…";
+"Generating…" = "جارٍ الإنشاء…";
+"Couldn't generate this word." = "تعذّر إنشاء هذه الكلمة.";

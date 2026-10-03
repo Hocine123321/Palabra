@@ -11,7 +11,7 @@ struct PalabraApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
-        let schema = Schema([Word.self])
+        let schema = Schema([Word.self, WordQueueItem.self])
 
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -49,7 +49,8 @@ struct PalabraApp: App {
                 catalogue: catalogue,
                 ttsCatalogue: ttsCatalogue,
                 keychain: keychain,
-                settings: settings
+                settings: settings,
+                wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container))
             )
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id

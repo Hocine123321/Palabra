@@ -9,7 +9,7 @@ final class LibraryOrganizationTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        container = try! ModelContainer(for: Schema([Word.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        container = try! ModelContainer(for: Schema([Word.self, WordQueueItem.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         keychain = KeychainStore()
         keychain.delete()
     }
@@ -44,7 +44,8 @@ final class LibraryOrganizationTests: XCTestCase {
             catalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply, cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             keychain: keychain,
-            settings: SettingsStore(defaults: UserDefaults(suiteName: "org-\(UUID().uuidString)") ?? .standard)
+            settings: SettingsStore(defaults: UserDefaults(suiteName: "org-\(UUID().uuidString)") ?? .standard),
+            wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container))
         )
         env.saveAPIKey("test-api-key")
         return (env, client)

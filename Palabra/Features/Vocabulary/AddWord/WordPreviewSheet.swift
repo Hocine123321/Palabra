@@ -39,6 +39,24 @@ struct WordPreviewSheet: View {
                         .padding(Theme.Spacing.md)
                         Spacer()
                     }
+                case .queued:
+                    VStack {
+                        Spacer()
+                        VStack(spacing: Theme.Spacing.md) {
+                            Image(systemName: "wifi.slash")
+                                .font(.largeTitle)
+                                .foregroundStyle(Theme.inkSecondary)
+                            Text("You're offline")
+                                .font(.headline)
+                                .foregroundStyle(Theme.ink)
+                            Text("\"\(flow.inputWord)\" is queued and will be added automatically once you're back online.")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.inkSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(Theme.Spacing.lg)
+                        Spacer()
+                    }
                 }
             }
             .background(Theme.background)
@@ -46,7 +64,7 @@ struct WordPreviewSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Discard") { dismiss() }
+                    Button(dismissTitle) { dismiss() }
                 }
                 if case .loaded = flow.phase {
                     ToolbarItem(placement: .confirmationAction) {
@@ -73,6 +91,12 @@ struct WordPreviewSheet: View {
     private var saveTitle: LocalizedStringKey {
         if case .regenerate = flow.mode { return "Replace" }
         return "Save"
+    }
+
+    /// "Discard" would wrongly suggest a queued request is lost by closing the sheet.
+    private var dismissTitle: LocalizedStringKey {
+        if case .queued = flow.phase { return "Done" }
+        return "Discard"
     }
 }
 
