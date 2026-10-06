@@ -8,16 +8,18 @@ struct RootView: View {
         @Bindable var env = environment
         TabView(selection: $env.router.tab) {
             NavigationStack(path: $env.router.path) {
-                VocabularyLibraryView()
+                SpanishHomeView()
                     .navigationDestination(for: Router.Destination.self) { destination in
                         switch destination {
+                        case .vocabulary:
+                            VocabularyLibraryView()
                         case .wordDetail(let id):
                             WordDetailHost(wordID: id)
                         }
                     }
             }
-            .tabItem { Label("Vocabulary", systemImage: "text.book.closed") }
-            .tag(AppTab.vocabulary)
+            .tabItem { Label("Spanish", systemImage: "text.book.closed") }
+            .tag(AppTab.spanish)
 
             StudyRootView(cardAccessory: { AnyView(VocabularyCardPronunciation(wordID: $0)) })
                 .tabItem { Label("Study", systemImage: "rectangle.stack") }

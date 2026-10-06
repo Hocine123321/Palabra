@@ -7,6 +7,7 @@ final class PersistenceUITests: XCTestCase {
         let addApp = XCUIApplication()
         addApp.launchArguments = ["-UITestStub", "-UITestPersist", "-UITestReset"]
         addApp.launch()
+        XCTAssertTrue(addApp.openVocabulary())
 
         let field = addApp.textFields["Add a Spanish word…"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
@@ -23,6 +24,7 @@ final class PersistenceUITests: XCTestCase {
         let relaunchApp = XCUIApplication()
         relaunchApp.launchArguments = ["-UITestStub", "-UITestPersist"]
         relaunchApp.launch()
+        XCTAssertTrue(relaunchApp.openVocabulary())
 
         XCTAssertTrue(
             relaunchApp.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", "persistente")).firstMatch.waitForExistence(timeout: 5)

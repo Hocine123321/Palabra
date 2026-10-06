@@ -11,6 +11,7 @@ final class VocabularyLibraryUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-UITestStub", "-UITestReset", "-UITestSeed", "3"]
         app.launch()
+        XCTAssertTrue(app.openVocabulary())
 
         XCTAssertTrue(wordElement(app, "palabra0").waitForExistence(timeout: 5))
 
@@ -30,6 +31,7 @@ final class VocabularyLibraryUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-UITestStub", "-UITestReset", "-UITestSeed", "1"]
         app.launch()
+        XCTAssertTrue(app.openVocabulary())
 
         let field = app.textFields["Add a Spanish word…"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))

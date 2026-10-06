@@ -206,3 +206,6 @@
 "Waiting for connection…" = "في انتظار الاتصال…";
 "Generating…" = "جارٍ الإنشاء…";
 "Couldn't generate this word." = "تعذّر إنشاء هذه الكلمة.";
+
+/* Spanish hub */
+"Spanish" = "الإسبانية";

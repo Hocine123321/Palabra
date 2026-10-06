@@ -7,7 +7,7 @@ Read this before changing code. It explains what the app is, where things live, 
 A native iPhone (SwiftUI + SwiftData, iOS 17) **study app** powered by the user's own Google AI (Gemini) API key. It started as a Spanish-vocabulary app and is being generalized into a general study app.
 
 - **Today:** one feature, **Vocabulary** — a library of Spanish words, each with AI-generated examples, meaning, forms, similar words, a follow-up chat and pronunciation audio.
-- **Study tab (new):** a second top-level tab next to Vocabulary (`RootView` is a `TabView` with Vocabulary, Study and Settings tabs). It holds flashcards with spaced repetition: decks, a review screen, and AI card generation from pasted notes. Library words are mirrored into a system "Vocabulary" deck. See "Study (flashcards)" below. Quiz Gen and photo/PDF input are planned follow-ups; further tools go in their own folder under `Features/` (see "Adding a feature").
+- **Study tab (new):** a second top-level tab next to Spanish (`RootView` is a `TabView` with Spanish, Study and Settings tabs). It holds flashcards with spaced repetition: decks, a review screen, and AI card generation from pasted notes. Library words are mirrored into a system "Vocabulary" deck. See "Study (flashcards)" below. Quiz Gen and photo/PDF input are planned follow-ups; further tools go in their own folder under `Features/` (see "Adding a feature").
 - **Naming:** the app is called **Palabra** and keeps that name. It is the product name, not a claim that the app is Spanish-only: the Xcode target/module, the `Palabra/` folder, the display name and the bundle id all stay `Palabra`. Do not propose or start a rename.
 
 ## Layout
@@ -25,6 +25,7 @@ Palabra/
     Storage/            KeychainStore (API key), SettingsStore (UserDefaults), OrganizerSettings
   Features/
     Onboarding/         first-run screen
+    Spanish/            hub page list (SpanishHomeView), the Spanish tab's stack root
     Settings/           settings + model picker (app-wide, not vocabulary-specific)
     Study/              flashcards + spaced repetition (the second tab)
       Storage/          Deck, Card, ReviewLog (SwiftData), CardRepository
@@ -98,7 +99,7 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - **Type:** serif roles `Theme.Font.display / title / heading / rowTitle / tile` instead of `serif(<n>)`. The same word is `display` on the add-word preview, the word detail and the flashcard.
 - **Buttons:** one full-width main action per screen uses `.buttonStyle(.primary)`. Compact inline actions use `.bordered` / `.borderedProminent`. Do not add `.tint(Theme.accent)`: `RootView` sets it for the whole app (only override for a semantic colour, such as `Theme.error`).
 - **Motion:** never call `withAnimation` or `.animation(...)` directly. Use `Motion.animate(...)` and `.animation(Motion.reduced(...), value:)` so Reduce Motion is honoured.
-- **Tabs:** `RootView` has three tabs (Vocabulary, Study, Settings; `AppTab`). `router.openSettings()` switches to the Settings tab from anywhere, so banners and prompts never push Settings onto the wrong stack.
+- **Tabs:** `RootView` has three tabs (Spanish, Study, Settings; `AppTab`). `router.openSettings()` switches to the Settings tab from anywhere, so banners and prompts never push Settings onto the wrong stack. The Spanish tab's stack root is `SpanishHomeView`; `Router.path` is `[Router.Destination]` and `openWord` stacks `.vocabulary` under `.wordDetail`. New hub pages add a `Router.Destination` case and a row in `SpanishHomeView`.
 
 ## Layout safety (learned the hard way)
 
@@ -151,6 +152,6 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 1. Create `Palabra/Features/<Name>/` with the same sub-folders it needs (`Domain`, `Storage`, `AI`, screens) and a matching `PalabraTests/<Name>/`.
 2. Take the AI client, model, language, API key and design system from `Core` via `AppEnvironment`. Do not build services inside views.
 3. Put anything the tool persists in its own SwiftData model, registered where `PalabraApp` builds the schema. Adding a new model is safe; changing an existing one is not (see above).
-4. Add a `Router.Destination` case, or give the tool its own tab/stack like Study (`RootView` is a `TabView` with Vocabulary, Study and Settings tabs; Study owns its `NavigationStack` and `StudyRoute`).
+4. Add a `Router.Destination` case, or give the tool its own tab/stack like Study (`RootView` is a `TabView` with Spanish, Study and Settings tabs; Study owns its `NavigationStack` and `StudyRoute`).
 5. Use feature-prefixed names for anything that could be mistaken for app-wide (`VocabularyLibraryView`, not `LibraryView`).
 6. Add tests, push, and make sure both CI jobs compile.

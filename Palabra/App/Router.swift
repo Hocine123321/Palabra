@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The app's top-level tabs.
 enum AppTab: Hashable {
-    case vocabulary
+    case spanish
     case study
     case settings
 }
@@ -10,18 +10,22 @@ enum AppTab: Hashable {
 @MainActor
 @Observable
 final class Router {
-    /// Pushed screens of the Vocabulary tab only. Study and Settings own their own stacks.
+    /// Pushed screens of the Spanish tab only. Study and Settings own their own stacks.
     enum Destination: Hashable {
+        case vocabulary
         case wordDetail(UUID)
     }
 
-    var path = NavigationPath()
-    var tab: AppTab = .vocabulary
+    var path: [Destination] = []
+    var tab: AppTab = .spanish
 
     /// Settings is its own tab, so this works the same from every tab.
     func openSettings() { tab = .settings }
+
+    /// Always lands on the word with the library underneath it, so Back goes to the
+    /// library (not the hub) and an already-pushed library or detail is never stacked twice.
     func openWord(_ id: UUID) {
-        tab = .vocabulary
-        path.append(Destination.wordDetail(id))
+        tab = .spanish
+        path = [.vocabulary, .wordDetail(id)]
     }
 }

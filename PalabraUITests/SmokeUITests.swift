@@ -8,6 +8,7 @@ final class SmokeUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-UITestStub", "-UITestReset"]
         app.launch()
+        XCTAssertTrue(app.openVocabulary())
 
         XCTAssertTrue(app.staticTexts["Your library is empty"].waitForExistence(timeout: 5))
 
@@ -40,6 +41,8 @@ final class SmokeUITests: XCTestCase {
 
         app.swipeDown()
         app.navigationBars.buttons.element(boundBy: 0).tap()
+        // Back from a word detail lands on the library, not the hub.
+        XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
 
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
