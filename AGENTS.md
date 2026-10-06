@@ -73,6 +73,7 @@ Changing any of these silently loses the user's saved words, settings or API key
 - UserDefaults keys in `SettingsStore.Keys` (including `organizerSettings`, a JSON blob that must keep decoding when fields are added; `OrganizerSettings` has a tolerant decoder).
 - The JSON keys inside `WordContent` (including `spanish` / `english` / `translation` on examples) — stored data and Gemini's response schema both use them.
 - The SwiftData entities `Deck`, `Card` and `ReviewLog` and their stored properties (including the raw-value strings `kindRaw` / `phaseRaw` / `gradeRaw`; their enum raw values are append-only), and the `newCardsPerDay` key in `SettingsStore.Keys`.
+- The SwiftData entities `Artifact`, `ArtifactVersion` and `ArtifactStateEntry` and their stored properties (including `kindRaw`, `grantedData`, `requestedData`, `payload`, `valueData`); the `ArtifactKind` raw values `"spec"` / `"app"` are append-only, and so are the JSON blobs in `grantedData` / `requestedData` (`[String]` of capability names).
 - The library export envelope (`app: "Palabra"`, `version`) written by `VocabularyLibraryExporter`; old exports must keep importing.
 - The SwiftData entity `WordQueueItem` and its stored property names (`inputWord`, `existingWordID`, `existingCreatedAt`, `languageRaw`, `createdAt`, `statusRaw`, `attempts`, `lastErrorMessage`) — same reasoning as `Word`: a rename changes the on-device schema and loses whatever's mid-flight in someone's offline queue.
 

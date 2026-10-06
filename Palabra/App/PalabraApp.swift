@@ -11,7 +11,7 @@ struct PalabraApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
-        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self])
+        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self])
 
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -27,6 +27,9 @@ struct PalabraApp: App {
             for deck in (try? context.fetch(FetchDescriptor<Deck>())) ?? [] { context.delete(deck) }
             for card in (try? context.fetch(FetchDescriptor<Card>())) ?? [] { context.delete(card) }
             for log in (try? context.fetch(FetchDescriptor<ReviewLog>())) ?? [] { context.delete(log) }
+            for artifact in (try? context.fetch(FetchDescriptor<Artifact>())) ?? [] { context.delete(artifact) }
+            for version in (try? context.fetch(FetchDescriptor<ArtifactVersion>())) ?? [] { context.delete(version) }
+            for entry in (try? context.fetch(FetchDescriptor<ArtifactStateEntry>())) ?? [] { context.delete(entry) }
             try? context.save()
         }
 
@@ -54,7 +57,8 @@ struct PalabraApp: App {
                 keychain: keychain,
                 settings: settings,
                 wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container)),
-                cardRepository: SwiftDataCardRepository(context: ModelContext(container))
+                cardRepository: SwiftDataCardRepository(context: ModelContext(container)),
+                artifactRepository: SwiftDataArtifactRepository(context: ModelContext(container))
             )
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id

@@ -22,6 +22,8 @@ final class AppEnvironment {
     let repository: WordRepository
     /// Flashcard decks and review history (Study tool).
     let cards: CardRepository
+    /// Saved artifacts (versioned) and their per-artifact state.
+    let artifacts: ArtifactRepository
     let catalogue: ModelCatalogue
     let ttsCatalogue: ModelCatalogue
     let pronunciation = PronunciationService()
@@ -66,7 +68,8 @@ final class AppEnvironment {
         resilient: Bool = false,
         connectivity: ConnectivityWaiting? = nil,
         sleep: (@Sendable (TimeInterval) async -> Void)? = nil,
-        cardRepository: CardRepository? = nil
+        cardRepository: CardRepository? = nil,
+        artifactRepository: ArtifactRepository? = nil
     ) {
         self.rawAI = ai
         let policyBox = PolicyBox(settings.retryPolicy)
@@ -95,6 +98,7 @@ final class AppEnvironment {
         retryPolicy = settings.retryPolicy
         self.repository = repository
         self.cards = cardRepository ?? SwiftDataCardRepository.inMemory()
+        self.artifacts = artifactRepository ?? SwiftDataArtifactRepository.inMemory()
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
         self.wordQueue = wordQueue
@@ -254,7 +258,8 @@ final class AppEnvironment {
             settings: SettingsStore(),
             wordQueue: SwiftDataWordQueueRepository(context: modelContext),
             resilient: true,
-            cardRepository: SwiftDataCardRepository(context: modelContext)
+            cardRepository: SwiftDataCardRepository(context: modelContext),
+            artifactRepository: SwiftDataArtifactRepository(context: modelContext)
         )
     }
 }
