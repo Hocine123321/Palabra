@@ -1,0 +1,71 @@
+# Artifacts
+
+The Spanish tab's **Artifacts** page. The person asks the AI for a table, chart, roadmap or checklist; it is previewed (live), saved as a versioned artifact, reopened later, updated, and rolled back. Tables and charts can bind live to library data.
+
+This is plan B1. Plan B2 adds `app` artifacts (a sandboxed web view), plan C the Need Review list. Design: `docs/superpowers/specs/2026-10-06-artifacts-design.md`.
+
+## Architecture
+
+```
+Features/Artifacts/
+  Domain/    JSONValue, ArtifactKind, Capability (+CapabilityClass, ArtifactSession), CapabilityRegistry, GrantPolicy, CodeFence
+  Storage/   Artifact, ArtifactVersion, ArtifactStateEntry (SwiftData), ArtifactRepository
+  Spec/      SpecBlock (model), SpecValidator (sanitizer), SpecBindLoader, SpecStateStore, SpecRenderer + views
+  AI/        ArtifactEnvelope (parser), ArtifactPrompts, ArtifactGenerator
+  Library/   ArtifactsListView, ArtifactDraftModel/View, ArtifactDetailView
+App/CapabilityProviders.swift   the only file that sees both Word and artifacts
+```
+
+- **The registry is the only door** between an artifact and the app. `CapabilityRegistry.call` checks, in order: unknown → not granted (`.local` is exempt) → args > 64 KB → dry-run write → handler.
+- **The AI's manual is generated from the registry** (`registry.manual(including:)`). A new capability is learnable with no prompt edits.
+- **Dry run:** the draft preview runs with `ArtifactSession(artifactID: nil, dryRun: true)`. Writes return their `dryRunValue`; storage is in-memory scratch. Reads are real, so a preview shows live library data.
+- **Grants:** spec artifacts only bind `.read` capabilities, which are auto-granted, so B1 has no approval sheet. App artifacts (B2) will need approval for read/write/ai.
+
+## Wire format (AI → app)
+
+One schema-less `generateJSON` call (`schema: nil`, temperature 0.4):
+
+```
+{"kind":"spec","title":"…","requests":["library.words"]}
+---PAYLOAD---
+{"blocks":[ … ]}
+---END---
+```
+
+- Missing `---PAYLOAD---` → malformed; missing `---END---` → truncated.
+- The Gemini client reports a hit output cap as `AIError.truncated` and drops the partial text; the generator treats it the same as a missing `---END---`.
+- One automatic retry per generation (truncated, invalid spec, malformed envelope), with the concrete problem appended to the same prompt. A truncated *update* after the retry becomes "too large to extend".
+- `update` sends the whole current payload (`CURRENT PAYLOAD:`) plus the change and expects the complete new payload back. The title is kept.
+- Block shapes: `SpecBlock.catalog` (what the AI sees). Keep it in sync with the cases in `SpecBlock`.
+
+## Limits
+
+| What | Limit |
+|---|---|
+| Stored payload | 64 KB (65,536 B) |
+| Versions kept | newest 20 per artifact |
+| Artifact state (ticks, `storage.*`) | 256 KB total, key ≤ 64 chars |
+| Capability args | 64 KB encoded |
+| Spec | ≤ 60 blocks, depth ≤ 4, table ≤ 20 × 200, chart ≤ 500 points |
+| Strings | truncated (not rejected) in `SpecValidator` |
+
+`library.words` limit 1…500 (default 100), `stats.wordsPerDay` days 1…365 (default 7), `stats.wordsPerWeek` weeks 1…104 (default 8).
+
+## Capabilities in B1
+
+`library.words`, `library.word`, `stats.wordsPerDay`, `stats.wordsPerWeek` (read); `storage.get`, `storage.set`, `storage.remove` (local).
+
+### How to add a capability
+
+Add one `Capability` to a provider in `App/CapabilityProviders.swift` (name, class, summary, args schema, returns summary, handler). Nothing else: the registry dispatches it, the AI manual lists it, specs can bind to it.
+
+## Rendering rules
+
+- Every AI string uses `Text(verbatim:)`; every `ForEach` uses the enumerated offset, never the string.
+- Bound blocks load in `.task` and again when the app becomes active. A failed bind shows "Couldn't load data" inline.
+- Checklist/roadmap ticks persist in the artifact's state under `spec.<blockID>` (`ArtifactSpecStateStore`), across versions.
+
+## Testing
+
+- `StubAIClient.generateJSON` returns a fixed artifact for schema-less calls whose system instruction contains `---PAYLOAD---`: prompt contains `fallo` → rate limited; prompt contains `CURRENT PAYLOAD:` → adds an "Updated" text block. `StubArtifactTests` runs it through the real generator so stub and prompts cannot drift apart.
+- `MockAIClient.generateJSONCalls` / `generateJSONScript` record and script `generateJSON`; tests assert the actual prompt sent (`prompt == request`, `schema == nil`).

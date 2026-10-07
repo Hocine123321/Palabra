@@ -27,6 +27,12 @@ Palabra/
     Onboarding/         first-run screen
     Spanish/            hub page list (SpanishHomeView), the Spanish tab's stack root
     Settings/           settings + model picker (app-wide, not vocabulary-specific)
+    Artifacts/          AI-built tables/charts/roadmaps/checklists, saved and versioned (Spanish hub page)
+      Domain/           JSONValue, Capability, CapabilityRegistry (the one door to the app), GrantPolicy
+      Storage/          Artifact, ArtifactVersion, ArtifactStateEntry (SwiftData), ArtifactRepository
+      Spec/             SpecBlock, SpecValidator, SpecBindLoader, SpecStateStore, SpecRenderer + views
+      AI/               ArtifactEnvelope, ArtifactPrompts, ArtifactGenerator (generateJSON, delimited envelope)
+      Library/          list, draft sheet (preview/refine/save), detail (update/versions/delete)
     Study/              flashcards + spaced repetition (the second tab)
       Storage/          Deck, Card, ReviewLog (SwiftData), CardRepository
       Domain/           CardDraft, VocabularyCardEntry, DeckCounts, StudyRoute, grade/interval labels
@@ -61,6 +67,7 @@ New files under `Palabra/`, `PalabraTests/` and `PalabraUITests/` are picked up 
    - `AIClient` now has a generic `generateJSON(prompt:systemInstruction:schema:...)` for new tools to build on. It still also carries vocabulary-specific methods (`generateWord`, `sendChat`, `organizeWords`) and uses `WordContent`, `ChatMessage`, `ContentValidator`, `VocabularyPrompts`, `VocabularyResponseSchema`. A general tool needs a generic "send this prompt/schema, get JSON or text back" method on the client, with the vocabulary calls built on top of it.
    - `Theme` (tile tints) calls `WordKey.tintIndex`.
    - `SettingsStore.LibraryLayout` is a vocabulary UI setting stored in Core.
+   - `AppEnvironment` also owns `artifacts` (`ArtifactRepository`) and `capabilities` (the `CapabilityRegistry`, built by `CapabilityProviders` in `App/`); `PalabraApp`'s schema also lists `Artifact`, `ArtifactVersion`, `ArtifactStateEntry`.
    - `AppEnvironment` owns the `WordRepository`, the `WordQueueRepository`/`WordQueueProcessor`, the `CardRepository`, the `PronunciationService` and `requestPronunciationIfConfigured(for: Word)`; `Router.Destination` has a `wordDetail` case; `PalabraApp` builds the SwiftData schema as `[Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self]`.
 3. **Errors and AI calls** return `Result<_, AIError>`; nothing in the UI should crash on a bad AI response.
 
@@ -147,6 +154,16 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - Daily new-card cap: `SettingsStore.newCardsPerDay` (default 20). `studyQueue` subtracts cards first reviewed today.
 - Pronunciation on mirrored cards is injected from the app (`VocabularyCardPronunciation` in `RootView`), so Study stays free of Vocabulary types.
 - Spec: `docs/features/study-flashcards.md`.
+
+## Artifacts
+
+- **The registry is the only door.** An artifact reaches app data only through `CapabilityRegistry.call`; the AI's manual is generated from the same registry. A new capability is one `Capability` in a provider in `App/CapabilityProviders.swift` and nothing else.
+- `Features/Artifacts` never imports `Word`, `Deck`, `Card` (or a later `ReviewNeed`). `App/CapabilityProviders.swift` is the only file that sees both `WordRepository` and `ArtifactRepository`; data crosses as `JSONValue`.
+- **Spec artifacts never prompt:** they only bind `.read` capabilities, which are auto-granted (`GrantPolicy`). Approval is for app artifacts (plan B2).
+- AI strings render with `Text(verbatim:)`, `ForEach` uses the enumerated offset, and everything is capped in `SpecValidator`. Truncate, don't reject.
+- The generator makes one automatic retry (truncated / invalid spec / malformed envelope). Do not add retry loops in screens.
+- `StubAIClient`'s artifact envelope must stay valid for the real prompt/parser/validator: `StubArtifactTests` enforces it. New `AIClient` methods need a `MockAIClient` stub (`generateJSON` recording is additive).
+- Spec: `docs/features/artifacts.md`.
 
 ## Adding a feature (for example a study tool)
 

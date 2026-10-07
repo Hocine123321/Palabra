@@ -12,6 +12,9 @@ protocol SpecStateStore: AnyObject {
 final class InMemorySpecStateStore: SpecStateStore {
     private var values: [String: Set<Int>] = [:]
 
+    // nonisolated so a SwiftUI `@State` default value can create one.
+    nonisolated init() {}
+
     func completed(blockID: String) -> Set<Int> { values[blockID] ?? [] }
     func setCompleted(blockID: String, _ indices: Set<Int>) { values[blockID] = indices }
 }

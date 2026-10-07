@@ -47,6 +47,15 @@ final class StubAIClient: AIClient {
             if prompt.lowercased().contains("fallo") { return .failure(.rateLimited) }
             return .success(#"{"title":"Stub deck","cards":[{"front":"Front 1","back":"Back 1"},{"front":"Front 2","back":"Back 2"},{"front":"Front 3","back":"Back 3"}]}"#)
         }
+        // Artifact generation (schema-less, delimited envelope). `fallo` exercises the failure path;
+        // an update prompt carries the current payload and gets one extra text block back.
+        if schema == nil, systemInstruction.contains("---PAYLOAD---") {
+            if prompt.lowercased().contains("fallo") { return .failure(.rateLimited) }
+            let extra = prompt.contains("CURRENT PAYLOAD:") ? #",{"type":"text","text":"Updated"}"# : ""
+            let header = #"{"kind":"spec","title":"Stub artifact","requests":["library.words"]}"#
+            let blocks = #"{"type":"heading","level":1,"text":"Stub artifact"},{"type":"list","ordered":false,"items":["Same","Same"]},{"type":"table","columns":[{"title":"Word","field":"spanish"}],"bind":{"capability":"library.words","args":{"limit":10}}},{"type":"checklist","id":"c1","items":["First step","Second step"]}"#
+            return .success("\(header)\n---PAYLOAD---\n{\"blocks\":[\(blocks)\(extra)]}\n---END---")
+        }
         return .success("{}")
     }
 

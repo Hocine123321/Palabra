@@ -12,6 +12,11 @@ struct SpanishHomeView: View {
                         .font(Theme.Font.rowTitle)
                 }
                 .accessibilityIdentifier("spanishRow.vocabulary")
+                NavigationLink(value: Router.Destination.artifacts) {
+                    Label("Artifacts", systemImage: "sparkles")
+                        .font(Theme.Font.rowTitle)
+                }
+                .accessibilityIdentifier("spanishRow.artifacts")
             }
             .themedSection()
         }

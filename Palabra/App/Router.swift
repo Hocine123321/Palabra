@@ -14,6 +14,8 @@ final class Router {
     enum Destination: Hashable {
         case vocabulary
         case wordDetail(UUID)
+        case artifacts
+        case artifactDetail(UUID)
     }
 
     var path: [Destination] = []

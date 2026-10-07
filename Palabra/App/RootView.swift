@@ -15,6 +15,10 @@ struct RootView: View {
                             VocabularyLibraryView()
                         case .wordDetail(let id):
                             WordDetailHost(wordID: id)
+                        case .artifacts:
+                            ArtifactsListView()
+                        case .artifactDetail(let id):
+                            ArtifactDetailView(artifactID: id)
                         }
                     }
             }

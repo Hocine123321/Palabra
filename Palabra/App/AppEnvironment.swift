@@ -24,6 +24,8 @@ final class AppEnvironment {
     let cards: CardRepository
     /// Saved artifacts (versioned) and their per-artifact state.
     let artifacts: ArtifactRepository
+    /// Everything an artifact may ask the app to do (and the AI's manual for it).
+    let capabilities: CapabilityRegistry
     let catalogue: ModelCatalogue
     let ttsCatalogue: ModelCatalogue
     let pronunciation = PronunciationService()
@@ -98,7 +100,9 @@ final class AppEnvironment {
         retryPolicy = settings.retryPolicy
         self.repository = repository
         self.cards = cardRepository ?? SwiftDataCardRepository.inMemory()
-        self.artifacts = artifactRepository ?? SwiftDataArtifactRepository.inMemory()
+        let resolvedArtifacts = artifactRepository ?? SwiftDataArtifactRepository.inMemory()
+        self.artifacts = resolvedArtifacts
+        self.capabilities = CapabilityProviders.registry(words: repository, artifacts: resolvedArtifacts)
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
         self.wordQueue = wordQueue

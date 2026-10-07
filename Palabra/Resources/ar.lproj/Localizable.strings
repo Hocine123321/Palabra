@@ -209,3 +209,34 @@
 
 /* Spanish hub */
 "Spanish" = "الإسبانية";
+
+/* Artifacts (Features/Artifacts/*) */
+"Artifacts" = "المحتويات";
+"New Artifact" = "محتوى جديد";
+"No artifacts yet" = "لا توجد محتويات بعد";
+"Ask the AI for a table, chart, roadmap or checklist." = "اطلب من الذكاء الاصطناعي جدولًا أو رسمًا بيانيًا أو خارطة طريق أو قائمة مهام.";
+"Describe what you want" = "صف ما تريده";
+"Describe the change" = "صف التغيير";
+"Generate" = "إنشاء";
+"Refine" = "تحسين";
+"Update" = "تحديث";
+"Versions" = "الإصدارات";
+"Version %lld" = "الإصدار %lld";
+"Restore" = "استعادة";
+"Current" = "الحالي";
+"Dismiss" = "إغلاق";
+"Ask for a change" = "اطلب تغييرًا";
+"Delete this artifact?" = "حذف هذا المحتوى؟";
+"Couldn't load data" = "تعذّر تحميل البيانات";
+"No data yet" = "لا توجد بيانات بعد";
+"Not supported in this version yet" = "غير مدعوم في هذا الإصدار بعد";
+"Update Palabra to open this artifact." = "حدّث Palabra لفتح هذا المحتوى.";
+"Try updating this artifact." = "جرّب تحديث هذا المحتوى.";
+"This artifact is too large to save. Ask for a simpler version." = "هذا المحتوى كبير جدًا للحفظ. اطلب نسخة أبسط.";
+"This artifact's storage is full." = "مساحة تخزين هذا المحتوى ممتلئة.";
+"The artifact could not be saved." = "تعذّر حفظ المحتوى.";
+"The AI's answer was cut off. Try asking for something smaller." = "انقطعت إجابة الذكاء الاصطناعي. جرّب طلبًا أصغر.";
+"The AI's answer wasn't in the expected format. Try again." = "لم تكن إجابة الذكاء الاصطناعي بالصيغة المتوقعة. حاول مرة أخرى.";
+"The AI returned something that couldn't be shown. Try again or rephrase." = "أعاد الذكاء الاصطناعي شيئًا تعذّر عرضه. حاول مرة أخرى أو أعد الصياغة.";
+"That kind of artifact isn't supported yet. Ask for a table, chart, roadmap or checklist." = "هذا النوع من المحتوى غير مدعوم بعد. اطلب جدولًا أو رسمًا بيانيًا أو خارطة طريق أو قائمة مهام.";
+"This artifact is too large to extend. Ask for a simpler version." = "هذا المحتوى كبير جدًا للتوسيع. اطلب نسخة أبسط.";
