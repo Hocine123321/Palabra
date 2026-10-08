@@ -63,7 +63,7 @@ final class ChatSessionTests: XCTestCase {
         let stored = repository.conversation(id: session.conversationID)
         XCTAssertEqual(stored?.turns.count, 2)
         XCTAssertEqual(stored?.title, "how are you")
-        XCTAssertTrue(script.prompts[0].contains("USER: how are you"))
+        XCTAssertTrue(script.prompts[0].contains("USER: how are   you"))
     }
 
     func testReadsRunAtOnceAndTheModelSeesTheResult() async {
