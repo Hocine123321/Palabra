@@ -30,6 +30,8 @@ protocol ArtifactRepository {
     func restore(artifactID: UUID, versionNumber: Int, now: Date) -> Result<ArtifactVersion, ArtifactStorageError>
     /// Removes the artifact, its versions and its state.
     func delete(id: UUID)
+    /// Replaces the approved capability names (sorted, unique). No-op for an unknown artifact.
+    func setGranted(artifactID: UUID, names: [String])
     func stateValue(artifactID: UUID, key: String) -> Data?
     func setStateValue(artifactID: UUID, key: String, value: Data) -> Result<Void, ArtifactStorageError>
     func removeStateValue(artifactID: UUID, key: String)
@@ -109,6 +111,12 @@ final class SwiftDataArtifactRepository: ArtifactRepository {
             prompt: "Restored version \(versionNumber)",
             now: now
         )
+    }
+
+    func setGranted(artifactID: UUID, names: [String]) {
+        guard let artifact = artifact(id: artifactID) else { return }
+        artifact.grantedNames = Array(Set(names)).sorted()
+        try? context.save()
     }
 
     func delete(id: UUID) {

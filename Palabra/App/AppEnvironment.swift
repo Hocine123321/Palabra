@@ -26,6 +26,8 @@ final class AppEnvironment {
     let artifacts: ArtifactRepository
     /// Everything an artifact may ask the app to do (and the AI's manual for it).
     let capabilities: CapabilityRegistry
+    /// Where `ai.generate` reaches the AI; filled in at the end of `init`.
+    @ObservationIgnored let aiGateway: AIGateway
     let catalogue: ModelCatalogue
     let ttsCatalogue: ModelCatalogue
     let pronunciation = PronunciationService()
@@ -102,7 +104,9 @@ final class AppEnvironment {
         self.cards = cardRepository ?? SwiftDataCardRepository.inMemory()
         let resolvedArtifacts = artifactRepository ?? SwiftDataArtifactRepository.inMemory()
         self.artifacts = resolvedArtifacts
-        self.capabilities = CapabilityProviders.registry(words: repository, artifacts: resolvedArtifacts)
+        let gateway = AIGateway()
+        self.aiGateway = gateway
+        self.capabilities = CapabilityProviders.registry(words: repository, artifacts: resolvedArtifacts, aiGateway: gateway)
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
         self.wordQueue = wordQueue
@@ -120,6 +124,31 @@ final class AppEnvironment {
         hasCompletedOnboarding = settings.hasCompletedOnboarding
         catalogue.loadCacheIfPresent()
         ttsCatalogue.loadCacheIfPresent()
+        wireAIGateway()
+    }
+
+    /// `ai.generate` runs through `ai` (so retries and the resilience overlay apply) with the person's key and model.
+    private func wireAIGateway() {
+        aiGateway.run = { [weak self] prompt, schema, temperature in
+            let setup: Result<(client: AIClient, key: String, model: AIModel), AIError> = await MainActor.run {
+                guard let self, let key = self.apiKey else { return .failure(.missingAPIKey) }
+                guard let model = self.selectedModel else { return .failure(.noModelSelected) }
+                return .success((self.ai, key, model))
+            }
+            switch setup {
+            case .failure(let error):
+                return .failure(error)
+            case .success(let ready):
+                return await ready.client.generateJSON(
+                    prompt: prompt,
+                    systemInstruction: AIGateway.systemInstruction,
+                    schema: schema?.foundationObject as? [String: Any],
+                    apiKey: ready.key,
+                    model: ready.model,
+                    temperature: temperature
+                )
+            }
+        }
     }
 
     var apiKey: String? { keychain.read() }

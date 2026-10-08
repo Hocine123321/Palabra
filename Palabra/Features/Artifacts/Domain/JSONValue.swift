@@ -82,6 +82,44 @@ enum JSONValue: Codable, Equatable, Sendable {
         return try? JSONDecoder().decode(JSONValue.self, from: data)
     }
 
+    /// Plain Foundation objects (`NSNull`, `Bool`, `Double`, `String`, `[Any]`, `[String: Any]`),
+    /// for `WKWebView` replies and for passing a JSON schema to the AI client.
+    var foundationObject: Any {
+        switch self {
+        case .null: return NSNull()
+        case .bool(let value): return value
+        case .number(let value): return value
+        case .string(let value): return value
+        case .array(let value): return value.map(\.foundationObject)
+        case .object(let value): return value.mapValues(\.foundationObject)
+        }
+    }
+
+    /// The reverse of `foundationObject`, for `WKScriptMessage.body`. `nil` if anything is not JSON.
+    static func from(foundation: Any) -> JSONValue? {
+        switch foundation {
+        case is NSNull:
+            return .null
+        case let number as NSNumber:
+            // JavaScript booleans arrive as CFBoolean-backed NSNumbers.
+            return CFGetTypeID(number) == CFBooleanGetTypeID() ? .bool(number.boolValue) : .number(number.doubleValue)
+        case let text as String:
+            return .string(text)
+        case let items as [Any]:
+            let converted = items.compactMap { from(foundation: $0) }
+            return converted.count == items.count ? .array(converted) : nil
+        case let object as [String: Any]:
+            var converted: [String: JSONValue] = [:]
+            for (key, value) in object {
+                guard let item = from(foundation: value) else { return nil }
+                converted[key] = item
+            }
+            return .object(converted)
+        default:
+            return nil
+        }
+    }
+
     /// Stable (sorted-key) compact JSON.
     var jsonString: String {
         let encoder = JSONEncoder()

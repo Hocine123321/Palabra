@@ -24,6 +24,8 @@ enum CapabilityClass: Sendable {
 struct ArtifactSession: Sendable {
     let artifactID: UUID?
     let dryRun: Bool
+    /// One per open screen (kept in view state, not recreated on re-render); per-session limits key on it.
+    var sessionID: UUID = UUID()
 }
 
 enum CapabilityError: Error, Equatable {

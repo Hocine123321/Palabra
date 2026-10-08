@@ -8,7 +8,9 @@ enum CapabilityProviders {
         words: WordRepository,
         artifacts: ArtifactRepository,
         calendar: Calendar = .current,
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        aiGateway: AIGateway = AIGateway(),
+        aiLimiter: AIUsageLimiter = AIUsageLimiter()
     ) -> CapabilityRegistry {
         let wordsBox = MainActorBox(words)
         let artifactsBox = MainActorBox(artifacts)
@@ -16,6 +18,7 @@ enum CapabilityProviders {
             libraryCapabilities(words: wordsBox)
                 + statsCapabilities(words: wordsBox, calendar: calendar, now: now)
                 + storageCapabilities(artifacts: artifactsBox, scratch: ScratchStorage())
+                + aiCapabilities(gateway: aiGateway, limiter: aiLimiter)
         )
     }
 }
@@ -318,4 +321,53 @@ private func storageCapabilities(artifacts: MainActorBox<ArtifactRepository>, sc
         }
     )
     return [get, set, remove]
+}
+
+// MARK: - AI
+
+private enum AIGenerateLimits {
+    static let maxPromptLength = 8_000
+    static let defaultTemperature = 0.7
+    static let temperatureRange = 0.0...2.0
+}
+
+private func aiCapabilities(gateway: AIGateway, limiter: AIUsageLimiter) -> [Capability] {
+    let generate = Capability(
+        name: "ai.generate",
+        kind: .ai,
+        summary: "Ask the AI a question or give it a task, using your Google AI key (spends your AI quota).",
+        argsSchema: .object([
+            "prompt": .string("string, 1-\(AIGenerateLimits.maxPromptLength) characters"),
+            "schema": .string("optional JSON schema object; when given the text is JSON of that shape"),
+            "temperature": .string("optional number 0-2, default \(AIGenerateLimits.defaultTemperature)"),
+        ]),
+        returnsSummary: "{text}: the AI's answer as a string",
+        handler: { args, session in
+            guard case .success(let object) = argsObject(args) else { return .failure(.badArgs("arguments must be an object")) }
+            guard let prompt = object["prompt"]?.stringValue, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return .failure(.badArgs("prompt is required"))
+            }
+            guard prompt.count <= AIGenerateLimits.maxPromptLength else {
+                return .failure(.badArgs("prompt is longer than \(AIGenerateLimits.maxPromptLength) characters"))
+            }
+            var schema: JSONValue?
+            if let raw = object["schema"], raw != .null {
+                guard case .object = raw else { return .failure(.badArgs("schema must be an object")) }
+                schema = raw
+            }
+            var temperature = AIGenerateLimits.defaultTemperature
+            if let raw = object["temperature"], raw != .null {
+                guard let value = raw.doubleValue else { return .failure(.badArgs("temperature must be a number")) }
+                temperature = min(max(value, AIGenerateLimits.temperatureRange.lowerBound), AIGenerateLimits.temperatureRange.upperBound)
+            }
+            // Arguments are valid; only now does the call count against the session's budget.
+            guard limiter.allow(sessionID: session.sessionID) else { return .failure(.rateLimited) }
+            guard let run = gateway.run else { return .failure(.failed("AI is not available")) }
+            switch await run(prompt, schema, temperature) {
+            case .success(let text): return .success(.object(["text": .string(text)]))
+            case .failure(let error): return .failure(.failed(error.userMessage))
+            }
+        }
+    )
+    return [generate]
 }
