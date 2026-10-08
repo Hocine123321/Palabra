@@ -47,6 +47,27 @@ final class StubAIClient: AIClient {
             if prompt.lowercased().contains("fallo") { return .failure(.rateLimited) }
             return .success(#"{"title":"Stub deck","cards":[{"front":"Front 1","back":"Back 1"},{"front":"Front 2","back":"Back 2"},{"front":"Front 3","back":"Back 3"}]}"#)
         }
+        // Assistant chat (schema-less; reply text, then an optional `---ACTIONS---` JSON array). The transcript's
+        // last `USER:` block decides: "add words" proposes a write, "list words" a read, anything else echoes.
+        if schema == nil, systemInstruction.contains("---ACTIONS---") {
+            let tail = (prompt.components(separatedBy: "\nUSER: ").last ?? prompt)
+                .components(separatedBy: "\n\nWrite the next").first ?? prompt
+            let lowered = tail.lowercased()
+            if lowered.contains("fallo") { return .failure(.rateLimited) }
+            if tail.contains("\n  [") {
+                if tail.contains("[read library.words") { return .success("You have some words in your library.") }
+                if tail.contains("declined by the user") { return .success("Okay, I won't change anything.") }
+                return .success("All done.")
+            }
+            if lowered.contains("add words") {
+                return .success("I'll add two words.\n---ACTIONS---\n[{\"capability\":\"words.add\",\"args\":{\"words\":[\"alpha\",\"beta\"]}}]")
+            }
+            if lowered.contains("list words") {
+                return .success("Let me look.\n---ACTIONS---\n[{\"capability\":\"library.words\",\"args\":{\"limit\":5}}]")
+            }
+            let echo = tail.components(separatedBy: "\n").first.map { String($0.prefix(60)) } ?? ""
+            return .success("Think of \"\(echo)\" this way.")
+        }
         // Artifact generation (schema-less, delimited envelope). `fallo` exercises the failure path;
         // an update prompt carries the current payload and gets one extra text block back.
         if schema == nil, systemInstruction.contains("---PAYLOAD---") {

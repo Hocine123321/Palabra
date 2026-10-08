@@ -14,13 +14,17 @@ struct RootView: View {
                         case .vocabulary:
                             VocabularyLibraryView()
                         case .wordDetail(let id):
-                            WordDetailHost(wordID: id, banner: { AnyView(ReviewNeedBanner(wordID: $0)) })
+                            WordDetailHost(wordID: id, banner: { AnyView(ReviewNeedBanner(wordID: $0)) }, onAsk: openChat)
                         case .artifacts:
                             ArtifactsListView()
                         case .artifactDetail(let id):
                             ArtifactDetailView(artifactID: id)
                         case .needReview:
                             NeedReviewView()
+                        case .chatList:
+                            ChatListView()
+                        case .chat(let id):
+                            ChatView(conversationID: id)
                         }
                     }
             }
@@ -54,6 +58,22 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { environment.queueProcessor.drain(environment: environment) }
         }
+    }
+
+    /// "Ask about this word": find or create the chat for the word (importing the word's old chat the first
+    /// time) and push it above the word page. This is the one place that knows both `Word` and `Chat`.
+    private func openChat(wordID: UUID, title: String) {
+        let id: UUID
+        if let existing = environment.chat.conversation(forWordID: wordID) {
+            id = existing.id
+        } else {
+            let legacy = environment.repository.allWords().first { $0.id == wordID }?.chat ?? []
+            let turns = legacy.filter { $0.status == .sent && !$0.text.isEmpty }.map {
+                ChatTurn(role: $0.role == .user ? .user : .assistant, text: $0.text, createdAt: $0.createdAt)
+            }
+            id = environment.chat.create(title: title, wordID: wordID, turns: turns, now: Date()).id
+        }
+        environment.router.path.append(.chat(id))
     }
 
     private var onboardingBinding: Binding<Bool> {

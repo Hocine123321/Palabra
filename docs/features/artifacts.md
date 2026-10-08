@@ -8,7 +8,7 @@ Plans B1 (spec artifacts), B2 (`app` artifacts in a sandboxed web view) and C (N
 
 ```
 Features/Artifacts/
-  Domain/    JSONValue, ArtifactKind, Capability (+CapabilityClass, ArtifactSession), CapabilityRegistry, GrantPolicy, CodeFence
+  Domain/    ArtifactKind, GrantPolicy, AIUsageLimiter   (JSONValue, Capability, CapabilityRegistry, CodeFence live in Core/Capabilities)
   Storage/   Artifact, ArtifactVersion, ArtifactStateEntry (SwiftData), ArtifactRepository
   Spec/      SpecBlock (model), SpecValidator (sanitizer), SpecBindLoader, SpecStateStore, SpecRenderer + views
   AI/        ArtifactEnvelope (parser), ArtifactPrompts, ArtifactGenerator
@@ -66,7 +66,7 @@ An `app` artifact is one self-contained HTML document (no external `src`/`href`,
 
 ## Capabilities
 
-`library.words`, `library.word`, `stats.wordsPerDay`, `stats.wordsPerWeek` (read); `storage.get`, `storage.set`, `storage.remove` (local); `ai.generate` (ai, apps only); `review.flag` (write) and `review.list` (read), see `docs/features/need-review.md`.
+`library.words`, `library.word`, `stats.wordsPerDay`, `stats.wordsPerWeek` (read); `storage.get`, `storage.set`, `storage.remove` (local); `ai.generate` (ai, apps only); `review.flag` (write) and `review.list` (read), see `docs/features/need-review.md`; `words.add`, `words.place` (write), `study.decks` (read), `study.addCards` (write), see `docs/features/chat.md`.
 
 ### How to add a capability
 

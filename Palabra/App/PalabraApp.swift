@@ -11,7 +11,7 @@ struct PalabraApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
-        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self, ReviewNeed.self])
+        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self, ReviewNeed.self, ChatConversation.self])
 
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -31,6 +31,7 @@ struct PalabraApp: App {
             for version in (try? context.fetch(FetchDescriptor<ArtifactVersion>())) ?? [] { context.delete(version) }
             for entry in (try? context.fetch(FetchDescriptor<ArtifactStateEntry>())) ?? [] { context.delete(entry) }
             for need in (try? context.fetch(FetchDescriptor<ReviewNeed>())) ?? [] { context.delete(need) }
+            for conversation in (try? context.fetch(FetchDescriptor<ChatConversation>())) ?? [] { context.delete(conversation) }
             try? context.save()
         }
 
@@ -60,7 +61,8 @@ struct PalabraApp: App {
                 wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container)),
                 cardRepository: SwiftDataCardRepository(context: ModelContext(container)),
                 artifactRepository: SwiftDataArtifactRepository(context: ModelContext(container)),
-                reviewRepository: SwiftDataReviewRepository(context: ModelContext(container))
+                reviewRepository: SwiftDataReviewRepository(context: ModelContext(container)),
+                chatRepository: SwiftDataChatRepository(context: ModelContext(container))
             )
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id

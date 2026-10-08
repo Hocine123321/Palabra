@@ -32,14 +32,16 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Play pronunciation"].waitForExistence(timeout: 5))
 
         app.buttons["Ask about this word"].tap()
-        let chatField = app.textFields["Ask about this word…"]
+        let chatField = app.descendants(matching: .any).matching(identifier: "chatField").firstMatch
         XCTAssertTrue(chatField.waitForExistence(timeout: 5))
         chatField.tap()
         chatField.typeText("another example")
         app.buttons["chatSendButton"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Think of")).firstMatch.waitForExistence(timeout: 5))
 
-        app.swipeDown()
+        // The chat is pushed above the word: Back returns to the word, then to the library.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["Ask about this word"].waitForExistence(timeout: 5))
         app.navigationBars.buttons.element(boundBy: 0).tap()
         // Back from a word detail lands on the library, not the hub.
         XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))

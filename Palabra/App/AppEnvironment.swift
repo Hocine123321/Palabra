@@ -26,6 +26,8 @@ final class AppEnvironment {
     let artifacts: ArtifactRepository
     /// Words flagged as needing review (Need Review page, word-detail highlight).
     let review: ReviewRepository
+    /// Saved assistant conversations.
+    let chat: ChatRepository
     /// Everything an artifact may ask the app to do (and the AI's manual for it).
     let capabilities: CapabilityRegistry
     /// Where `ai.generate` reaches the AI; filled in at the end of `init`.
@@ -78,7 +80,8 @@ final class AppEnvironment {
         sleep: (@Sendable (TimeInterval) async -> Void)? = nil,
         cardRepository: CardRepository? = nil,
         artifactRepository: ArtifactRepository? = nil,
-        reviewRepository: ReviewRepository? = nil
+        reviewRepository: ReviewRepository? = nil,
+        chatRepository: ChatRepository? = nil
     ) {
         self.rawAI = ai
         let policyBox = PolicyBox(settings.retryPolicy)
@@ -112,6 +115,7 @@ final class AppEnvironment {
         self.artifacts = resolvedArtifacts
         let resolvedReview = reviewRepository ?? SwiftDataReviewRepository.inMemory()
         self.review = resolvedReview
+        self.chat = chatRepository ?? SwiftDataChatRepository.inMemory()
         let gateway = AIGateway()
         self.aiGateway = gateway
         let hooks = CapabilityHooks()
@@ -309,6 +313,31 @@ final class AppEnvironment {
         cards.syncVocabulary(entries)
     }
 
+    /// A live session for a saved conversation: it talks to the AI with the person's key and model and acts
+    /// through the capability registry.
+    func makeChatSession(conversationID: UUID) -> ChatSession? {
+        guard let conversation = chat.conversation(id: conversationID) else { return nil }
+        return ChatSession(
+            conversation: conversation,
+            repository: chat,
+            registry: capabilities,
+            language: { [weak self] in self?.aiLanguage ?? .english },
+            generate: { [weak self] prompt, system in
+                guard let self else { return .failure(.unknown(nil, "The app was closed.")) }
+                return await self.chatGenerate(prompt: prompt, system: system)
+            }
+        )
+    }
+
+    private func chatGenerate(prompt: String, system: String) async -> Result<String, AIError> {
+        guard hasAPIKey, let key = apiKey else { return .failure(.missingAPIKey) }
+        guard let model = selectedModel else { return .failure(.noModelSelected) }
+        let result = await ai.generateJSON(prompt: prompt, systemInstruction: system, schema: nil, apiKey: key, model: model, temperature: 0.5)
+        // Fix the selection so the Retry button works next time.
+        if case .failure(.modelUnavailable) = result { await repairMissingModel() }
+        return result
+    }
+
     /// Drops review needs whose word was deleted. Runs wherever `syncVocabularyCards` runs.
     func syncReviewNeeds() {
         review.deleteOrphans(validWordIDs: Set(repository.allWords().map(\.id)))
@@ -326,7 +355,8 @@ final class AppEnvironment {
             resilient: true,
             cardRepository: SwiftDataCardRepository(context: modelContext),
             artifactRepository: SwiftDataArtifactRepository(context: modelContext),
-            reviewRepository: SwiftDataReviewRepository(context: modelContext)
+            reviewRepository: SwiftDataReviewRepository(context: modelContext),
+            chatRepository: SwiftDataChatRepository(context: modelContext)
         )
     }
 }

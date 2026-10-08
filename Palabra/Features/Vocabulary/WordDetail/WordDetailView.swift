@@ -5,9 +5,9 @@ import SwiftUI
 struct WordDetailView: View {
     let word: Word
     var banner: AnyView = AnyView(EmptyView())
+    var onAsk: ((UUID, String) -> Void)?
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
-    @State private var showChat = false
     @State private var showRegenerate = false
     @State private var showDeleteConfirm = false
 
@@ -39,9 +39,6 @@ struct WordDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showChat) {
-            ChatSheet(word: word)
-        }
         .sheet(isPresented: $showRegenerate) {
             WordPreviewSheet(
                 flow: AddWordFlow(inputWord: word.spanish, mode: .regenerate(existingID: word.id, existingCreatedAt: word.createdAt), environment: environment),
@@ -68,8 +65,15 @@ struct WordDetailView: View {
         }
     }
 
+    @ViewBuilder
     private var askBar: some View {
-        Button { showChat = true } label: {
+        if let onAsk {
+            askButton { onAsk(word.id, word.spanish) }
+        }
+    }
+
+    private func askButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             GlassSurface(cornerRadius: Theme.Radius.pill) {
                 Label("Ask about this word", systemImage: "bubble.left.and.bubble.right")
                     .font(.subheadline.weight(.medium))

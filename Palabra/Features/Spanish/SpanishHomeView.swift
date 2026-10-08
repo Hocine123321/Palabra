@@ -20,6 +20,11 @@ struct SpanishHomeView: View {
                         .font(Theme.Font.rowTitle)
                 }
                 .accessibilityIdentifier("spanishRow.artifacts")
+                NavigationLink(value: Router.Destination.chatList) {
+                    Label("Chat", systemImage: "bubble.left.and.bubble.right")
+                        .font(Theme.Font.rowTitle)
+                }
+                .accessibilityIdentifier("spanishRow.chat")
                 NavigationLink(value: Router.Destination.needReview) {
                     HStack {
                         Label("Need Review", systemImage: "flag")

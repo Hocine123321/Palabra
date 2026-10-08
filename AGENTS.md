@@ -18,6 +18,7 @@ Palabra/
   Core/                 shared by every feature — should not know about vocabulary
     AI/                 AIClient protocol, GeminiClient, StubAIClient, AIError, AIModel
     Audio/              WAVAudio (normalizes Gemini TTS output), PronunciationPlayer (AVAudioPlayer wrapper)
+    Capabilities/       JSONValue, Capability, CapabilityRegistry, CodeFence: the registry artifacts and the chat both use
     Catalogue/          model catalogue, model filters, default-model picker, API-key entry
     DesignSystem/       Theme, glass surfaces, motion, shared components
     Localization/       SupportedLanguage (app language / AI language: en, ar)
@@ -28,12 +29,17 @@ Palabra/
     Spanish/            hub page list (SpanishHomeView), the Spanish tab's stack root
     Settings/           settings + model picker (app-wide, not vocabulary-specific)
     Artifacts/          AI-built tables/charts/roadmaps/checklists, saved and versioned (Spanish hub page)
-      Domain/           JSONValue, Capability, CapabilityRegistry (the one door to the app), GrantPolicy
+      Domain/           ArtifactKind, GrantPolicy, AIUsageLimiter (the registry itself lives in Core/Capabilities)
       Storage/          Artifact, ArtifactVersion, ArtifactStateEntry (SwiftData), ArtifactRepository
       Spec/             SpecBlock, SpecValidator, SpecBindLoader, SpecStateStore, SpecRenderer + views
       AI/               ArtifactEnvelope, ArtifactPrompts, ArtifactGenerator (generateJSON, delimited envelope)
       Library/          list, draft sheet (preview/refine/save), detail (update/versions/delete), ArtifactApprovalCard
       App/              app artifacts: BridgeDispatcher (pure), PalabraBridge, ArtifactSandbox (CSP, rules, shim, NavigationGate), AppRendererView, error log
+    Chat/               the assistant: saved conversations that act on the app through the capability registry
+      Storage/          ChatConversation (SwiftData), ChatTurn/ChatAction (JSON), ChatRepository
+      AI/               ChatPrompts, ChatReplyParser
+      Conversation/     ChatSession (the model/action loop)
+      Library/          ChatListView, ChatView
     Review/             Need Review: flagged words (Spanish hub page)
       Storage/          ReviewNeed (SwiftData), ReviewRepository
       Library/          NeedReviewView (page), ReviewNeedBanner (word-detail highlight, injected by RootView)
@@ -85,6 +91,7 @@ Changing any of these silently loses the user's saved words, settings or API key
 - The JSON keys inside `WordContent` (including `spanish` / `english` / `translation` on examples) — stored data and Gemini's response schema both use them.
 - The SwiftData entities `Deck`, `Card` and `ReviewLog` and their stored properties (including the raw-value strings `kindRaw` / `phaseRaw` / `gradeRaw`; their enum raw values are append-only), and the `newCardsPerDay` key in `SettingsStore.Keys`.
 - The SwiftData entities `Artifact`, `ArtifactVersion` and `ArtifactStateEntry` and their stored properties (including `kindRaw`, `grantedData`, `requestedData`, `payload`, `valueData`); the `ArtifactKind` raw values `"spec"` / `"app"` are append-only, and so are the JSON blobs in `grantedData` / `requestedData` (`[String]` of capability names).
+- The SwiftData entity `ChatConversation` and its stored properties (`turnsData` is JSON `[ChatTurn]` with tolerant decoding: add fields, never rename).
 - The SwiftData entity `ReviewNeed` and its stored properties (including `statusRaw`); the `ReviewStatus` raw values `"open"` / `"cleared"` are append-only.
 - The library export envelope (`app: "Palabra"`, `version`) written by `VocabularyLibraryExporter`; old exports must keep importing.
 - The SwiftData entity `WordQueueItem` and its stored property names (`inputWord`, `existingWordID`, `existingCreatedAt`, `languageRaw`, `createdAt`, `statusRaw`, `attempts`, `lastErrorMessage`) — same reasoning as `Word`: a rename changes the on-device schema and loses whatever's mid-flight in someone's offline queue.
@@ -172,6 +179,14 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - The generator makes one automatic retry (truncated / invalid spec / malformed envelope). Do not add retry loops in screens.
 - `StubAIClient`'s artifact envelope must stay valid for the real prompt/parser/validator: `StubArtifactTests` enforces it. New `AIClient` methods need a `MockAIClient` stub (`generateJSON` recording is additive).
 - Spec: `docs/features/artifacts.md`.
+
+## Chat
+
+- The assistant acts only through `CapabilityRegistry.call`; its toolset is every `.read` and `.write` capability (never `.local` or `.ai`). Reads run at once; **a write never runs without the person tapping Apply** (the confirmation card is the consent). Do not add a way around that.
+- `ChatSession` owns the loop (max 4 model calls per message, 5 calls per reply, one automatic retry for a malformed actions block). Screens only call `send`, `approvePending`, `declinePending`, `retry`, `clear`.
+- The chat uses the generic `generateJSON` with the transcript rendered as text (no new `AIClient` method). Its protocol marker is `---ACTIONS---`; `StubAIClient` keys on it, so keep the two in sync (`ChatUITests`, `SmokeUITests`).
+- `Features/Chat` never imports `Word`, `Deck`, `Card` or `ReviewNeed`; `RootView.openChat` (App layer) is where a word's old chat is imported. `Word.chatData` and `AIClient.sendChat` are no longer used by any screen (kept for stored data and their tests).
+- A new capability needs a `describe` closure when it is a write, so the card reads well. Spec: `docs/features/chat.md`.
 
 ## Need Review
 
