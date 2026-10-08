@@ -11,7 +11,7 @@ struct PalabraApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
-        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self])
+        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self, ReviewNeed.self])
 
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -30,6 +30,7 @@ struct PalabraApp: App {
             for artifact in (try? context.fetch(FetchDescriptor<Artifact>())) ?? [] { context.delete(artifact) }
             for version in (try? context.fetch(FetchDescriptor<ArtifactVersion>())) ?? [] { context.delete(version) }
             for entry in (try? context.fetch(FetchDescriptor<ArtifactStateEntry>())) ?? [] { context.delete(entry) }
+            for need in (try? context.fetch(FetchDescriptor<ReviewNeed>())) ?? [] { context.delete(need) }
             try? context.save()
         }
 
@@ -58,7 +59,8 @@ struct PalabraApp: App {
                 settings: settings,
                 wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container)),
                 cardRepository: SwiftDataCardRepository(context: ModelContext(container)),
-                artifactRepository: SwiftDataArtifactRepository(context: ModelContext(container))
+                artifactRepository: SwiftDataArtifactRepository(context: ModelContext(container)),
+                reviewRepository: SwiftDataReviewRepository(context: ModelContext(container))
             )
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id
@@ -84,6 +86,10 @@ struct PalabraApp: App {
                     )
                 }
                 env.syncVocabularyCards()
+                // `-UITestSeedReview` flags the first seeded word so Need Review has something to show.
+                if arguments.contains("-UITestSeedReview"), let word = env.repository.find(key: WordKey.identity("palabra0")) {
+                    env.review.flag([ReviewFlag(wordID: word.id, headword: word.spanish, translation: word.translation, score: 0.8, note: "Seeded note", sourceArtifactID: nil)], now: Date())
+                }
             }
             environment = env
         } else {

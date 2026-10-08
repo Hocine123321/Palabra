@@ -2,7 +2,7 @@
 
 The Spanish tab's **Artifacts** page. The person asks the AI for a table, chart, roadmap or checklist; it is previewed (live), saved as a versioned artifact, reopened later, updated, and rolled back. Tables and charts can bind live to library data.
 
-Plans B1 (spec artifacts) and B2 (`app` artifacts in a sandboxed web view) are shipped; plan C adds the Need Review list. Design: `docs/superpowers/specs/2026-10-06-artifacts-design.md`.
+Plans B1 (spec artifacts), B2 (`app` artifacts in a sandboxed web view) and C (Need Review) are shipped. Design: `docs/superpowers/specs/2026-10-06-artifacts-design.md`.
 
 ## Architecture
 
@@ -64,9 +64,9 @@ An `app` artifact is one self-contained HTML document (no external `src`/`href`,
 
 `library.words` limit 1…500 (default 100), `stats.wordsPerDay` days 1…365 (default 7), `stats.wordsPerWeek` weeks 1…104 (default 8).
 
-## Capabilities in B1
+## Capabilities
 
-`library.words`, `library.word`, `stats.wordsPerDay`, `stats.wordsPerWeek` (read); `storage.get`, `storage.set`, `storage.remove` (local).
+`library.words`, `library.word`, `stats.wordsPerDay`, `stats.wordsPerWeek` (read); `storage.get`, `storage.set`, `storage.remove` (local); `ai.generate` (ai, apps only); `review.flag` (write) and `review.list` (read), see `docs/features/need-review.md`.
 
 ### How to add a capability
 

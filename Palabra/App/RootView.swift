@@ -14,11 +14,13 @@ struct RootView: View {
                         case .vocabulary:
                             VocabularyLibraryView()
                         case .wordDetail(let id):
-                            WordDetailHost(wordID: id)
+                            WordDetailHost(wordID: id, banner: { AnyView(ReviewNeedBanner(wordID: $0)) })
                         case .artifacts:
                             ArtifactsListView()
                         case .artifactDetail(let id):
                             ArtifactDetailView(artifactID: id)
+                        case .needReview:
+                            NeedReviewView()
                         }
                     }
             }
@@ -41,7 +43,10 @@ struct RootView: View {
         .fullScreenCover(isPresented: onboardingBinding) {
             OnboardingView()
         }
-        .onAppear { environment.syncVocabularyCards() }
+        .onAppear {
+            environment.syncVocabularyCards()
+            environment.syncReviewNeeds()
+        }
         // Picks up anything queued offline: once on launch, and again every
         // time the app returns to the foreground (a drain already in
         // progress, or an empty queue, makes this a no-op).

@@ -4,6 +4,7 @@ import SwiftUI
 /// Regenerate/Delete menu, and the "Ask about this word" chat entry point.
 struct WordDetailView: View {
     let word: Word
+    var banner: AnyView = AnyView(EmptyView())
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @State private var showChat = false
@@ -14,6 +15,7 @@ struct WordDetailView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                    banner
                     jumpBar(proxy: proxy)
                     PronunciationNotice(word: word)
                     WordContentView(content: word.content) {

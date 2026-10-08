@@ -7,6 +7,7 @@ enum CapabilityProviders {
     static func registry(
         words: WordRepository,
         artifacts: ArtifactRepository,
+        review: ReviewRepository? = nil,
         calendar: Calendar = .current,
         now: @escaping @Sendable () -> Date = { Date() },
         aiGateway: AIGateway = AIGateway(),
@@ -14,11 +15,13 @@ enum CapabilityProviders {
     ) -> CapabilityRegistry {
         let wordsBox = MainActorBox(words)
         let artifactsBox = MainActorBox(artifacts)
+        let reviewBox = MainActorBox(review ?? SwiftDataReviewRepository.inMemory())
         return CapabilityRegistry(
             libraryCapabilities(words: wordsBox)
                 + statsCapabilities(words: wordsBox, calendar: calendar, now: now)
                 + storageCapabilities(artifacts: artifactsBox, scratch: ScratchStorage())
                 + aiCapabilities(gateway: aiGateway, limiter: aiLimiter)
+                + reviewCapabilities(words: wordsBox, review: reviewBox, now: now)
         )
     }
 }
@@ -370,4 +373,102 @@ private func aiCapabilities(gateway: AIGateway, limiter: AIUsageLimiter) -> [Cap
         }
     )
     return [generate]
+}
+
+// MARK: - review.*
+
+private let maxReviewWordsPerCall = 50
+
+private func reviewCapabilities(words: MainActorBox<WordRepository>, review: MainActorBox<ReviewRepository>, now: @escaping @Sendable () -> Date) -> [Capability] {
+    let flag = Capability(
+        name: "review.flag",
+        kind: .write,
+        summary: "Flags saved words the user struggles with. They get a highlight on their detail page and appear in the Need Review list. Only the user can clear them.",
+        argsSchema: .object([
+            "words": .string("array of 1-50 {id or key (from library.words), score (optional 0-1 weakness, default 0.5), note (optional, <= 200 chars: why)}"),
+        ]),
+        returnsSummary: "{flagged: number of words flagged, unresolved: [ids or keys that are not in the library]}",
+        dryRunValue: .object(["flagged": .number(0), "unresolved": .array([])]),
+        handler: { args, session in
+            guard case .success(let object) = argsObject(args) else { return .failure(.badArgs("arguments must be an object")) }
+            guard let items = object["words"]?.arrayValue, !items.isEmpty else { return .failure(.badArgs("words must be a non-empty array")) }
+            guard items.count <= maxReviewWordsPerCall else { return .failure(.badArgs("at most \(maxReviewWordsPerCall) words per call")) }
+            struct Request: Sendable { var id: UUID?; var key: String?; var label: String; var score: Double; var note: String }
+            var requests: [Request] = []
+            for item in items {
+                guard let entry = item.objectValue else { return .failure(.badArgs("each word must be an object")) }
+                let idString = entry["id"]?.stringValue
+                let key = entry["key"]?.stringValue
+                guard idString != nil || key != nil else { return .failure(.badArgs("each word needs an id or a key")) }
+                var uuid: UUID?
+                if let idString {
+                    guard let parsed = UUID(uuidString: idString) else { return .failure(.badArgs("id is not a valid id")) }
+                    uuid = parsed
+                }
+                var score = 0.5
+                if let raw = entry["score"], raw != .null {
+                    guard let value = raw.doubleValue else { return .failure(.badArgs("score must be a number")) }
+                    score = value
+                }
+                requests.append(Request(id: uuid, key: key, label: String((idString ?? key ?? "").prefix(64)), score: score, note: entry["note"]?.stringValue ?? ""))
+            }
+            let source = session.artifactID
+            let moment = now()
+            let resolvedRequests = requests
+            let outcome: (flagged: Int, unresolved: [String]) = await MainActor.run {
+                let all = words.value.allWords()
+                var flags: [ReviewFlag] = []
+                var positions: [UUID: Int] = [:]
+                var unresolved: [String] = []
+                for request in resolvedRequests {
+                    let match = request.id.flatMap { target in all.first { $0.id == target } }
+                        ?? request.key.flatMap { raw in
+                            let normalized = WordKey.identity(raw)
+                            return all.first { $0.key == normalized }
+                        }
+                    guard let word = match else { unresolved.append(request.label); continue }
+                    // The same word twice in one call is one flag with the higher score.
+                    if let index = positions[word.id] {
+                        flags[index].score = max(flags[index].score, request.score)
+                        flags[index].note = request.note
+                    } else {
+                        positions[word.id] = flags.count
+                        flags.append(ReviewFlag(wordID: word.id, headword: word.spanish, translation: word.translation, score: request.score, note: request.note, sourceArtifactID: source))
+                    }
+                }
+                let applied = review.value.flag(flags, now: moment)
+                return (applied, unresolved)
+            }
+            return .success(.object([
+                "flagged": .number(Double(outcome.flagged)),
+                "unresolved": .array(outcome.unresolved.map { JSONValue.string($0) }),
+            ]))
+        }
+    )
+
+    let list = Capability(
+        name: "review.list",
+        kind: .read,
+        summary: "Lists the words currently flagged as needing review, weakest first.",
+        argsSchema: .object([:]),
+        returnsSummary: "array of {wordID, headword, translation, score (0-1), note, flagCount, updatedAt (ISO-8601)}",
+        handler: { _, _ in
+            let items: [JSONValue] = await MainActor.run {
+                let formatter = ISO8601DateFormatter()
+                return review.value.openNeeds().map { need in
+                    JSONValue.object([
+                        "wordID": .string(need.wordID.uuidString),
+                        "headword": .string(need.headword),
+                        "translation": .string(need.translation),
+                        "score": .number(need.score),
+                        "note": .string(need.note),
+                        "flagCount": .number(Double(need.flagCount)),
+                        "updatedAt": .string(formatter.string(from: need.updatedAt)),
+                    ])
+                }
+            }
+            return .success(.array(items))
+        }
+    )
+    return [flag, list]
 }

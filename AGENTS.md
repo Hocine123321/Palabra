@@ -34,6 +34,9 @@ Palabra/
       AI/               ArtifactEnvelope, ArtifactPrompts, ArtifactGenerator (generateJSON, delimited envelope)
       Library/          list, draft sheet (preview/refine/save), detail (update/versions/delete), ArtifactApprovalCard
       App/              app artifacts: BridgeDispatcher (pure), PalabraBridge, ArtifactSandbox (CSP, rules, shim, NavigationGate), AppRendererView, error log
+    Review/             Need Review: flagged words (Spanish hub page)
+      Storage/          ReviewNeed (SwiftData), ReviewRepository
+      Library/          NeedReviewView (page), ReviewNeedBanner (word-detail highlight, injected by RootView)
     Study/              flashcards + spaced repetition (the second tab)
       Storage/          Deck, Card, ReviewLog (SwiftData), CardRepository
       Domain/           CardDraft, VocabularyCardEntry, DeckCounts, StudyRoute, grade/interval labels
@@ -82,6 +85,7 @@ Changing any of these silently loses the user's saved words, settings or API key
 - The JSON keys inside `WordContent` (including `spanish` / `english` / `translation` on examples) — stored data and Gemini's response schema both use them.
 - The SwiftData entities `Deck`, `Card` and `ReviewLog` and their stored properties (including the raw-value strings `kindRaw` / `phaseRaw` / `gradeRaw`; their enum raw values are append-only), and the `newCardsPerDay` key in `SettingsStore.Keys`.
 - The SwiftData entities `Artifact`, `ArtifactVersion` and `ArtifactStateEntry` and their stored properties (including `kindRaw`, `grantedData`, `requestedData`, `payload`, `valueData`); the `ArtifactKind` raw values `"spec"` / `"app"` are append-only, and so are the JSON blobs in `grantedData` / `requestedData` (`[String]` of capability names).
+- The SwiftData entity `ReviewNeed` and its stored properties (including `statusRaw`); the `ReviewStatus` raw values `"open"` / `"cleared"` are append-only.
 - The library export envelope (`app: "Palabra"`, `version`) written by `VocabularyLibraryExporter`; old exports must keep importing.
 - The SwiftData entity `WordQueueItem` and its stored property names (`inputWord`, `existingWordID`, `existingCreatedAt`, `languageRaw`, `createdAt`, `statusRaw`, `attempts`, `lastErrorMessage`) — same reasoning as `Word`: a rename changes the on-device schema and loses whatever's mid-flight in someone's offline queue.
 
@@ -168,6 +172,14 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - The generator makes one automatic retry (truncated / invalid spec / malformed envelope). Do not add retry loops in screens.
 - `StubAIClient`'s artifact envelope must stay valid for the real prompt/parser/validator: `StubArtifactTests` enforces it. New `AIClient` methods need a `MockAIClient` stub (`generateJSON` recording is additive).
 - Spec: `docs/features/artifacts.md`.
+
+## Need Review
+
+- `Features/Review` never imports `Word` or `Artifacts`. Snapshots (`headword`, `translation`) are copied at flag time by `CapabilityProviders`, the only file that sees both `Word` and `ReviewNeed`.
+- One open need per word; re-flagging upserts (`flagCount`, max score). Only the person clears a need (artifacts have no capability for it).
+- The word-detail highlight is injected from `RootView` into `WordDetailHost` (the `VocabularyCardPronunciation` pattern), so Vocabulary stays independent of Review.
+- `AppEnvironment.syncReviewNeeds()` drops needs of deleted words; call it wherever `syncVocabularyCards` is called.
+- Spec: `docs/features/need-review.md`.
 
 ## Adding a feature (for example a study tool)
 

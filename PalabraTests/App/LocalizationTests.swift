@@ -28,6 +28,12 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveNeedReviewKeys() throws {
+        let table = try arabicTable()
+        let keys = ["Need Review", "Needs review", "Mark as learned", "Nothing to review", "Words your artifacts flag will show up here."]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
     /// Every message the artifact flow can show must be translated (they are looked up by English text).
     func testArabicStringsCoverArtifactErrorMessages() throws {
         let table = try arabicTable()

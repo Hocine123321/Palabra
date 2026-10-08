@@ -24,6 +24,8 @@ final class AppEnvironment {
     let cards: CardRepository
     /// Saved artifacts (versioned) and their per-artifact state.
     let artifacts: ArtifactRepository
+    /// Words flagged as needing review (Need Review page, word-detail highlight).
+    let review: ReviewRepository
     /// Everything an artifact may ask the app to do (and the AI's manual for it).
     let capabilities: CapabilityRegistry
     /// Where `ai.generate` reaches the AI; filled in at the end of `init`.
@@ -73,7 +75,8 @@ final class AppEnvironment {
         connectivity: ConnectivityWaiting? = nil,
         sleep: (@Sendable (TimeInterval) async -> Void)? = nil,
         cardRepository: CardRepository? = nil,
-        artifactRepository: ArtifactRepository? = nil
+        artifactRepository: ArtifactRepository? = nil,
+        reviewRepository: ReviewRepository? = nil
     ) {
         self.rawAI = ai
         let policyBox = PolicyBox(settings.retryPolicy)
@@ -104,9 +107,11 @@ final class AppEnvironment {
         self.cards = cardRepository ?? SwiftDataCardRepository.inMemory()
         let resolvedArtifacts = artifactRepository ?? SwiftDataArtifactRepository.inMemory()
         self.artifacts = resolvedArtifacts
+        let resolvedReview = reviewRepository ?? SwiftDataReviewRepository.inMemory()
+        self.review = resolvedReview
         let gateway = AIGateway()
         self.aiGateway = gateway
-        self.capabilities = CapabilityProviders.registry(words: repository, artifacts: resolvedArtifacts, aiGateway: gateway)
+        self.capabilities = CapabilityProviders.registry(words: repository, artifacts: resolvedArtifacts, review: resolvedReview, aiGateway: gateway)
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
         self.wordQueue = wordQueue
@@ -281,6 +286,11 @@ final class AppEnvironment {
         cards.syncVocabulary(entries)
     }
 
+    /// Drops review needs whose word was deleted. Runs wherever `syncVocabularyCards` runs.
+    func syncReviewNeeds() {
+        review.deleteOrphans(validWordIDs: Set(repository.allWords().map(\.id)))
+    }
+
     static func live(modelContext: ModelContext) -> AppEnvironment {
         AppEnvironment(
             ai: GeminiClient(),
@@ -292,7 +302,8 @@ final class AppEnvironment {
             wordQueue: SwiftDataWordQueueRepository(context: modelContext),
             resilient: true,
             cardRepository: SwiftDataCardRepository(context: modelContext),
-            artifactRepository: SwiftDataArtifactRepository(context: modelContext)
+            artifactRepository: SwiftDataArtifactRepository(context: modelContext),
+            reviewRepository: SwiftDataReviewRepository(context: modelContext)
         )
     }
 }

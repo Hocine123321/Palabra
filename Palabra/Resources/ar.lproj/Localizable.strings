@@ -250,3 +250,8 @@
 "Save its own data" = "يحفظ بياناته الخاصة";
 "Errors" = "الأخطاء";
 "Fix with AI" = "إصلاح بالذكاء الاصطناعي";
+"Need Review" = "تحتاج مراجعة";
+"Needs review" = "تحتاج إلى مراجعة";
+"Mark as learned" = "تم تعلّمها";
+"Nothing to review" = "لا شيء للمراجعة";
+"Words your artifacts flag will show up here." = "الكلمات التي تعلّمها محتوياتك ستظهر هنا.";

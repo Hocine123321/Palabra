@@ -16,6 +16,7 @@ final class Router {
         case wordDetail(UUID)
         case artifacts
         case artifactDetail(UUID)
+        case needReview
     }
 
     var path: [Destination] = []

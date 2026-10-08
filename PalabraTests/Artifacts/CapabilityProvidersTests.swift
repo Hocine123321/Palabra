@@ -59,7 +59,7 @@ final class CapabilityProvidersTests: XCTestCase {
     func testRegistryNamesAreUniqueAndComplete() {
         XCTAssertEqual(
             registry.all.map(\.name),
-            ["ai.generate", "library.word", "library.words", "stats.wordsPerDay", "stats.wordsPerWeek", "storage.get", "storage.remove", "storage.set"]
+            ["ai.generate", "library.word", "library.words", "review.flag", "review.list", "stats.wordsPerDay", "stats.wordsPerWeek", "storage.get", "storage.remove", "storage.set"]
         )
         XCTAssertEqual(registry.capability(named: "storage.get")?.kind, .local)
         XCTAssertEqual(registry.capability(named: "library.words")?.kind, .read)
