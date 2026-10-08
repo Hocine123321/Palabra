@@ -102,7 +102,7 @@ final class ArtifactSandboxTests: XCTestCase {
         let light = ArtifactTheme.variables(for: .light)
         let dark = ArtifactTheme.variables(for: .dark)
         XCTAssertEqual(Set(light.keys), ["ink", "ink-secondary", "surface", "accent", "error", "background"])
-        for value in light.values + dark.values {
+        for value in Array(light.values) + Array(dark.values) {
             XCTAssertNotNil(value.range(of: "^#[0-9A-F]{6}$", options: .regularExpression), "bad color \(value)")
         }
         XCTAssertNotEqual(light["ink"], dark["ink"])
