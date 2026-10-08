@@ -240,3 +240,4 @@
 "The AI returned something that couldn't be shown. Try again or rephrase." = "أعاد الذكاء الاصطناعي شيئًا تعذّر عرضه. حاول مرة أخرى أو أعد الصياغة.";
 "That kind of artifact isn't supported yet. Ask for a table, chart, roadmap or checklist." = "هذا النوع من المحتوى غير مدعوم بعد. اطلب جدولًا أو رسمًا بيانيًا أو خارطة طريق أو قائمة مهام.";
 "This artifact is too large to extend. Ask for a simpler version." = "هذا المحتوى كبير جدًا للتوسيع. اطلب نسخة أبسط.";
+"The AI returned an app that couldn't be run. Try again or rephrase." = "أعاد الذكاء الاصطناعي تطبيقًا تعذّر تشغيله. حاول مرة أخرى أو أعد الصياغة.";

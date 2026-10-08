@@ -29,7 +29,7 @@ final class LocalizationTests: XCTestCase {
     /// Every message the artifact flow can show must be translated (they are looked up by English text).
     func testArabicStringsCoverArtifactErrorMessages() throws {
         let table = try arabicTable()
-        let errors: [ArtifactGenError] = [.truncated, .malformedEnvelope(""), .invalidSpec(""), .kindNotAvailable, .tooLargeToExtend]
+        let errors: [ArtifactGenError] = [.truncated, .malformedEnvelope(""), .invalidSpec(""), .invalidApp(""), .kindNotAvailable, .tooLargeToExtend]
         for error in errors { XCTAssertFalse((table[error.userMessage] ?? "").isEmpty, "missing Arabic string: \(error.userMessage)") }
         let storage = [
             "This artifact is too large to save. Ask for a simpler version.",

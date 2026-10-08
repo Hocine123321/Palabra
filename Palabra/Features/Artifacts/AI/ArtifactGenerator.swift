@@ -31,46 +31,46 @@ struct ArtifactGenerator {
             return .failure(.ai(.validationFailed(["The request is too short."])))
         }
         let text = String(trimmed.prefix(ArtifactGeneratorLimits.maxRequestLength))
-        return await run(prompt: text, userPrompt: text, fixedTitle: nil, isUpdate: false, apiKey: apiKey, model: model)
+        return await run(prompt: text, userPrompt: text, fixedTitle: nil, expectedKind: nil, apiKey: apiKey, model: model)
     }
 
     /// Sends the current payload plus the change and expects the complete new payload back.
     func update(kind: ArtifactKind, currentTitle: String, currentPayload: Data, change: String, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
-        guard kind == .spec else { return .failure(.kindNotAvailable) } // plan B2 adds app artifacts
+        guard allowedKinds.contains(kind) else { return .failure(.kindNotAvailable) }
         let trimmed = change.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= ArtifactGeneratorLimits.minRequestLength else {
             return .failure(.ai(.validationFailed(["The change request is too short."])))
         }
         let text = String(trimmed.prefix(ArtifactGeneratorLimits.maxRequestLength))
         let prompt = ArtifactPrompts.updatePrompt(change: text, currentTitle: currentTitle, currentPayload: String(decoding: currentPayload, as: UTF8.self))
-        return await run(prompt: prompt, userPrompt: text, fixedTitle: currentTitle, isUpdate: true, apiKey: apiKey, model: model)
+        return await run(prompt: prompt, userPrompt: text, fixedTitle: currentTitle, expectedKind: kind, apiKey: apiKey, model: model)
     }
 
     /// One attempt, plus at most one retry with the concrete problem appended.
-    private func run(prompt: String, userPrompt: String, fixedTitle: String?, isUpdate: Bool, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
+    private func run(prompt: String, userPrompt: String, fixedTitle: String?, expectedKind: ArtifactKind?, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
         var currentPrompt = prompt
         for tryIndex in 0...1 {
-            switch await attempt(prompt: currentPrompt, userPrompt: userPrompt, fixedTitle: fixedTitle, apiKey: apiKey, model: model) {
+            switch await attempt(prompt: currentPrompt, userPrompt: userPrompt, fixedTitle: fixedTitle, expectedKind: expectedKind, apiKey: apiKey, model: model) {
             case .success(let draft):
                 return .success(draft)
             case .failure(let error):
                 let retryable: Bool
                 switch error {
-                case .truncated, .invalidSpec, .malformedEnvelope: retryable = true
+                case .truncated, .invalidSpec, .invalidApp, .malformedEnvelope: retryable = true
                 case .ai, .kindNotAvailable, .tooLargeToExtend: retryable = false
                 }
                 if retryable && tryIndex == 0 {
                     currentPrompt = prompt + "\n\n" + ArtifactPrompts.retryAddendum(for: error)
                     continue
                 }
-                if isUpdate, case .truncated = error { return .failure(.tooLargeToExtend) }
+                if expectedKind != nil, case .truncated = error { return .failure(.tooLargeToExtend) }
                 return .failure(error)
             }
         }
         return .failure(.malformedEnvelope("no attempt was made")) // unreachable: the loop always returns
     }
 
-    private func attempt(prompt: String, userPrompt: String, fixedTitle: String?, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
+    private func attempt(prompt: String, userPrompt: String, fixedTitle: String?, expectedKind: ArtifactKind?, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
         let result = await ai.generateJSON(
             prompt: prompt,
             systemInstruction: ArtifactPrompts.systemInstruction(registry: registry, language: language, allowedKinds: allowedKinds),
@@ -90,13 +90,35 @@ struct ArtifactGenerator {
             case .failure(let error):
                 return .failure(error)
             case .success(let envelope):
-                return build(envelope, fixedTitle: fixedTitle, userPrompt: userPrompt)
+                return build(envelope, fixedTitle: fixedTitle, expectedKind: expectedKind, userPrompt: userPrompt)
             }
         }
     }
 
-    private func build(_ envelope: ArtifactEnvelope, fixedTitle: String?, userPrompt: String) -> Result<ArtifactDraft, ArtifactGenError> {
-        guard allowedKinds.contains(envelope.kind), envelope.kind == .spec else { return .failure(.kindNotAvailable) }
+    private func build(_ envelope: ArtifactEnvelope, fixedTitle: String?, expectedKind: ArtifactKind?, userPrompt: String) -> Result<ArtifactDraft, ArtifactGenError> {
+        guard allowedKinds.contains(envelope.kind) else { return .failure(.kindNotAvailable) }
+        // An update keeps the artifact's kind; the AI switching kinds is a format slip worth one retry.
+        if let expectedKind, envelope.kind != expectedKind {
+            return .failure(.malformedEnvelope("the kind must stay \"\(expectedKind.rawValue)\""))
+        }
+        switch envelope.kind {
+        case .spec: return buildSpec(envelope, fixedTitle: fixedTitle, userPrompt: userPrompt)
+        case .app: return buildApp(envelope, fixedTitle: fixedTitle, userPrompt: userPrompt)
+        }
+    }
+
+    private func buildApp(_ envelope: ArtifactEnvelope, fixedTitle: String?, userPrompt: String) -> Result<ArtifactDraft, ArtifactGenError> {
+        switch ArtifactHTMLLint.check(envelope.payload) {
+        case .failure(let error):
+            return .failure(.invalidApp(error.detail))
+        case .success(let html):
+            // Only registered capabilities survive; storage.* needs no request but is harmless.
+            let requests = Set(envelope.requests).filter { registry.capability(named: $0) != nil }.sorted()
+            return .success(ArtifactDraft(kind: .app, title: fixedTitle ?? envelope.title, payload: Data(html.utf8), requests: requests, prompt: userPrompt))
+        }
+    }
+
+    private func buildSpec(_ envelope: ArtifactEnvelope, fixedTitle: String?, userPrompt: String) -> Result<ArtifactDraft, ArtifactGenError> {
         let spec: ArtifactSpec
         switch SpecValidator.decode(envelope.payload) {
         case .failure(let error): return .failure(.invalidSpec(Self.describe(error)))

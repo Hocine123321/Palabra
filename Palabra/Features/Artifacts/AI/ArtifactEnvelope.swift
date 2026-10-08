@@ -6,6 +6,7 @@ enum ArtifactGenError: Error, Equatable {
     case truncated
     case malformedEnvelope(String)
     case invalidSpec(String)
+    case invalidApp(String)
     case kindNotAvailable
     case tooLargeToExtend
 
@@ -16,6 +17,7 @@ enum ArtifactGenError: Error, Equatable {
         case .truncated: return "The AI's answer was cut off. Try asking for something smaller."
         case .malformedEnvelope: return "The AI's answer wasn't in the expected format. Try again."
         case .invalidSpec: return "The AI returned something that couldn't be shown. Try again or rephrase."
+        case .invalidApp: return "The AI returned an app that couldn't be run. Try again or rephrase."
         case .kindNotAvailable: return "That kind of artifact isn't supported yet. Ask for a table, chart, roadmap or checklist."
         case .tooLargeToExtend: return "This artifact is too large to extend. Ask for a simpler version."
         }

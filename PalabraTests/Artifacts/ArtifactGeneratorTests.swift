@@ -154,4 +154,95 @@ final class ArtifactGeneratorTests: XCTestCase {
         XCTAssertEqual(result, .failure(.kindNotAvailable))
         XCTAssertTrue(mock.generateJSONCalls.isEmpty)
     }
+
+    // MARK: app kind
+
+    private let aiRegistry = CapabilityRegistry([
+        makeCapability("library.words", .read),
+        makeCapability("ai.generate", .ai),
+        makeCapability("storage.get", .local),
+        makeCapability("storage.set", .local),
+    ])
+    private let html = "<html><body><p>hola</p></body></html>"
+
+    private func appReply(title: String = "Practice", requests: String = #"["library.words"]"#, payload: String? = nil, end: Bool = true) -> String {
+        #"{"kind":"app","title":"\#(title)","requests":\#(requests)}"# + "\n---PAYLOAD---\n" + (payload ?? html) + "\n" + (end ? "---END---" : "")
+    }
+
+    private func appGenerator(_ mock: MockAIClient) -> ArtifactGenerator {
+        ArtifactGenerator(ai: mock, registry: aiRegistry, allowedKinds: [.spec, .app])
+    }
+
+    func testAppEnvelopeBuildsAppDraft() async {
+        let mock = MockAIClient()
+        mock.generateJSONResult = .success(appReply(requests: #"["storage.get","library.words","nope","library.words"]"#))
+        let result = await appGenerator(mock).create(request: "a practice app", apiKey: "k", model: model)
+        guard case .success(let draft) = result else { return XCTFail("expected success, got \(result)") }
+        XCTAssertEqual(draft.kind, .app)
+        XCTAssertEqual(draft.title, "Practice")
+        XCTAssertEqual(String(decoding: draft.payload, as: UTF8.self), html)
+        XCTAssertEqual(draft.requests, ["library.words", "storage.get"])
+    }
+
+    func testAppWithoutHTMLTagIsInvalidAndRetriedOnce() async {
+        let mock = MockAIClient()
+        mock.generateJSONResult = .success(appReply(payload: "just words"))
+        let result = await appGenerator(mock).create(request: "a practice app", apiKey: "k", model: model)
+        guard case .failure(.invalidApp) = result else { return XCTFail("expected invalidApp, got \(result)") }
+        XCTAssertEqual(mock.generateJSONCalls.count, 2)
+        XCTAssertTrue(mock.generateJSONCalls[1].prompt.contains("COULD NOT BE USED"))
+    }
+
+    func testAppWithExternalScriptThenValidSucceedsOnRetry() async {
+        let mock = MockAIClient()
+        mock.generateJSONScript = [.success(appReply(payload: #"<html><script src="https://x.example/a.js"></script></html>"#)), .success(appReply())]
+        let result = await appGenerator(mock).create(request: "a practice app", apiKey: "k", model: model)
+        guard case .success = result else { return XCTFail("expected success after retry") }
+        XCTAssertTrue(mock.generateJSONCalls[1].prompt.contains("external resource"))
+    }
+
+    func testAppUpdateSendsCurrentHTMLAndKeepsTitle() async {
+        let mock = MockAIClient()
+        mock.generateJSONResult = .success(appReply(title: "Renamed"))
+        let result = await appGenerator(mock).update(kind: .app, currentTitle: "Practice", currentPayload: Data(html.utf8), change: "make it blue", apiKey: "k", model: model)
+        guard case .success(let draft) = result else { return XCTFail("expected success, got \(result)") }
+        XCTAssertEqual(draft.title, "Practice")
+        XCTAssertEqual(draft.kind, .app)
+        let prompt = mock.generateJSONCalls[0].prompt
+        XCTAssertTrue(prompt.contains("make it blue"))
+        XCTAssertTrue(prompt.contains(html))
+    }
+
+    func testAppTruncatedUpdateIsTooLargeToExtend() async {
+        let mock = MockAIClient()
+        mock.generateJSONResult = .success(appReply(end: false))
+        let result = await appGenerator(mock).update(kind: .app, currentTitle: "T", currentPayload: Data(html.utf8), change: "add levels", apiKey: "k", model: model)
+        XCTAssertEqual(result, .failure(.tooLargeToExtend))
+        XCTAssertEqual(mock.generateJSONCalls.count, 2)
+    }
+
+    func testUpdateKindChangeIsMalformedAndRetried() async {
+        let mock = MockAIClient()
+        mock.generateJSONResult = .success(appReply())
+        let result = await appGenerator(mock).update(kind: .spec, currentTitle: "T", currentPayload: Data(#"{"blocks":[]}"#.utf8), change: "change it", apiKey: "k", model: model)
+        guard case .failure(.malformedEnvelope) = result else { return XCTFail("expected malformedEnvelope, got \(result)") }
+        XCTAssertEqual(mock.generateJSONCalls.count, 2)
+    }
+
+    func testSystemInstructionIncludesAppRulesOnlyWhenAppAllowed() async {
+        let withApp = MockAIClient()
+        withApp.generateJSONResult = .success(appReply())
+        _ = await appGenerator(withApp).create(request: "a practice app", apiKey: "k", model: model)
+        let appInstruction = withApp.generateJSONCalls[0].systemInstruction
+        XCTAssertTrue(appInstruction.contains("palabra.call"))
+        XCTAssertTrue(appInstruction.contains("ai.generate"))
+        XCTAssertTrue(appInstruction.contains(#""kind":"app""#))
+
+        let specOnly = MockAIClient()
+        specOnly.generateJSONResult = .success(reply())
+        _ = await ArtifactGenerator(ai: specOnly, registry: aiRegistry).create(request: "weekdays", apiKey: "k", model: model)
+        let specInstruction = specOnly.generateJSONCalls[0].systemInstruction
+        XCTAssertFalse(specInstruction.contains("palabra.call"))
+        XCTAssertFalse(specInstruction.contains("ai.generate"))
+    }
 }
