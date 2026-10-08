@@ -48,6 +48,8 @@ struct Capability: Sendable {
     let returnsSummary: String
     /// Required for `.write`: returned instead of running the handler in a dry run.
     let dryRunValue: JSONValue?
+    /// Plain-language line for a confirmation ("Add words: a, b"). Optional: the chat falls back to the name and arguments.
+    let describe: (@Sendable (JSONValue) -> String)?
     let handler: @Sendable (JSONValue, ArtifactSession) async -> Result<JSONValue, CapabilityError>
 
     init(
@@ -57,6 +59,7 @@ struct Capability: Sendable {
         argsSchema: JSONValue = .object([:]),
         returnsSummary: String,
         dryRunValue: JSONValue? = nil,
+        describe: (@Sendable (JSONValue) -> String)? = nil,
         handler: @escaping @Sendable (JSONValue, ArtifactSession) async -> Result<JSONValue, CapabilityError>
     ) {
         self.name = name
@@ -65,6 +68,7 @@ struct Capability: Sendable {
         self.argsSchema = argsSchema
         self.returnsSummary = returnsSummary
         self.dryRunValue = dryRunValue
+        self.describe = describe
         self.handler = handler
     }
 }

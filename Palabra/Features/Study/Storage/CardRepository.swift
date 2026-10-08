@@ -14,6 +14,10 @@ protocol CardRepository {
     @discardableResult
     func createDeck(name: String, drafts: [CardDraft], now: Date) -> Deck
     func deleteDeck(id: UUID)
+    /// Adds cards to a user deck, skipping blanks and cards already in it (same front and back, ignoring case).
+    /// Returns how many were added; 0 for an unknown deck or the system Vocabulary deck.
+    @discardableResult
+    func addCards(toDeck id: UUID, drafts: [CardDraft], now: Date) -> Int
     /// Applies the scheduler to one card and writes the card plus a `ReviewLog` together.
     @discardableResult
     func record(cardID: UUID, grade: SRSGrade, now: Date) -> SRSState?
@@ -94,6 +98,23 @@ final class SwiftDataCardRepository: CardRepository {
         }
         try? context.save()
         return deck
+    }
+
+    @discardableResult
+    func addCards(toDeck id: UUID, drafts: [CardDraft], now: Date) -> Int {
+        guard let deck = decks().first(where: { $0.id == id }), deck.kind == .user else { return 0 }
+        func normalized(_ front: String, _ back: String) -> String { "\(front.lowercased())\u{1F}\(back.lowercased())" }
+        var seen = Set(cards(inDeck: id).map { normalized($0.front, $0.back) })
+        var added = 0
+        for draft in drafts {
+            let front = draft.front.trimmingCharacters(in: .whitespacesAndNewlines)
+            let back = draft.back.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !front.isEmpty, !back.isEmpty, seen.insert(normalized(front, back)).inserted else { continue }
+            context.insert(Card(deckID: id, front: front, back: back, createdAt: now))
+            added += 1
+        }
+        if added > 0 { try? context.save() }
+        return added
     }
 
     func deleteDeck(id: UUID) {

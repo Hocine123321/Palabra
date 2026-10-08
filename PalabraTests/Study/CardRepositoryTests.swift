@@ -180,3 +180,21 @@ final class CardRepositoryTests: XCTestCase {
         XCTAssertEqual(repository.studyQueue(deckID: nil, now: now, newLimit: 20).count, 5)
     }
 }
+
+@MainActor
+final class CardRepositoryAddCardsTests: XCTestCase {
+    func testAddCardsSkipsBlanksAndDuplicatesAndProtectsTheVocabularyDeck() {
+        let repo = SwiftDataCardRepository.inMemory()
+        let deck = repo.createDeck(name: "Food", drafts: [CardDraft(front: "pan", back: "bread")], now: Date())
+        let added = repo.addCards(toDeck: deck.id, drafts: [
+            CardDraft(front: "PAN", back: "Bread"), CardDraft(front: " ", back: "x"), CardDraft(front: "agua", back: "water"), CardDraft(front: "agua", back: "water"),
+        ], now: Date())
+        XCTAssertEqual(added, 1)
+        XCTAssertEqual(repo.cards(inDeck: deck.id).count, 2)
+
+        repo.syncVocabulary([VocabularyCardEntry(wordID: UUID(), front: "hola", back: "hello")])
+        let vocabulary = repo.decks().first { $0.kind == .vocabulary }!
+        XCTAssertEqual(repo.addCards(toDeck: vocabulary.id, drafts: [CardDraft(front: "a", back: "b")], now: Date()), 0)
+        XCTAssertEqual(repo.addCards(toDeck: UUID(), drafts: [CardDraft(front: "a", back: "b")], now: Date()), 0)
+    }
+}

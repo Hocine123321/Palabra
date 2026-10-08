@@ -8,6 +8,9 @@ enum CapabilityProviders {
         words: WordRepository,
         artifacts: ArtifactRepository,
         review: ReviewRepository? = nil,
+        cards: CardRepository? = nil,
+        wordQueue: WordQueueRepository? = nil,
+        hooks: CapabilityHooks = CapabilityHooks(),
         calendar: Calendar = .current,
         now: @escaping @Sendable () -> Date = { Date() },
         aiGateway: AIGateway = AIGateway(),
@@ -16,14 +19,27 @@ enum CapabilityProviders {
         let wordsBox = MainActorBox(words)
         let artifactsBox = MainActorBox(artifacts)
         let reviewBox = MainActorBox(review ?? SwiftDataReviewRepository.inMemory())
+        let cardsBox = MainActorBox(cards ?? SwiftDataCardRepository.inMemory())
+        let queueBox = MainActorBox(wordQueue ?? SwiftDataWordQueueRepository.inMemory())
         return CapabilityRegistry(
             libraryCapabilities(words: wordsBox)
                 + statsCapabilities(words: wordsBox, calendar: calendar, now: now)
                 + storageCapabilities(artifacts: artifactsBox, scratch: ScratchStorage())
                 + aiCapabilities(gateway: aiGateway, limiter: aiLimiter)
                 + reviewCapabilities(words: wordsBox, review: reviewBox, now: now)
+                + wordsPackCapabilities(words: wordsBox, queue: queueBox, hooks: hooks)
+                + studyPackCapabilities(cards: cardsBox, now: now)
         )
     }
+}
+
+/// Side effects a capability asks the app to perform after it wrote something; wired by `AppEnvironment`.
+final class CapabilityHooks: @unchecked Sendable {
+    /// Words were added to the generation queue: start draining it.
+    var wordsQueued: (@MainActor @Sendable () -> Void)?
+    /// The AI-output language to queue new words with.
+    var language: @MainActor @Sendable () -> SupportedLanguage = { .english }
+    init() {}
 }
 
 // MARK: - Plumbing
@@ -389,6 +405,10 @@ private func reviewCapabilities(words: MainActorBox<WordRepository>, review: Mai
         ]),
         returnsSummary: "{flagged: number of words flagged, unresolved: [ids or keys that are not in the library]}",
         dryRunValue: .object(["flagged": .number(0), "unresolved": .array([])]),
+        describe: { args in
+            let count = args["words"]?.arrayValue?.count ?? 0
+            return "Flag \(count) word\(count == 1 ? "" : "s") as needing review"
+        },
         handler: { args, session in
             guard case .success(let object) = argsObject(args) else { return .failure(.badArgs("arguments must be an object")) }
             guard let items = object["words"]?.arrayValue, !items.isEmpty else { return .failure(.badArgs("words must be a non-empty array")) }
@@ -471,4 +491,230 @@ private func reviewCapabilities(words: MainActorBox<WordRepository>, review: Mai
         }
     )
     return [flag, list]
+}
+
+// MARK: - words.* (pack)
+
+private let maxWordsAddedPerCall = 20
+private let maxWordsPlacedPerCall = 50
+
+private func wordsPackCapabilities(
+    words: MainActorBox<WordRepository>,
+    queue: MainActorBox<WordQueueRepository>,
+    hooks: CapabilityHooks
+) -> [Capability] {
+    let add = Capability(
+        name: "words.add",
+        kind: .write,
+        summary: "Adds new Spanish words to the user's library. Each word is queued and explained by the AI in the background (examples, meaning, forms), so it appears in the library shortly after. Words already saved or already queued are skipped.",
+        argsSchema: .object([
+            "words": .string("array of 1-20 Spanish words or short phrases (each 1-80 characters)"),
+        ]),
+        returnsSummary: "{queued: number queued for generation, alreadyInLibrary: [words], alreadyQueued: [words]}",
+        dryRunValue: .object(["queued": .number(0), "alreadyInLibrary": .array([]), "alreadyQueued": .array([])]),
+        describe: { args in
+            let list = (args["words"]?.arrayValue ?? []).compactMap(\.stringValue).prefix(8).joined(separator: ", ")
+            return "Add words: \(list)"
+        },
+        handler: { args, _ in
+            guard case .success(let object) = argsObject(args) else { return .failure(.badArgs("arguments must be an object")) }
+            guard let items = object["words"]?.arrayValue, !items.isEmpty else { return .failure(.badArgs("words must be a non-empty array")) }
+            guard items.count <= maxWordsAddedPerCall else { return .failure(.badArgs("at most \(maxWordsAddedPerCall) words per call")) }
+            var cleaned: [String] = []
+            for item in items {
+                guard let raw = item.stringValue else { return .failure(.badArgs("each word must be a string")) }
+                let word = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !word.isEmpty, word.count <= 80 else { return .failure(.badArgs("each word must be 1-80 characters")) }
+                cleaned.append(word)
+            }
+            let resolved = cleaned
+            let outcome: (queued: Int, inLibrary: [String], alreadyQueued: [String]) = await MainActor.run {
+                let language = hooks.language()
+                let queuedKeys = Set(queue.value.allItems().filter { $0.existingWordID == nil }.map { WordKey.identity($0.inputWord) })
+                var seen = Set<String>()
+                var queued = 0
+                var inLibrary: [String] = []
+                var alreadyQueued: [String] = []
+                for word in resolved {
+                    let key = WordKey.identity(word)
+                    guard seen.insert(key).inserted else { continue }
+                    if words.value.find(key: key) != nil { inLibrary.append(word); continue }
+                    if queuedKeys.contains(key) { alreadyQueued.append(word); continue }
+                    queue.value.enqueue(inputWord: word, mode: .new, language: language)
+                    queued += 1
+                }
+                if queued > 0 { hooks.wordsQueued?() }
+                return (queued, inLibrary, alreadyQueued)
+            }
+            return .success(.object([
+                "queued": .number(Double(outcome.queued)),
+                "alreadyInLibrary": .array(outcome.inLibrary.map { JSONValue.string($0) }),
+                "alreadyQueued": .array(outcome.alreadyQueued.map { JSONValue.string($0) }),
+            ]))
+        }
+    )
+
+    let place = Capability(
+        name: "words.place",
+        kind: .write,
+        summary: "Sets the section (category) and/or tags of saved words. A category or tags you pass replace the old ones; leave one out to keep it.",
+        argsSchema: .object([
+            "words": .string("array of 1-50 {id or key (from library.words), category (optional, <= 32 chars), tags (optional array of up to 6 short tags)}"),
+        ]),
+        returnsSummary: "{updated: number of words changed, unresolved: [ids or keys that are not in the library]}",
+        dryRunValue: .object(["updated": .number(0), "unresolved": .array([])]),
+        describe: { args in
+            let items = args["words"]?.arrayValue ?? []
+            let categories = Array(Set(items.compactMap { $0["category"]?.stringValue })).sorted().prefix(4).joined(separator: ", ")
+            return "Organize \(items.count) word\(items.count == 1 ? "" : "s")" + (categories.isEmpty ? "" : " into: \(categories)")
+        },
+        handler: { args, _ in
+            guard case .success(let object) = argsObject(args) else { return .failure(.badArgs("arguments must be an object")) }
+            guard let items = object["words"]?.arrayValue, !items.isEmpty else { return .failure(.badArgs("words must be a non-empty array")) }
+            guard items.count <= maxWordsPlacedPerCall else { return .failure(.badArgs("at most \(maxWordsPlacedPerCall) words per call")) }
+            struct Request: Sendable { var id: UUID?; var key: String?; var label: String; var category: String?; var tags: [String]? }
+            var requests: [Request] = []
+            for item in items {
+                guard let entry = item.objectValue else { return .failure(.badArgs("each word must be an object")) }
+                let idString = entry["id"]?.stringValue
+                let key = entry["key"]?.stringValue
+                guard idString != nil || key != nil else { return .failure(.badArgs("each word needs an id or a key")) }
+                var uuid: UUID?
+                if let idString {
+                    guard let parsed = UUID(uuidString: idString) else { return .failure(.badArgs("id is not a valid id")) }
+                    uuid = parsed
+                }
+                let category = entry["category"]?.stringValue
+                var tags: [String]?
+                if let rawTags = entry["tags"], rawTags != .null {
+                    guard let array = rawTags.arrayValue else { return .failure(.badArgs("tags must be an array of strings")) }
+                    tags = array.compactMap(\.stringValue)
+                }
+                guard category != nil || tags != nil else { return .failure(.badArgs("each word needs a category or tags")) }
+                requests.append(Request(id: uuid, key: key, label: String((idString ?? key ?? "").prefix(64)), category: category, tags: tags))
+            }
+            let resolvedRequests = requests
+            let outcome: (updated: Int, unresolved: [String]) = await MainActor.run {
+                let all = words.value.allWords()
+                var known = Array(Set(all.compactMap(\.category))).sorted()
+                var updated = 0
+                var unresolved: [String] = []
+                for request in resolvedRequests {
+                    let match = request.id.flatMap { target in all.first { $0.id == target } }
+                        ?? request.key.flatMap { raw in
+                            let normalized = WordKey.identity(raw)
+                            return all.first { $0.key == normalized }
+                        }
+                    guard let word = match else { unresolved.append(request.label); continue }
+                    var category = word.category
+                    var tags = word.tags
+                    if let raw = request.category {
+                        let cleaned = LibraryTaxonomy.cleanName(raw)
+                        if !cleaned.isEmpty {
+                            let canonical = LibraryTaxonomy.canonicalCategory(cleaned, known: known)
+                            if !known.contains(canonical) { known.append(canonical) }
+                            category = canonical
+                        }
+                    }
+                    if let raw = request.tags { tags = LibraryTaxonomy.cleanTags(raw) }
+                    words.value.updatePlacement(id: word.id, category: category, tags: tags)
+                    updated += 1
+                }
+                return (updated, unresolved)
+            }
+            return .success(.object([
+                "updated": .number(Double(outcome.updated)),
+                "unresolved": .array(outcome.unresolved.map { JSONValue.string($0) }),
+            ]))
+        }
+    )
+    return [add, place]
+}
+
+// MARK: - study.* (pack)
+
+private let maxCardsPerCall = 30
+
+private func studyPackCapabilities(cards: MainActorBox<CardRepository>, now: @escaping @Sendable () -> Date) -> [Capability] {
+    let decks = Capability(
+        name: "study.decks",
+        kind: .read,
+        summary: "Lists the user's flashcard decks with how many cards are due and new. The Vocabulary deck mirrors the library and is managed automatically.",
+        argsSchema: .object([:]),
+        returnsSummary: "array of {id, name, kind (\"vocabulary\" or \"user\"), total, due, new}",
+        handler: { _, _ in
+            let moment = now()
+            let items: [JSONValue] = await MainActor.run {
+                let counts = cards.value.counts(now: moment)
+                return cards.value.decks().map { deck in
+                    let c = counts[deck.id] ?? DeckCounts()
+                    return JSONValue.object([
+                        "id": .string(deck.id.uuidString),
+                        "name": .string(deck.name),
+                        "kind": .string(deck.kind.rawValue),
+                        "total": .number(Double(c.total)),
+                        "due": .number(Double(c.due)),
+                        "new": .number(Double(c.new)),
+                    ])
+                }
+            }
+            return .success(.array(items))
+        }
+    )
+
+    let addCards = Capability(
+        name: "study.addCards",
+        kind: .write,
+        summary: "Adds flashcards (front and back) to one of the user's own decks, creating the deck when it does not exist. Cards already in the deck are skipped. Cannot change the Vocabulary deck.",
+        argsSchema: .object([
+            "deck": .string("deck name (1-60 characters); matched ignoring case"),
+            "cards": .string("array of 1-30 {front, back} (each <= 300 characters)"),
+            "create": .string("optional boolean, default true: create the deck when it is missing"),
+        ]),
+        returnsSummary: "{deck: name, added: number of new cards, created: whether the deck was just created}",
+        dryRunValue: .object(["deck": .string(""), "added": .number(0), "created": .bool(false)]),
+        describe: { args in
+            let count = args["cards"]?.arrayValue?.count ?? 0
+            return "Add \(count) card\(count == 1 ? "" : "s") to the deck \"\(args["deck"]?.stringValue ?? "")\""
+        },
+        handler: { args, _ in
+            guard case .success(let object) = argsObject(args) else { return .failure(.badArgs("arguments must be an object")) }
+            guard let rawName = object["deck"]?.stringValue else { return .failure(.badArgs("deck is required")) }
+            let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, name.count <= 60 else { return .failure(.badArgs("deck must be 1-60 characters")) }
+            guard let items = object["cards"]?.arrayValue, !items.isEmpty else { return .failure(.badArgs("cards must be a non-empty array")) }
+            guard items.count <= maxCardsPerCall else { return .failure(.badArgs("at most \(maxCardsPerCall) cards per call")) }
+            var drafts: [CardDraft] = []
+            for item in items {
+                guard let entry = item.objectValue, let front = entry["front"]?.stringValue, let back = entry["back"]?.stringValue else {
+                    return .failure(.badArgs("each card needs a front and a back"))
+                }
+                drafts.append(CardDraft(front: String(front.prefix(300)), back: String(back.prefix(300))))
+            }
+            let create = object["create"]?.boolValue ?? true
+            let moment = now()
+            let resolvedDrafts = drafts
+            let outcome: Result<(deck: String, added: Int, created: Bool), CapabilityError> = await MainActor.run {
+                let existing = cards.value.decks().first { $0.name.lowercased() == name.lowercased() }
+                if let existing {
+                    guard existing.kind == .user else { return .failure(.failed("The Vocabulary deck is managed automatically.")) }
+                    return .success((existing.name, cards.value.addCards(toDeck: existing.id, drafts: resolvedDrafts, now: moment), false))
+                }
+                guard create else { return .failure(.failed("No deck is named \"\(name)\".")) }
+                let deck = cards.value.createDeck(name: name, drafts: resolvedDrafts, now: moment)
+                let added = cards.value.cards(inDeck: deck.id).count
+                return .success((deck.name, added, true))
+            }
+            switch outcome {
+            case .failure(let error): return .failure(error)
+            case .success(let result):
+                return .success(.object([
+                    "deck": .string(result.deck),
+                    "added": .number(Double(result.added)),
+                    "created": .bool(result.created),
+                ]))
+            }
+        }
+    )
+    return [decks, addCards]
 }

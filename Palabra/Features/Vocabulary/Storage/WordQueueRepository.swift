@@ -27,9 +27,18 @@ protocol WordQueueRepository {
 @MainActor
 final class SwiftDataWordQueueRepository: WordQueueRepository {
     private let context: ModelContext
+    /// Keeps an in-memory container alive when this repository owns it.
+    private let retainedContainer: ModelContainer?
 
-    init(context: ModelContext) {
+    init(context: ModelContext, retaining container: ModelContainer? = nil) {
         self.context = context
+        self.retainedContainer = container
+    }
+
+    /// A private in-memory store: the default for tests and previews that don't care about the queue.
+    static func inMemory() -> SwiftDataWordQueueRepository {
+        let container = try! ModelContainer(for: Schema([WordQueueItem.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        return SwiftDataWordQueueRepository(context: ModelContext(container), retaining: container)
     }
 
     @discardableResult

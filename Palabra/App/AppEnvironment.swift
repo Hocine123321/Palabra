@@ -30,6 +30,8 @@ final class AppEnvironment {
     let capabilities: CapabilityRegistry
     /// Where `ai.generate` reaches the AI; filled in at the end of `init`.
     @ObservationIgnored let aiGateway: AIGateway
+    /// Side effects capabilities trigger (draining the word queue); filled in at the end of `init`.
+    @ObservationIgnored let capabilityHooks: CapabilityHooks
     let catalogue: ModelCatalogue
     let ttsCatalogue: ModelCatalogue
     let pronunciation = PronunciationService()
@@ -104,14 +106,25 @@ final class AppEnvironment {
         hasFallbackKey = fallbackKeychain.read() != nil
         retryPolicy = settings.retryPolicy
         self.repository = repository
-        self.cards = cardRepository ?? SwiftDataCardRepository.inMemory()
+        let resolvedCards = cardRepository ?? SwiftDataCardRepository.inMemory()
+        self.cards = resolvedCards
         let resolvedArtifacts = artifactRepository ?? SwiftDataArtifactRepository.inMemory()
         self.artifacts = resolvedArtifacts
         let resolvedReview = reviewRepository ?? SwiftDataReviewRepository.inMemory()
         self.review = resolvedReview
         let gateway = AIGateway()
         self.aiGateway = gateway
-        self.capabilities = CapabilityProviders.registry(words: repository, artifacts: resolvedArtifacts, review: resolvedReview, aiGateway: gateway)
+        let hooks = CapabilityHooks()
+        self.capabilityHooks = hooks
+        self.capabilities = CapabilityProviders.registry(
+            words: repository,
+            artifacts: resolvedArtifacts,
+            review: resolvedReview,
+            cards: resolvedCards,
+            wordQueue: wordQueue,
+            hooks: hooks,
+            aiGateway: gateway
+        )
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
         self.wordQueue = wordQueue
@@ -130,6 +143,16 @@ final class AppEnvironment {
         catalogue.loadCacheIfPresent()
         ttsCatalogue.loadCacheIfPresent()
         wireAIGateway()
+        wireCapabilityHooks()
+    }
+
+    /// Lets `words.add` start the queue and use the current AI-output language.
+    private func wireCapabilityHooks() {
+        capabilityHooks.language = { [weak self] in self?.aiLanguage ?? .english }
+        capabilityHooks.wordsQueued = { [weak self] in
+            guard let self else { return }
+            self.queueProcessor.drain(environment: self)
+        }
     }
 
     /// `ai.generate` runs through `ai` (so retries and the resilience overlay apply) with the person's key and model.
