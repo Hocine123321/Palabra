@@ -68,7 +68,7 @@ final class ArtifactSandboxTests: XCTestCase {
 
     func testShimEmbedsThemeLocaleAndDirection() {
         let script = shim(theme: ["ink": "#112233"], locale: "ar", dir: "rtl")
-        XCTAssertTrue(script.contains(#"{"ink":"#112233"}"#))
+        XCTAssertTrue(script.contains(##"{"ink":"#112233"}"##))
         XCTAssertTrue(script.contains(#"locale: "ar""#))
         XCTAssertTrue(script.contains(#"dir: "rtl""#))
     }
