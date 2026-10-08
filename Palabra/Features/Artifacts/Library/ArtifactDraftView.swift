@@ -3,13 +3,19 @@ import SwiftUI
 /// The create / update sheet: request -> generating -> live preview with Save, Refine, Discard.
 struct ArtifactDraftView: View {
     let mode: ArtifactDraftModel.Mode
+    /// Pre-filled request (for example the "Fix with AI" text).
+    var initialRequest: String = ""
     var onSaved: (UUID) -> Void = { _ in }
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @State private var model: ArtifactDraftModel?
     @State private var refineText = ""
     @State private var previewState = InMemorySpecStateStore()
+    /// One session and one log per open sheet, so `ai.generate` limits and errors survive re-renders.
+    @State private var previewSession = ArtifactSession(artifactID: nil, dryRun: true)
+    @State private var previewLog = ArtifactErrorLog()
 
     var body: some View {
         NavigationStack {
@@ -24,7 +30,11 @@ struct ArtifactDraftView: View {
             }
         }
         .onAppear {
-            if model == nil { model = ArtifactDraftModel(environment: environment, mode: mode) }
+            if model == nil {
+                let created = ArtifactDraftModel(environment: environment, mode: mode)
+                created.request = initialRequest
+                model = created
+            }
         }
     }
 
@@ -87,16 +97,7 @@ struct ArtifactDraftView: View {
                         Text(verbatim: draft.title)
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(Theme.inkSecondary)
-                        if let spec = try? JSONDecoder().decode(ArtifactSpec.self, from: draft.payload) {
-                            // Dry run: nothing the artifact does here can change app data.
-                            SpecRendererView(
-                                spec: spec,
-                                registry: environment.capabilities,
-                                session: ArtifactSession(artifactID: nil, dryRun: true),
-                                granted: SpecRendererView.grant(requests: draft.requests, registry: environment.capabilities),
-                                state: previewState
-                            )
-                        }
+                        previewBody(model, draft)
                     }
                 }
                 .padding(Theme.Spacing.md)
@@ -137,6 +138,40 @@ struct ArtifactDraftView: View {
                 }
             }
             .padding(Theme.Spacing.md)
+        }
+    }
+
+    /// Dry run: nothing the artifact does here can change app data.
+    @ViewBuilder
+    private func previewBody(_ model: ArtifactDraftModel, _ draft: ArtifactDraft) -> some View {
+        switch draft.kind {
+        case .spec:
+            if let spec = try? JSONDecoder().decode(ArtifactSpec.self, from: draft.payload) {
+                SpecRendererView(
+                    spec: spec,
+                    registry: environment.capabilities,
+                    session: previewSession,
+                    granted: SpecRendererView.grant(requests: draft.requests, registry: environment.capabilities),
+                    state: previewState
+                )
+            }
+        case .app:
+            if model.needsDecision {
+                ArtifactApprovalCard(capabilities: model.pending, onAllow: { model.allowPending() }, onDeny: { model.denyPending() })
+            } else {
+                AppRendererView(
+                    html: String(decoding: draft.payload, as: UTF8.self),
+                    registry: environment.capabilities,
+                    session: previewSession,
+                    granted: model.effectiveGrant,
+                    log: previewLog,
+                    colorScheme: colorScheme,
+                    language: environment.appLanguage
+                )
+                .id("\(draft.payload.hashValue)-\(model.effectiveGrant.sorted())")
+                .frame(height: 420)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+            }
         }
     }
 }

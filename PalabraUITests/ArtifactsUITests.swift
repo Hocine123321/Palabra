@@ -72,6 +72,26 @@ final class ArtifactsUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Updated"].exists)
     }
 
+    func testAppArtifactApprovalAndSave() {
+        let app = launch()
+        XCTAssertTrue(app.openHubRow("spanishRow.artifacts", expectingNavigationBar: "Artifacts"))
+        generate(app, request: "a practice app")
+
+        // The app asks before it can do anything; nothing inside the web view is read (not reliable in CI).
+        let allow = app.buttons["allowArtifactButton"]
+        XCTAssertTrue(allow.waitForExistence(timeout: 10))
+        allow.tap()
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 10))
+        app.buttons["saveArtifactButton"].tap()
+
+        let row = element(app, "artifactRow")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 10))
+        // The grant was stored with the artifact, so it does not ask again.
+        XCTAssertFalse(app.buttons["allowArtifactButton"].exists)
+    }
+
     func testFailurePathShowsRetry() {
         let app = launch()
         XCTAssertTrue(app.openHubRow("spanishRow.artifacts", expectingNavigationBar: "Artifacts"))

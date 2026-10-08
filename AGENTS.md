@@ -32,7 +32,8 @@ Palabra/
       Storage/          Artifact, ArtifactVersion, ArtifactStateEntry (SwiftData), ArtifactRepository
       Spec/             SpecBlock, SpecValidator, SpecBindLoader, SpecStateStore, SpecRenderer + views
       AI/               ArtifactEnvelope, ArtifactPrompts, ArtifactGenerator (generateJSON, delimited envelope)
-      Library/          list, draft sheet (preview/refine/save), detail (update/versions/delete)
+      Library/          list, draft sheet (preview/refine/save), detail (update/versions/delete), ArtifactApprovalCard
+      App/              app artifacts: BridgeDispatcher (pure), PalabraBridge, ArtifactSandbox (CSP, rules, shim, NavigationGate), AppRendererView, error log
     Study/              flashcards + spaced repetition (the second tab)
       Storage/          Deck, Card, ReviewLog (SwiftData), CardRepository
       Domain/           CardDraft, VocabularyCardEntry, DeckCounts, StudyRoute, grade/interval labels
@@ -159,7 +160,10 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 
 - **The registry is the only door.** An artifact reaches app data only through `CapabilityRegistry.call`; the AI's manual is generated from the same registry. A new capability is one `Capability` in a provider in `App/CapabilityProviders.swift` and nothing else.
 - `Features/Artifacts` never imports `Word`, `Deck`, `Card` (or a later `ReviewNeed`). `App/CapabilityProviders.swift` is the only file that sees both `WordRepository` and `ArtifactRepository`; data crosses as `JSONValue`.
-- **Spec artifacts never prompt:** they only bind `.read` capabilities, which are auto-granted (`GrantPolicy`). Approval is for app artifacts (plan B2).
+- **Spec artifacts never prompt:** they only bind `.read` capabilities, which are auto-granted (`GrantPolicy`). **App artifacts always prompt** (`ArtifactApprovalCard`) for read/write/ai capabilities; `.local` is auto-granted. The effective grant is requested ∩ granted + local, and an update asks only for the delta.
+- **App sandbox:** the web view uses a non-persistent data store, a CSP injected into the HTML, two content-blocking rules (`^https?://`, `^wss?://`) and `NavigationGate` (one navigation only). Do not loosen any of these without updating `ArtifactSandboxTests`. The shim (`ArtifactSandbox.shimScript`) is the only injected JS.
+- **Bridge dispatch stays pure:** `BridgeDispatcher.handle` has no WebKit types so it is unit-tested; `PalabraBridge` only converts and forwards. Every call goes through `CapabilityRegistry.call`. `ai.generate` is rate limited per `sessionID` (`AIUsageLimiter`).
+- JavaScript inside the web view is not covered by CI; only the Swift side and the stubbed approval/save flow are.
 - AI strings render with `Text(verbatim:)`, `ForEach` uses the enumerated offset, and everything is capped in `SpecValidator`. Truncate, don't reject.
 - The generator makes one automatic retry (truncated / invalid spec / malformed envelope). Do not add retry loops in screens.
 - `StubAIClient`'s artifact envelope must stay valid for the real prompt/parser/validator: `StubArtifactTests` enforces it. New `AIClient` methods need a `MockAIClient` stub (`generateJSON` recording is additive).

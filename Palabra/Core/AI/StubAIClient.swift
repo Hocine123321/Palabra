@@ -51,7 +51,14 @@ final class StubAIClient: AIClient {
         // an update prompt carries the current payload and gets one extra text block back.
         if schema == nil, systemInstruction.contains("---PAYLOAD---") {
             if prompt.lowercased().contains("fallo") { return .failure(.rateLimited) }
-            let extra = prompt.contains("CURRENT PAYLOAD:") ? #",{"type":"text","text":"Updated"}"# : ""
+            let isUpdate = prompt.contains("CURRENT PAYLOAD:")
+            // An app request ("practice app"), or an update whose current payload is the stub app.
+            if prompt.lowercased().contains("practice app") || (isUpdate && prompt.contains("stub app")) {
+                let heading = isUpdate ? "<h1>Stub app updated</h1>" : ""
+                let html = "<html><body>\(heading)<div id=\"out\">stub app</div><script>palabra.call(\"library.words\",{limit:5}).then(function(w){document.getElementById(\"out\").textContent=\"words:\"+w.length},function(e){document.getElementById(\"out\").textContent=\"error:\"+e.code})</script></body></html>"
+                return .success(#"{"kind":"app","title":"Stub app","requests":["library.words","storage.get"]}"# + "\n---PAYLOAD---\n\(html)\n---END---")
+            }
+            let extra = isUpdate ? #",{"type":"text","text":"Updated"}"# : ""
             let header = #"{"kind":"spec","title":"Stub artifact","requests":["library.words"]}"#
             let blocks = #"{"type":"heading","level":1,"text":"Stub artifact"},{"type":"list","ordered":false,"items":["Same","Same"]},{"type":"table","columns":[{"title":"Word","field":"spanish"}],"bind":{"capability":"library.words","args":{"limit":10}}},{"type":"checklist","id":"c1","items":["First step","Second step"]}"#
             return .success("\(header)\n---PAYLOAD---\n{\"blocks\":[\(blocks)\(extra)]}\n---END---")

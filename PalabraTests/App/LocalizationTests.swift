@@ -22,6 +22,8 @@ final class LocalizationTests: XCTestCase {
             "Update", "Versions", "Version %lld", "Restore", "Current", "Delete", "Dismiss", "Ask for a change",
             "Delete this artifact?", "Couldn't load data", "No data yet", "Not supported in this version yet",
             "Update Palabra to open this artifact.", "Try updating this artifact.",
+            "This artifact wants to", "Allow", "Not now", "Read your data", "Change your data", "Use your AI quota",
+            "Save its own data", "Errors", "Fix with AI",
         ]
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }

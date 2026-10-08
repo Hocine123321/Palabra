@@ -6,16 +6,30 @@ struct ArtifactDetailView: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @State private var snapshot: Snapshot?
     @State private var showUpdate = false
     @State private var showVersions = false
     @State private var confirmDelete = false
+    /// One session and log per open screen (the `ai.generate` budget and the error list live here).
+    @State private var session: ArtifactSession
+    @State private var log = ArtifactErrorLog()
+    @State private var notNow = false
+    @State private var webID = UUID()
+    @State private var updateRequest = ""
+
+    init(artifactID: UUID) {
+        self.artifactID = artifactID
+        _session = State(initialValue: ArtifactSession(artifactID: artifactID, dryRun: false))
+    }
 
     private struct Snapshot {
         let title: String
         let kind: ArtifactKind
         let spec: ArtifactSpec?
+        let html: String
         let requests: [String]
+        let granted: Set<String>
     }
 
     var body: some View {
@@ -28,7 +42,10 @@ struct ArtifactDetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button("Update", systemImage: "wand.and.stars") { showUpdate = true }
+                    Button("Update", systemImage: "wand.and.stars") {
+                        updateRequest = ""
+                        showUpdate = true
+                    }
                     Button("Versions", systemImage: "clock.arrow.circlepath") { showVersions = true }
                     Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
                 } label: {
@@ -38,7 +55,7 @@ struct ArtifactDetailView: View {
             }
         }
         .sheet(isPresented: $showUpdate, onDismiss: reload) {
-            ArtifactDraftView(mode: .update(artifactID: artifactID))
+            ArtifactDraftView(mode: .update(artifactID: artifactID), initialRequest: updateRequest)
         }
         .sheet(isPresented: $showVersions, onDismiss: reload) {
             ArtifactVersionsView(artifactID: artifactID)
@@ -54,22 +71,78 @@ struct ArtifactDetailView: View {
 
     @ViewBuilder
     private func content(_ snapshot: Snapshot) -> some View {
-        if snapshot.kind == .app {
-            EmptyStateView(systemImage: "app.dashed", title: "Not supported in this version yet", message: "Update Palabra to open this artifact.")
-        } else if let spec = snapshot.spec {
+        switch snapshot.kind {
+        case .spec:
+            if let spec = snapshot.spec {
+                ScrollView {
+                    SpecRendererView(
+                        spec: spec,
+                        registry: environment.capabilities,
+                        session: session,
+                        granted: SpecRendererView.grant(requests: snapshot.requests, registry: environment.capabilities),
+                        state: ArtifactSpecStateStore(artifactID: artifactID, repository: environment.artifacts)
+                    )
+                    .padding(Theme.Spacing.md)
+                }
+            } else {
+                EmptyStateView(systemImage: "exclamationmark.triangle", title: "Couldn't load data", message: "Try updating this artifact.")
+            }
+        case .app:
+            appContent(snapshot)
+        }
+    }
+
+    @ViewBuilder
+    private func appContent(_ snapshot: Snapshot) -> some View {
+        let pending = ArtifactApproval.pending(kind: .app, requested: snapshot.requests, granted: snapshot.granted, registry: environment.capabilities)
+        if !pending.isEmpty && !notNow {
             ScrollView {
-                SpecRendererView(
-                    spec: spec,
-                    registry: environment.capabilities,
-                    session: ArtifactSession(artifactID: artifactID, dryRun: false),
-                    granted: SpecRendererView.grant(requests: snapshot.requests, registry: environment.capabilities),
-                    state: ArtifactSpecStateStore(artifactID: artifactID, repository: environment.artifacts)
+                ArtifactApprovalCard(
+                    capabilities: pending,
+                    onAllow: {
+                        environment.artifacts.setGranted(artifactID: artifactID, names: Array(snapshot.granted.union(pending.map(\.name))))
+                        reload()
+                    },
+                    onDeny: { notNow = true }
                 )
                 .padding(Theme.Spacing.md)
             }
         } else {
-            EmptyStateView(systemImage: "exclamationmark.triangle", title: "Couldn't load data", message: "Try updating this artifact.")
+            VStack(spacing: Theme.Spacing.sm) {
+                AppRendererView(
+                    html: snapshot.html,
+                    registry: environment.capabilities,
+                    session: session,
+                    granted: ArtifactApproval.effective(kind: .app, requested: snapshot.requests, granted: snapshot.granted, registry: environment.capabilities),
+                    log: log,
+                    colorScheme: colorScheme,
+                    language: environment.appLanguage
+                )
+                .id(webID)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if !log.entries.isEmpty { errorsSection }
+            }
         }
+    }
+
+    private var errorsSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text("Errors").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.error)
+            ForEach(Array(log.entries.suffix(3).enumerated()), id: \.offset) { _, entry in
+                Text(verbatim: entry).font(.caption).foregroundStyle(Theme.inkSecondary).lineLimit(2)
+            }
+            Button("Fix with AI") {
+                updateRequest = "Fix these runtime errors:\n" + log.summary
+                showUpdate = true
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("fixWithAIButton")
+        }
+        .padding(Theme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard()
+        .padding(.horizontal, Theme.Spacing.md)
+        .accessibilityIdentifier("artifactErrors")
     }
 
     private func reload() {
@@ -78,8 +151,17 @@ struct ArtifactDetailView: View {
             return
         }
         let version = environment.artifacts.versions(artifactID: artifactID).first { $0.number == artifact.currentVersion }
-        let spec = version.flatMap { try? JSONDecoder().decode(ArtifactSpec.self, from: $0.payload) }
-        snapshot = Snapshot(title: artifact.title, kind: artifact.kind, spec: spec, requests: version?.requestedNames ?? [])
+        let payload = version?.payload ?? Data()
+        snapshot = Snapshot(
+            title: artifact.title,
+            kind: artifact.kind,
+            spec: artifact.kind == .spec ? try? JSONDecoder().decode(ArtifactSpec.self, from: payload) : nil,
+            html: artifact.kind == .app ? String(decoding: payload, as: UTF8.self) : "",
+            requests: version?.requestedNames ?? [],
+            granted: Set(artifact.grantedNames)
+        )
+        log.clear()
+        webID = UUID()
     }
 }
 

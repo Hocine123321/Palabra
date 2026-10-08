@@ -30,6 +30,11 @@ final class ArtifactDraftModel {
     /// Set when saving failed (payload too large, artifact gone); cleared on the next attempt.
     private(set) var saveError: String?
 
+    /// Capabilities the person allowed in this draft (on top of what the artifact already had).
+    private(set) var approved: Set<String> = []
+    /// Whether the person answered the approval card for the current draft.
+    private(set) var decided = false
+
     private let environment: AppEnvironment
     private var lastOperation: Operation = .generate
 
@@ -37,6 +42,35 @@ final class ArtifactDraftModel {
         self.environment = environment
         self.mode = mode
     }
+
+    // MARK: Approval
+
+    /// Grants the artifact already has (update mode); a new artifact has none.
+    private var baseGrants: Set<String> {
+        guard case .update(let artifactID) = mode else { return [] }
+        return Set(environment.artifacts.artifact(id: artifactID)?.grantedNames ?? [])
+    }
+
+    /// What the draft still needs approval for: only the delta on an update.
+    var pending: [Capability] {
+        guard let draft else { return [] }
+        return ArtifactApproval.pending(kind: draft.kind, requested: draft.requests, granted: baseGrants.union(approved), registry: environment.capabilities)
+    }
+
+    var needsDecision: Bool { !pending.isEmpty && !decided }
+
+    /// What the preview may actually call.
+    var effectiveGrant: Set<String> {
+        guard let draft else { return [] }
+        return ArtifactApproval.effective(kind: draft.kind, requested: draft.requests, granted: baseGrants.union(approved), registry: environment.capabilities)
+    }
+
+    func allowPending() {
+        approved.formUnion(pending.map(\.name))
+        decided = true
+    }
+
+    func denyPending() { decided = true }
 
     var canGenerate: Bool {
         request.trimmingCharacters(in: .whitespacesAndNewlines).count >= ArtifactGeneratorLimits.minRequestLength
@@ -71,6 +105,8 @@ final class ArtifactDraftModel {
 
     func discard() {
         draft = nil
+        approved = []
+        decided = false
         saveError = nil
         phase = .input
     }
@@ -82,12 +118,17 @@ final class ArtifactDraftModel {
         switch mode {
         case .create:
             switch environment.artifacts.create(title: draft.title, kind: draft.kind, payload: draft.payload, requested: draft.requests, prompt: draft.prompt, now: Date()) {
-            case .success(let artifact): return artifact.id
+            case .success(let artifact):
+                if !approved.isEmpty { environment.artifacts.setGranted(artifactID: artifact.id, names: Array(approved)) }
+                return artifact.id
             case .failure(let error): saveError = Self.message(for: error); return nil
             }
         case .update(let artifactID):
+            let grants = baseGrants.union(approved)
             switch environment.artifacts.addVersion(artifactID: artifactID, payload: draft.payload, requested: draft.requests, prompt: draft.prompt, now: Date()) {
-            case .success: return artifactID
+            case .success:
+                if !approved.isEmpty { environment.artifacts.setGranted(artifactID: artifactID, names: Array(grants)) }
+                return artifactID
             case .failure(let error): saveError = Self.message(for: error); return nil
             }
         }
@@ -126,7 +167,7 @@ final class ArtifactDraftModel {
             key = value.key
             model = value.model
         }
-        let generator = ArtifactGenerator(ai: environment.ai, registry: environment.capabilities, language: environment.aiLanguage)
+        let generator = ArtifactGenerator(ai: environment.ai, registry: environment.capabilities, language: environment.aiLanguage, allowedKinds: [.spec, .app])
         let result: Result<ArtifactDraft, ArtifactGenError>
         switch operation {
         case .generate:
@@ -150,6 +191,8 @@ final class ArtifactDraftModel {
         switch result {
         case .success(let value):
             draft = value
+            // A refined draft that asks for something new is asked about again; the same ask is not.
+            if !pending.isEmpty { decided = false }
             phase = .preview
         case .failure(let error):
             phase = .failed(error)
