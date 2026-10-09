@@ -304,3 +304,35 @@
 "Review List" = "قائمة المراجعة";
 "Delete All Chats" = "حذف جميع المحادثات";
 "Delete all chats? This can't be undone." = "حذف جميع المحادثات؟ لا يمكن التراجع عن ذلك.";
+
+/* New artifact page */
+"What do you want to make?" = "ماذا تريد أن تصنع؟";
+"Describe it, or start from an idea." = "صفه، أو ابدأ من فكرة.";
+"Everything you don't mention stays as it is." = "كل ما لا تذكره يبقى كما هو.";
+"A table, a chart, a plan, a little game…" = "جدول، رسم بياني، خطة، أو لعبة صغيرة…";
+"For example: add a column for examples" = "مثال: أضف عموداً للأمثلة";
+"Format" = "الشكل";
+"Auto" = "تلقائي";
+"Page" = "صفحة";
+"Interactive app" = "تطبيق تفاعلي";
+"The AI picks what fits your request." = "يختار الذكاء الاصطناعي ما يناسب طلبك.";
+"Tables, charts, roadmaps and checklists. Safe: it can only read your data." = "جداول ورسوم بيانية وخطط وقوائم. آمن: يقرأ بياناتك فقط.";
+"Buttons, games and trackers. It asks your permission before using your data." = "أزرار وألعاب ومتتبعات. يطلب إذنك قبل استخدام بياناتك.";
+"Ideas" = "أفكار";
+"Progress chart" = "رسم التقدم";
+"Words you added each week" = "الكلمات التي أضفتها كل أسبوع";
+"Study roadmap" = "خطة الدراسة";
+"A plan you can follow" = "خطة يمكنك اتباعها";
+"Daily checklist" = "قائمة يومية";
+"Tick things off each day" = "علّم المهام كل يوم";
+"Word table" = "جدول الكلمات";
+"Your latest words" = "أحدث كلماتك";
+"Verb cheat sheet" = "ملخص الأفعال";
+"Present tense essentials" = "أساسيات المضارع";
+"Practice game" = "لعبة تدريب";
+"Quiz yourself on your words" = "اختبر نفسك في كلماتك";
+"Quick changes" = "تغييرات سريعة";
+"Make it shorter" = "اجعله أقصر";
+"Add more detail" = "أضف مزيداً من التفاصيل";
+"Use simpler words" = "استخدم كلمات أبسط";
+"Make it more colorful" = "اجعله أكثر ألواناً";

@@ -54,6 +54,19 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveNewArtifactPageKeys() throws {
+        let table = try arabicTable()
+        var keys = [
+            "What do you want to make?", "Describe it, or start from an idea.", "Everything you don't mention stays as it is.",
+            "A table, a chart, a plan, a little game…", "For example: add a column for examples", "Format", "Auto", "Page", "Interactive app",
+            "The AI picks what fits your request.", "Tables, charts, roadmaps and checklists. Safe: it can only read your data.",
+            "Buttons, games and trackers. It asks your permission before using your data.", "Ideas", "Quick changes",
+        ]
+        keys += ArtifactIdea.all.flatMap { [$0.title, $0.subtitle] }
+        keys += ArtifactQuickChange.all
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
     func testArabicStringsHaveNeedReviewKeys() throws {
         let table = try arabicTable()
         let keys = ["Need Review", "Needs review", "Mark as learned", "Nothing to review", "Words your artifacts flag will show up here."]

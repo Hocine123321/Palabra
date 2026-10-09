@@ -23,8 +23,13 @@ final class ArtifactDraftModel {
         case refine(String)
     }
 
+    /// What the editor accepts: the generator's cap minus room for the format line.
+    static let maxInput = ArtifactGeneratorLimits.maxRequestLength - 150
+
     let mode: Mode
     var request = ""
+    /// Create mode only: what the person wants to get. `auto` leaves the choice to the AI.
+    var format: ArtifactFormat = .auto
     private(set) var draft: ArtifactDraft?
     private(set) var phase: Phase = .input
     /// Set when saving failed (payload too large, artifact gone); cleared on the next attempt.
@@ -173,7 +178,13 @@ final class ArtifactDraftModel {
         case .generate:
             switch mode {
             case .create:
-                result = await generator.create(request: request, apiKey: key, model: model)
+                let asked = String(request.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.maxInput))
+                // The saved prompt is what the person typed, not the format line we put in front of it.
+                result = await generator.create(request: format.apply(to: asked), apiKey: key, model: model).map { (draft: ArtifactDraft) -> ArtifactDraft in
+                    var kept = draft
+                    kept.prompt = asked
+                    return kept
+                }
             case .update(let artifactID):
                 guard let current = currentSnapshot(artifactID) else {
                     phase = .failed(.malformedEnvelope("The artifact no longer exists."))

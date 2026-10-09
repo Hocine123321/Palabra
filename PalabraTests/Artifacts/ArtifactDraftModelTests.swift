@@ -62,6 +62,40 @@ final class ArtifactDraftModelTests: XCTestCase {
         XCTAssertEqual(artifacts.artifact(id: id)?.kind, .app)
     }
 
+    func testChosenFormatIsSentButOnlyTheTypedRequestIsKept() async {
+        let (env, client) = await makeEnvironment()
+        client.generateJSONResult = .success(appReply(requests: "[]"))
+        let model = ArtifactDraftModel(environment: env)
+        model.request = "  a practice app  "
+        model.format = .app
+        await model.generate()
+        XCTAssertEqual(client.generateJSONCalls.last?.prompt, ArtifactFormat.app.requestPrefix + "a practice app")
+        guard let id = model.save() else { return XCTFail("save failed") }
+        let version = artifacts.versions(artifactID: id).first
+        XCTAssertEqual(version?.prompt, "a practice app")
+    }
+
+    func testAutoFormatSendsTheRequestUntouched() async {
+        let (env, client) = await makeEnvironment()
+        client.generateJSONResult = .success(appReply(requests: "[]"))
+        let model = ArtifactDraftModel(environment: env)
+        model.request = "a practice app"
+        await model.generate()
+        XCTAssertEqual(client.generateJSONCalls.last?.prompt, "a practice app")
+    }
+
+    func testOverlongRequestIsCutBeforeTheFormatLine() async {
+        let (env, client) = await makeEnvironment()
+        client.generateJSONResult = .success(appReply(requests: "[]"))
+        let model = ArtifactDraftModel(environment: env)
+        model.request = String(repeating: "x", count: ArtifactGeneratorLimits.maxRequestLength)
+        model.format = .page
+        await model.generate()
+        let sent = client.generateJSONCalls.last?.prompt ?? ""
+        XCTAssertTrue(sent.hasPrefix(ArtifactFormat.page.requestPrefix))
+        XCTAssertEqual(sent.count, ArtifactFormat.page.requestPrefix.count + ArtifactDraftModel.maxInput)
+    }
+
     func testDenyThenSaveStoresNoGrants() async {
         let (env, client) = await makeEnvironment()
         client.generateJSONResult = .success(appReply(requests: #"["library.words"]"#))

@@ -37,6 +37,25 @@ final class ArtifactsUITests: XCTestCase {
         XCTAssertTrue(element(app, "artifactRow").waitForExistence(timeout: 5))
     }
 
+    func testStartingFromAnIdeaFillsTheRequestAndGenerates() {
+        let app = launch()
+        XCTAssertTrue(app.openHubRow("spanishRow.artifacts", expectingNavigationBar: "Artifacts"))
+        let new = app.buttons["newArtifactButton"]
+        XCTAssertTrue(new.waitForExistence(timeout: 5))
+        new.tap()
+        XCTAssertTrue(element(app, "artifactFormatPicker").waitForExistence(timeout: 5))
+        let generate = app.buttons["generateArtifactButton"]
+        XCTAssertFalse(generate.isEnabled, "nothing to generate yet")
+        let idea = element(app, "artifactIdea.table")
+        XCTAssertTrue(idea.waitForExistence(timeout: 5))
+        idea.tap()
+        XCTAssertTrue(generate.isEnabled)
+        generate.tap()
+        XCTAssertTrue(app.staticTexts["Stub artifact"].firstMatch.waitForExistence(timeout: 10))
+        app.buttons["saveArtifactButton"].tap()
+        XCTAssertTrue(element(app, "artifactRow").waitForExistence(timeout: 5))
+    }
+
     func testCreateSaveOpenUpdateAndRestore() {
         let app = launch()
         XCTAssertTrue(app.openHubRow("spanishRow.artifacts", expectingNavigationBar: "Artifacts"))

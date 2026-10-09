@@ -51,6 +51,16 @@ An `app` artifact is one self-contained HTML document (no external `src`/`href`,
 - **Fix with AI:** the detail screen lists recent script errors (newest 20, 300 chars each) and opens the update sheet pre-filled with them.
 - **Not covered by CI:** JavaScript running inside the web view. The Swift side (lint, dispatcher, limiter, sandbox config, approval flow with the stub app) is.
 
+## The create page
+
+`ArtifactDraftView` is one sheet with four phases (request, generating, preview, failed).
+
+- **Request (create):** a header, the editor (placeholder, counter near the cap), a **Format** picker (Auto / Page / Interactive app) and an **Ideas** grid (`ArtifactIdea.all`: tapping one fills the editor and sets the format; it never generates by itself). Generate is pinned above the keyboard.
+- **Request (update):** the same editor plus **Quick changes** chips (`ArtifactQuickChange`); no format (kind cannot change).
+- **Format** is sent as a `FORMAT:` line in front of the request (`ArtifactFormat.requestPrefix`; none for Auto). `ArtifactDraftModel.maxInput` (cap − 150) leaves room for it. The saved version's `prompt` is what the person typed, not the prefix.
+- **Preview:** title with a Page / Interactive app badge, the live dry-run preview, quick-change chips (they fill the refine field), Refine, Discard, Save.
+- New ideas or chips need Arabic keys (`LocalizationTests` covers `ArtifactIdea.all` and `ArtifactQuickChange.all`).
+
 ## Limits
 
 | What | Limit |
