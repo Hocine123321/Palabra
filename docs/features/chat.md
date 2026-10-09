@@ -30,6 +30,20 @@ Every call goes through `CapabilityRegistry.call` like artifacts do; the chat's 
 
 A capability's optional `describe` closure writes the confirmation line ("Add words: a, b"). Artifacts can request these capabilities too (writes need approval; specs can bind `study.decks`).
 
+## Settings
+
+Settings → Assistant (`AssistantSettingsView`, `AssistantSettings`):
+
+| Setting | Effect |
+|---|---|
+| Reply length (concise / balanced / detailed) | a sentence in the system instruction (`ReplyLength.promptHint`) |
+| Your instructions (≤ 500 chars) | appended to the system instruction as standing instructions |
+| Ask before making changes (default on) | off = writes run at once in the same loop; the prompt tells the model so and to propose writes only for explicit requests |
+| What the assistant can use | library and progress, adding and organizing words, flashcards, review list; off = hidden from the manual and refused (`switched off in Settings`) |
+| Delete all chats | `AppEnvironment.deleteAllChats()` |
+
+`ChatSession` takes a `settings` closure and reads it per run and per approval, so a change applies to open chats immediately. Disabled groups are stored (not enabled ones) so a new group defaults to on.
+
 ## Storage
 
 `ChatConversation` (SwiftData, append-only property names): `id`, `title`, `wordID?`, `turnsData` (JSON `[ChatTurn]`, tolerant decoding), timestamps. Newest 200 turns, text ≤ 8,000, stored results ≤ 3,000 characters. `ChatTurn.actions` hold each call's state (`pending`, `applied`, `declined`, `failed`), its arguments and result.
@@ -47,6 +61,6 @@ Features/Chat/
 
 ## Testing
 
-- `ChatReplyParserTests`, `ChatPromptsTests`, `ChatRepositoryTests`, `ChatSessionTests` (scripted model, real registry), `CapabilityPacksTests`.
+- `ChatReplyParserTests`, `ChatPromptsTests`, `ChatRepositoryTests`, `ChatSessionTests` (scripted model, real registry), `AssistantSettingsTests` (model, store, prompt, session behaviour), `CapabilityPacksTests`.
 - `StubAIClient.generateJSON` answers chat prompts when the system instruction contains `---ACTIONS---`: the last `USER:` block "add words" proposes `words.add` (alpha, beta), "list words" reads `library.words`, `fallo` fails, anything else echoes `Think of "…" this way.`; once results are in the transcript it answers "All done." / "Okay, I won't change anything." / "You have some words in your library.".
 - `ChatUITests` and `SmokeUITests` cover the flows.

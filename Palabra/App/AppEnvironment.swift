@@ -62,6 +62,7 @@ final class AppEnvironment {
     var aiLanguage: SupportedLanguage { didSet { settings.aiLanguage = aiLanguage } }
     var organizerSettings: OrganizerSettings { didSet { settings.organizerSettings = organizerSettings } }
     var newCardsPerDay: Int { didSet { settings.newCardsPerDay = newCardsPerDay } }
+    var assistantSettings: AssistantSettings { didSet { settings.assistantSettings = assistantSettings } }
     /// Session-only progress/result of a library re-organization.
     @ObservationIgnored let organizer = LibraryOrganizer()
     var hasCompletedOnboarding: Bool { didSet { settings.hasCompletedOnboarding = hasCompletedOnboarding } }
@@ -143,6 +144,7 @@ final class AppEnvironment {
         aiLanguage = settings.aiLanguage
         organizerSettings = settings.organizerSettings
         newCardsPerDay = settings.newCardsPerDay
+        assistantSettings = settings.assistantSettings
         hasCompletedOnboarding = settings.hasCompletedOnboarding
         catalogue.loadCacheIfPresent()
         ttsCatalogue.loadCacheIfPresent()
@@ -322,11 +324,17 @@ final class AppEnvironment {
             repository: chat,
             registry: capabilities,
             language: { [weak self] in self?.aiLanguage ?? .english },
+            settings: { [weak self] in self?.assistantSettings ?? .default },
             generate: { [weak self] prompt, system in
                 guard let self else { return .failure(.unknown(nil, "The app was closed.")) }
                 return await self.chatGenerate(prompt: prompt, system: system)
             }
         )
+    }
+
+    /// Removes every saved conversation (Settings → Assistant).
+    func deleteAllChats() {
+        for conversation in chat.conversations() { chat.delete(id: conversation.id) }
     }
 
     private func chatGenerate(prompt: String, system: String) async -> Result<String, AIError> {

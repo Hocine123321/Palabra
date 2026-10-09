@@ -140,6 +140,11 @@ struct SettingsView: View {
             }
             .themedSection()
 
+            Section("Assistant") {
+                NavigationLink("Chat Assistant") { AssistantSettingsView() }
+            }
+            .themedSection()
+
             Section("Study") {
                 Stepper(value: newCardsBinding, in: 0...100, step: 5) {
                     Text("New cards per day: \(environment.newCardsPerDay)")

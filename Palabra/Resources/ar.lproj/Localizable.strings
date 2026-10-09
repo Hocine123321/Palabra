@@ -282,3 +282,25 @@
 "Checked your review list" = "راجع قائمة المراجعة";
 "Checked your decks" = "راجع مجموعات البطاقات";
 "Looked something up" = "بحث عن شيء";
+
+/* Assistant settings */
+"Assistant" = "المساعد";
+"Chat Assistant" = "مساعد المحادثة";
+"Replies" = "الردود";
+"Reply Length" = "طول الرد";
+"Concise" = "مختصر";
+"Detailed" = "مفصّل";
+"For example: always add an example sentence" = "مثال: أضف دائماً جملة توضيحية";
+"Optional. The assistant follows these in every chat." = "اختياري. يتبعها المساعد في كل محادثة.";
+"Changes" = "التغييرات";
+"Ask Before Making Changes" = "اسأل قبل إجراء التغييرات";
+"Every change the assistant proposes waits for your Apply." = "كل تغيير يقترحه المساعد ينتظر موافقتك.";
+"Changes are applied as soon as the assistant proposes them. You can't undo them from the chat." = "تُطبَّق التغييرات فور اقتراح المساعد لها. لا يمكنك التراجع عنها من المحادثة.";
+"What the Assistant Can Use" = "ما يمكن للمساعد استخدامه";
+"Switch a part off and the assistant can no longer read or change it." = "عند إيقاف جزء لا يستطيع المساعد قراءته أو تغييره.";
+"Library and Progress" = "المكتبة والتقدم";
+"Adding and Organizing Words" = "إضافة الكلمات وتنظيمها";
+"Flashcards" = "البطاقات";
+"Review List" = "قائمة المراجعة";
+"Delete All Chats" = "حذف جميع المحادثات";
+"Delete all chats? This can't be undone." = "حذف جميع المحادثات؟ لا يمكن التراجع عن ذلك.";

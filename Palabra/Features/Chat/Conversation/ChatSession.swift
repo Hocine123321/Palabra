@@ -24,13 +24,15 @@ final class ChatSession {
     @ObservationIgnored private let linkedWord: (id: UUID, title: String)?
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let sessionID = UUID()
-    @ObservationIgnored private let allowedNames: Set<String>
+    @ObservationIgnored private let settings: @MainActor () -> AssistantSettings
+    @ObservationIgnored private let chatCapabilityNames: Set<String>
 
     init(
         conversation: ChatConversation,
         repository: ChatRepository,
         registry: CapabilityRegistry,
         language: @escaping @MainActor () -> SupportedLanguage,
+        settings: @escaping @MainActor () -> AssistantSettings = { .default },
         now: @escaping () -> Date = { Date() },
         generate: @escaping Generate
     ) {
@@ -41,9 +43,16 @@ final class ChatSession {
         self.repository = repository
         self.registry = registry
         self.language = language
+        self.settings = settings
         self.now = now
         self.generate = generate
-        allowedNames = Set(registry.all.filter { $0.kind == .read || $0.kind == .write }.map(\.name))
+        chatCapabilityNames = Set(registry.all.filter { $0.kind == .read || $0.kind == .write }.map(\.name))
+    }
+
+    /// Read + write capabilities whose group is switched on right now (checked per call, so a change in Settings applies at once).
+    private var allowedNames: Set<String> {
+        let current = settings()
+        return chatCapabilityNames.filter { current.allows(capability: $0) }
     }
 
     var isBusy: Bool { phase != .idle }
@@ -111,7 +120,15 @@ final class ChatSession {
         defer { phase = .idle }
         for _ in 0..<ChatLimits.maxRoundsPerMessage {
             phase = .thinking
-            let system = ChatPrompts.systemInstruction(manual: registry.manual(including: [.read, .write]), language: language(), linkedWord: linkedWord)
+            let current = settings()
+            let allowed = allowedNames
+            let system = ChatPrompts.systemInstruction(
+                manual: registry.manual(including: [.read, .write], only: allowed),
+                language: language(),
+                linkedWord: linkedWord,
+                settings: current,
+                autoApplies: !current.askBeforeChanging
+            )
             let prompt = ChatPrompts.transcript(turns: turns)
             let reply: ChatReply
             switch await generate(prompt, system) {
@@ -147,7 +164,8 @@ final class ChatSession {
 
             phase = .running
             let turnIndex = turns.count - 1
-            for actionIndex in actions.indices where turns[turnIndex].actions[actionIndex].state == .pending && !turns[turnIndex].actions[actionIndex].isWrite {
+            let autoApply = !current.askBeforeChanging
+            for actionIndex in actions.indices where turns[turnIndex].actions[actionIndex].state == .pending && (autoApply || !turns[turnIndex].actions[actionIndex].isWrite) {
                 await execute(actionAt: actionIndex, inTurnAt: turnIndex)
             }
             persist()
@@ -157,8 +175,11 @@ final class ChatSession {
 
     private func makeAction(_ call: ChatCall) -> ChatAction {
         let argsJSON = call.args.jsonString
-        guard let capability = registry.capability(named: call.capability), allowedNames.contains(capability.name) else {
+        guard let capability = registry.capability(named: call.capability), chatCapabilityNames.contains(capability.name) else {
             return ChatAction(capability: call.capability, argsJSON: argsJSON, summary: call.capability, isWrite: false, state: .failed, result: "unknown capability")
+        }
+        guard allowedNames.contains(capability.name) else {
+            return ChatAction(capability: capability.name, argsJSON: argsJSON, summary: capability.name, isWrite: capability.kind == .write, state: .failed, result: "switched off in Settings")
         }
         return ChatAction(
             capability: capability.name,

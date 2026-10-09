@@ -40,6 +40,20 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveAssistantSettingsKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Assistant", "Chat Assistant", "Replies", "Reply Length", "Concise", "Detailed",
+            "For example: always add an example sentence", "Optional. The assistant follows these in every chat.",
+            "Changes", "Ask Before Making Changes", "Every change the assistant proposes waits for your Apply.",
+            "Changes are applied as soon as the assistant proposes them. You can't undo them from the chat.",
+            "What the Assistant Can Use", "Switch a part off and the assistant can no longer read or change it.",
+            "Library and Progress", "Adding and Organizing Words", "Flashcards", "Review List",
+            "Delete All Chats", "Delete all chats? This can't be undone.",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
     func testArabicStringsHaveNeedReviewKeys() throws {
         let table = try arabicTable()
         let keys = ["Need Review", "Needs review", "Mark as learned", "Nothing to review", "Words your artifacts flag will show up here."]

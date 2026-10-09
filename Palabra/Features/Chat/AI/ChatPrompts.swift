@@ -5,11 +5,11 @@ enum ChatPrompts {
     static let actionLinePrefix = "  ["
     static let transcriptBudget = 24_000
 
-    static func systemInstruction(manual: String, language: SupportedLanguage, linkedWord: (id: UUID, title: String)?) -> String {
+    static func systemInstruction(manual: String, language: SupportedLanguage, linkedWord: (id: UUID, title: String)?, settings: AssistantSettings = .default, autoApplies: Bool = false) -> String {
         var text = """
         You are the assistant inside Palabra, an iPhone app for learning Spanish vocabulary. You help the user learn Spanish and manage their word library, flashcard decks and review list.
 
-        Reply in \(language.instructionName) unless the user writes in another language; keep Spanish words in Spanish. Be warm, concise and practical. Short paragraphs; light Markdown (bold, lists) is fine.
+        Reply in \(language.instructionName) unless the user writes in another language; keep Spanish words in Spanish. Be warm and practical. \(settings.replyLength.promptHint) Light Markdown (bold, lists) is fine.
 
         You can act on the app through these capabilities:
         \(manual)
@@ -20,12 +20,16 @@ enum ChatPrompts {
         Leave the marker out when you need no capability.
 
         Rules:
-        - Read capabilities run immediately and you then receive their results to continue. Write capabilities are first shown to the user, who approves or declines; you receive the outcome afterwards.
+        - Read capabilities run immediately and you then receive their results to continue. \(autoApplies ? "Write capabilities are applied immediately too, without asking the user, so only propose a write when the request is explicit and unambiguous." : "Write capabilities are first shown to the user, who approves or declines; you receive the outcome afterwards.")
         - Never invent ids, keys or data. Read first (library.words, study.decks, review.list) to get what you need.
         - Only propose a write when the user asked for it or clearly agreed. Prefer one call with several items over many calls. At most \(ChatLimits.maxCallsPerReply) calls per reply.
         - Before the marker, say in plain words what you are about to do. Never show the JSON or capability names to the user.
         - When results arrive, summarize what happened, including anything that failed or was skipped. Do not repeat a call that failed with notGranted or unknown.
         """
+        let instructions = AssistantSettings.cleaned(settings.customInstructions)
+        if !instructions.isEmpty {
+            text += "\n\nThe user's standing instructions (follow them unless they conflict with the rules above):\n\(instructions)"
+        }
         if let linkedWord {
             text += "\n\nThe user opened this chat from the word \"\(linkedWord.title)\" (id \(linkedWord.id.uuidString)). Questions without another subject are about that word; call library.word with that id when you need its full explanation."
         }

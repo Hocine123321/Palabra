@@ -33,8 +33,9 @@ struct CapabilityRegistry: Sendable {
     }
 
     /// The AI-facing manual: one block per capability.
-    func manual(including classes: Set<CapabilityClass> = [.read, .write, .ai, .local]) -> String {
-        all.filter { classes.contains($0.kind) }.map { capability in
+    /// `only` narrows the listing to those names (nil = every capability of the classes).
+    func manual(including classes: Set<CapabilityClass> = [.read, .write, .ai, .local], only names: Set<String>? = nil) -> String {
+        all.filter { classes.contains($0.kind) && (names?.contains($0.name) ?? true) }.map { capability in
             """
             - \(capability.name) (\(capability.kind.label)): \(capability.summary)
               args: \(capability.argsSchema.jsonString)

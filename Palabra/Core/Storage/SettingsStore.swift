@@ -26,6 +26,7 @@ final class SettingsStore {
         static let organizerSettings = "organizerSettings"
         static let retryPolicy = "retryPolicy"
         static let newCardsPerDay = "newCardsPerDay"
+        static let assistantSettings = "assistantSettings"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -74,6 +75,15 @@ final class SettingsStore {
             return value
         }
         set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Keys.organizerSettings) }
+    }
+
+    var assistantSettings: AssistantSettings {
+        get {
+            guard let data = defaults.data(forKey: Keys.assistantSettings),
+                  let value = try? JSONDecoder().decode(AssistantSettings.self, from: data) else { return .default }
+            return value
+        }
+        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Keys.assistantSettings) }
     }
 
     /// Daily cap on brand-new flashcards introduced in review sessions.

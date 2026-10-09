@@ -23,7 +23,7 @@ Palabra/
     DesignSystem/       Theme, glass surfaces, motion, shared components
     Localization/       SupportedLanguage (app language / AI language: en, ar)
     SRS/                SRSScheduler (pure SM-2-style spaced repetition; no UI, no storage)
-    Storage/            KeychainStore (API key), SettingsStore (UserDefaults), OrganizerSettings
+    Storage/            KeychainStore (API key), SettingsStore (UserDefaults), OrganizerSettings, AssistantSettings
   Features/
     Onboarding/         first-run screen
     Spanish/            hub page list (SpanishHomeView), the Spanish tab's stack root
@@ -87,7 +87,7 @@ Changing any of these silently loses the user's saved words, settings or API key
 
 - Bundle id `dev.palabra.app` and the Keychain service `dev.palabra.app.google`.
 - The SwiftData entity `Word` and its stored property names (`spanish`, `key`, `searchKey`, `contentData`, `rawJSON`, `chatData`, `pronunciationAudio`, `category`, `tagsData`, ...). Renaming a `@Model` class or stored property changes the on-device schema.
-- UserDefaults keys in `SettingsStore.Keys` (including `organizerSettings`, a JSON blob that must keep decoding when fields are added; `OrganizerSettings` has a tolerant decoder).
+- UserDefaults keys in `SettingsStore.Keys` (including `organizerSettings` and `assistantSettings`, JSON blobs that must keep decoding when fields are added; `OrganizerSettings` has a tolerant decoder).
 - The JSON keys inside `WordContent` (including `spanish` / `english` / `translation` on examples) — stored data and Gemini's response schema both use them.
 - The SwiftData entities `Deck`, `Card` and `ReviewLog` and their stored properties (including the raw-value strings `kindRaw` / `phaseRaw` / `gradeRaw`; their enum raw values are append-only), and the `newCardsPerDay` key in `SettingsStore.Keys`.
 - The SwiftData entities `Artifact`, `ArtifactVersion` and `ArtifactStateEntry` and their stored properties (including `kindRaw`, `grantedData`, `requestedData`, `payload`, `valueData`); the `ArtifactKind` raw values `"spec"` / `"app"` are append-only, and so are the JSON blobs in `grantedData` / `requestedData` (`[String]` of capability names).
@@ -182,7 +182,8 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 
 ## Chat
 
-- The assistant acts only through `CapabilityRegistry.call`; its toolset is every `.read` and `.write` capability (never `.local` or `.ai`). Reads run at once; **a write never runs without the person tapping Apply** (the confirmation card is the consent). Do not add a way around that.
+- The assistant acts only through `CapabilityRegistry.call`; its toolset is every `.read` and `.write` capability (never `.local` or `.ai`). Reads run at once; **a write never runs without the person's consent**: by default the confirmation card's Apply, or, only when the person switched off Settings → Assistant → "Ask Before Making Changes", at once. Do not add any other way around that.
+- Settings → Assistant (`AssistantSettings`, Core/Storage; key `assistantSettings`, tolerant decoder, JSON blob that must keep decoding): reply length, standing instructions, ask-before-changing, and per-group switches (`AssistantToolGroup`: library, words, study, review; a capability's group is its name prefix, `stats.*` counts as library; a capability with no group is always on). Groups are stored as the *disabled* ones. `ChatSession` reads the settings on every run and every approval, so a switch applies at once; a switched-off capability is absent from the manual and refused with "switched off in Settings". A new capability prefix needs a case in `AssistantToolGroup.group(forCapability:)` if it should be switchable.
 - `ChatSession` owns the loop (max 4 model calls per message, 5 calls per reply, one automatic retry for a malformed actions block). Screens only call `send`, `approvePending`, `declinePending`, `retry`, `clear`.
 - The chat uses the generic `generateJSON` with the transcript rendered as text (no new `AIClient` method). Its protocol marker is `---ACTIONS---`; `StubAIClient` keys on it, so keep the two in sync (`ChatUITests`, `SmokeUITests`).
 - `Features/Chat` never imports `Word`, `Deck`, `Card` or `ReviewNeed`; `RootView.openChat` (App layer) is where a word's old chat is imported. `Word.chatData` and `AIClient.sendChat` are no longer used by any screen (kept for stored data and their tests).
