@@ -4,6 +4,7 @@ import SwiftUI
 enum AppTab: Hashable {
     case spanish
     case study
+    case solve
     case settings
 }
 

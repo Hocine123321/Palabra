@@ -12,6 +12,9 @@ struct KeychainStore {
 
     init(account: String = "api-key") { self.account = account }
 
+    /// The person's own Wolfram|Alpha App ID (Solve tab). Same service, its own slot.
+    static func wolfram() -> KeychainStore { KeychainStore(account: "wolfram-app-id") }
+
     /// The backup key the app switches to when the primary one keeps failing.
     static func fallback() -> KeychainStore { KeychainStore(account: "api-key-fallback") }
 

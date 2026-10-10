@@ -28,6 +28,8 @@ final class AppEnvironment {
     let review: ReviewRepository
     /// Saved assistant conversations.
     let chat: ChatRepository
+    /// The Solve tab: Wolfram|Alpha, photo reading, saved answers and the person's App ID.
+    let solve: SolveTool
     /// Everything an artifact may ask the app to do (and the AI's manual for it).
     let capabilities: CapabilityRegistry
     /// Where `ai.generate` reaches the AI; filled in at the end of `init`.
@@ -82,7 +84,8 @@ final class AppEnvironment {
         cardRepository: CardRepository? = nil,
         artifactRepository: ArtifactRepository? = nil,
         reviewRepository: ReviewRepository? = nil,
-        chatRepository: ChatRepository? = nil
+        chatRepository: ChatRepository? = nil,
+        solveTool: SolveTool? = nil
     ) {
         self.rawAI = ai
         let policyBox = PolicyBox(settings.retryPolicy)
@@ -117,6 +120,7 @@ final class AppEnvironment {
         let resolvedReview = reviewRepository ?? SwiftDataReviewRepository.inMemory()
         self.review = resolvedReview
         self.chat = chatRepository ?? SwiftDataChatRepository.inMemory()
+        self.solve = solveTool ?? SolveTool.inMemory()
         let gateway = AIGateway()
         self.aiGateway = gateway
         let hooks = CapabilityHooks()
@@ -364,7 +368,8 @@ final class AppEnvironment {
             cardRepository: SwiftDataCardRepository(context: modelContext),
             artifactRepository: SwiftDataArtifactRepository(context: modelContext),
             reviewRepository: SwiftDataReviewRepository(context: modelContext),
-            chatRepository: SwiftDataChatRepository(context: modelContext)
+            chatRepository: SwiftDataChatRepository(context: modelContext),
+            solveTool: SolveTool.live(context: modelContext)
         )
     }
 }

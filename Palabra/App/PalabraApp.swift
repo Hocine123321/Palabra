@@ -11,7 +11,7 @@ struct PalabraApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
-        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self, ReviewNeed.self, ChatConversation.self])
+        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self, ReviewNeed.self, ChatConversation.self, SolveEntry.self])
 
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -32,6 +32,7 @@ struct PalabraApp: App {
             for entry in (try? context.fetch(FetchDescriptor<ArtifactStateEntry>())) ?? [] { context.delete(entry) }
             for need in (try? context.fetch(FetchDescriptor<ReviewNeed>())) ?? [] { context.delete(need) }
             for conversation in (try? context.fetch(FetchDescriptor<ChatConversation>())) ?? [] { context.delete(conversation) }
+            for entry in (try? context.fetch(FetchDescriptor<SolveEntry>())) ?? [] { context.delete(entry) }
             try? context.save()
         }
 
@@ -51,6 +52,16 @@ struct PalabraApp: App {
                 filter: TTSModelFilter.apply,
                 cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             )
+            // Solve: canned answers, and a fake App ID unless `-UITestNoSolveKey`.
+            let solveKeychain = KeychainStore(account: "wolfram-app-id-uitest")
+            if arguments.contains("-UITestNoSolveKey") { solveKeychain.delete() } else { solveKeychain.save("uitest-wolfram") }
+            let solveTool = SolveTool(
+                solver: StubMathSolver(),
+                recognizer: StubTextRecognizer(),
+                history: SwiftDataSolveRepository(context: ModelContext(container)),
+                usage: SolveUsage(defaults: UserDefaults(suiteName: "uitest-solve-\(UUID().uuidString)") ?? .standard),
+                keychain: solveKeychain
+            )
             let env = AppEnvironment(
                 ai: StubAIClient(),
                 repository: SwiftDataWordRepository(context: ModelContext(container)),
@@ -62,7 +73,8 @@ struct PalabraApp: App {
                 cardRepository: SwiftDataCardRepository(context: ModelContext(container)),
                 artifactRepository: SwiftDataArtifactRepository(context: ModelContext(container)),
                 reviewRepository: SwiftDataReviewRepository(context: ModelContext(container)),
-                chatRepository: SwiftDataChatRepository(context: ModelContext(container))
+                chatRepository: SwiftDataChatRepository(context: ModelContext(container)),
+                solveTool: solveTool
             )
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id

@@ -140,6 +140,16 @@ struct SettingsView: View {
             }
             .themedSection()
 
+            Section {
+                WolframKeyField()
+                Text("About \(environment.solve.callsThisMonth) of \(SolveUsage.freeMonthlyCalls) free solves used this month")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.inkSecondary)
+            } header: {
+                Text("Math Solver")
+            }
+            .themedSection()
+
             Section("Assistant") {
                 NavigationLink("Chat Assistant") { AssistantSettingsView() }
             }

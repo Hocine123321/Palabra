@@ -35,6 +35,10 @@ struct RootView: View {
                 .tabItem { Label("Study", systemImage: "rectangle.stack") }
                 .tag(AppTab.study)
 
+            SolveRootView()
+                .tabItem { Label("Solve", systemImage: "function") }
+                .tag(AppTab.solve)
+
             NavigationStack { SettingsView() }
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(AppTab.settings)

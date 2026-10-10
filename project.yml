@@ -29,6 +29,7 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        NSCameraUsageDescription: Palabra uses the camera to read a math problem from a photo. Photos are read on your device and are not uploaded.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.palabra.app
