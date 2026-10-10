@@ -18,6 +18,11 @@ protocol CardRepository {
     /// Returns how many were added; 0 for an unknown deck or the system Vocabulary deck.
     @discardableResult
     func addCards(toDeck id: UUID, drafts: [CardDraft], now: Date) -> Int
+    /// Removes one card (and its review history) from a user deck. The system Vocabulary deck is managed by the library, so it is left alone.
+    @discardableResult
+    func deleteCard(id: UUID) -> Bool
+    /// Today's answers, the streak and the last seven days, from the review history.
+    func reviewStats(now: Date) -> StudyStats
     /// Applies the scheduler to one card and writes the card plus a `ReviewLog` together.
     @discardableResult
     func record(cardID: UUID, grade: SRSGrade, now: Date) -> SRSState?
@@ -115,6 +120,21 @@ final class SwiftDataCardRepository: CardRepository {
         }
         if added > 0 { try? context.save() }
         return added
+    }
+
+    @discardableResult
+    func deleteCard(id: UUID) -> Bool {
+        let descriptor = FetchDescriptor<Card>(predicate: #Predicate { $0.id == id })
+        guard let card = try? context.fetch(descriptor).first,
+              decks().first(where: { $0.id == card.deckID })?.kind == .user else { return false }
+        delete(cards: [card])
+        try? context.save()
+        return true
+    }
+
+    func reviewStats(now: Date) -> StudyStats {
+        let logs = (try? context.fetch(FetchDescriptor<ReviewLog>())) ?? []
+        return StudyStatsCalculator.stats(reviewDates: logs.map(\.reviewedAt), now: now)
     }
 
     func deleteDeck(id: UUID) {

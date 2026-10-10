@@ -336,3 +336,20 @@
 "Add more detail" = "أضف مزيداً من التفاصيل";
 "Use simpler words" = "استخدم كلمات أبسط";
 "Make it more colorful" = "اجعله أكثر ألواناً";
+
+/* Study refinements */
+"Decks" = "المجموعات";
+"Today" = "اليوم";
+"Nothing due today" = "لا شيء مستحق اليوم";
+"%lld-day streak" = "سلسلة %lld يوم";
+"Review a card to start a streak" = "راجع بطاقة لتبدأ سلسلة";
+"Reviews in the last 7 days: %lld" = "المراجعات في آخر 7 أيام: %lld";
+"Make a deck from notes" = "أنشئ مجموعة من ملاحظاتك";
+"Reviewed" = "تمت مراجعتها";
+"Correct" = "صحيحة";
+"Day streak" = "أيام متتالية";
+"New Card" = "بطاقة جديدة";
+"This card is already in the deck." = "هذه البطاقة موجودة بالفعل في المجموعة.";
+"Add Card" = "إضافة بطاقة";
+"Due" = "مستحقة";
+"New" = "جديدة";

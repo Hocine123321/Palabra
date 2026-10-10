@@ -62,4 +62,29 @@ final class ReviewViewModelTests: XCTestCase {
         model.grade(.easy)
         XCTAssertEqual(repository.counts(now: now).values.first?.new, 0)
     }
+
+    func testProgressAndAccuracyFollowTheAnswers() {
+        let model = makeModel(cards: 4)
+        XCTAssertEqual(model.progress, 0)
+        XCTAssertNil(model.accuracyPercent)
+        model.flip(); model.grade(.good)
+        model.flip(); model.grade(.easy)
+        model.flip(); model.grade(.good)
+        XCTAssertEqual(model.progress, 0.75, accuracy: 0.001)
+        XCTAssertEqual(model.accuracyPercent, 100)
+        model.flip(); model.grade(.again)
+        XCTAssertEqual(model.accuracyPercent, 75)
+    }
+
+    func testAnAgainCardMakesProgressWaitForItsReturn() {
+        let model = makeModel(cards: 1)
+        model.flip(); model.grade(.again)
+        XCTAssertEqual(model.remaining, 1)
+        XCTAssertEqual(model.progress, 0.5, accuracy: 0.001)
+        XCTAssertEqual(model.accuracyPercent, 0)
+    }
+
+    func testProgressOfAnEmptySessionIsComplete() {
+        XCTAssertEqual(makeModel(cards: 0).progress, 1)
+    }
 }

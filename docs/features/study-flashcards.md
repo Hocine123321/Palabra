@@ -86,3 +86,11 @@ Every new UI string gets an `ar.lproj/Localizable.strings` key and uses
 1. Multimodal input (photo/PDF) on `AIClient`, then cards from photos.
 2. Quiz Gen over decks (MCQ / short answer), feeding ReviewLog.
 3. Reversed / cloze cards, dashboard.
+
+
+## Refinements (study page)
+
+- **Study home:** a *Today* card (progress ring of answers given today against answers + still due + new, due/new counts, streak, last-7-days bars, **Review All Due**), then one card per deck with a started-progress bar and a play button for that deck, and a "Make a deck from notes" tile. Stats come from `CardRepository.reviewStats(now:)` -> `StudyStatsCalculator` (pure: streak counts consecutive days with an answer, ending today or yesterday).
+- **Review:** a progress bar over the session (`ReviewViewModel.progress`; an Again card that returns counts again) and, on finish, a summary (reviewed, correct %, streak). The "All caught up" title is kept (UI tests).
+- **Deck detail:** cards / due / new header, per-card status (New, Due, or time until due), search, **Add Card** (user decks, `AddCardView`, duplicates refused) and swipe-to-delete (`CardRepository.deleteCard`, user decks only: the Vocabulary deck mirrors the library).
+- No stored property changed (`DeckCounts`, `Card`, `ReviewLog` are as before), so no migration.

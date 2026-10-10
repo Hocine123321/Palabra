@@ -11,6 +11,7 @@ final class StudyUITests: XCTestCase {
         app.tabBars.buttons["Study"].tap()
         let reviewAll = app.buttons["reviewAllButton"]
         XCTAssertTrue(reviewAll.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "todayCard").firstMatch.exists)
         reviewAll.tap()
 
         for _ in 0..<3 {
@@ -22,6 +23,7 @@ final class StudyUITests: XCTestCase {
             good.tap()
         }
         XCTAssertTrue(app.staticTexts["All caught up"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "sessionSummary").firstMatch.exists)
     }
 
     func testCreateDeckFromNotes() {
@@ -46,5 +48,16 @@ final class StudyUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["reviewDeckButton"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Front 1"].exists)
+
+        app.buttons["addCardButton"].tap()
+        let front = app.textFields["cardFrontField"]
+        XCTAssertTrue(front.waitForExistence(timeout: 5))
+        front.tap()
+        front.typeText("Manual front")
+        let back = app.textFields["cardBackField"]
+        back.tap()
+        back.typeText("Manual back")
+        app.buttons["saveCardButton"].tap()
+        XCTAssertTrue(app.staticTexts["Manual front"].waitForExistence(timeout: 5))
     }
 }

@@ -198,3 +198,44 @@ final class CardRepositoryAddCardsTests: XCTestCase {
         XCTAssertEqual(repo.addCards(toDeck: UUID(), drafts: [CardDraft(front: "a", back: "b")], now: Date()), 0)
     }
 }
+
+
+@MainActor
+final class CardRepositoryStudyStatsTests: XCTestCase {
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+    private var repository: SwiftDataCardRepository!
+
+    override func setUp() {
+        repository = SwiftDataCardRepository.inMemory()
+    }
+
+    func testReviewStatsComeFromTheReviewLog() {
+        let deck = repository.createDeck(name: "D", drafts: [CardDraft(front: "a", back: "b"), CardDraft(front: "c", back: "d")], now: now)
+        let cards = repository.cards(inDeck: deck.id)
+        XCTAssertEqual(repository.reviewStats(now: now), StudyStats())
+        repository.record(cardID: cards[0].id, grade: .good, now: now)
+        repository.record(cardID: cards[1].id, grade: .again, now: now)
+        let stats = repository.reviewStats(now: now)
+        XCTAssertEqual(stats.reviewedToday, 2)
+        XCTAssertEqual(stats.streak, 1)
+    }
+
+    func testDeleteCardRemovesItAndItsHistoryFromAUserDeck() {
+        let deck = repository.createDeck(name: "D", drafts: [CardDraft(front: "a", back: "b"), CardDraft(front: "c", back: "d")], now: now)
+        let first = repository.cards(inDeck: deck.id)[0]
+        repository.record(cardID: first.id, grade: .good, now: now)
+        let id = first.id
+        XCTAssertTrue(repository.deleteCard(id: id))
+        XCTAssertEqual(repository.cards(inDeck: deck.id).count, 1)
+        XCTAssertEqual(repository.reviewStats(now: now).reviewedToday, 0)
+        XCTAssertFalse(repository.deleteCard(id: id), "already gone")
+    }
+
+    func testDeleteCardLeavesTheVocabularyDeckAlone() {
+        repository.syncVocabulary([VocabularyCardEntry(wordID: UUID(), front: "hola", back: "hello")])
+        let deck = repository.decks().first { $0.kind == .vocabulary }!
+        let card = repository.cards(inDeck: deck.id)[0]
+        XCTAssertFalse(repository.deleteCard(id: card.id))
+        XCTAssertEqual(repository.cards(inDeck: deck.id).count, 1)
+    }
+}

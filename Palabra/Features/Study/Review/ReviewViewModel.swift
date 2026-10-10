@@ -9,6 +9,8 @@ final class ReviewViewModel {
     private(set) var queue: [Card]
     private(set) var isFlipped = false
     private(set) var answered = 0
+    /// Answers that were not "Again".
+    private(set) var correct = 0
 
     private let repository: CardRepository
     private let scheduler = SRSScheduler()
@@ -24,6 +26,17 @@ final class ReviewViewModel {
     var current: Card? { queue.first }
     var remaining: Int { queue.count }
     var isFinished: Bool { queue.isEmpty }
+
+    /// 0...1 over this session; a card that comes back counts again, so the bar never jumps backwards.
+    var progress: Double {
+        let total = answered + remaining
+        return total == 0 ? 1 : Double(answered) / Double(total)
+    }
+
+    /// Share of answers that were not "Again", as a whole percent; nil before the first answer.
+    var accuracyPercent: Int? {
+        answered == 0 ? nil : Int((Double(correct) / Double(answered) * 100).rounded())
+    }
 
     func flip() {
         guard current != nil else { return }
@@ -43,6 +56,7 @@ final class ReviewViewModel {
         let updated = repository.record(cardID: card.id, grade: grade, now: moment)
         queue.removeFirst()
         answered += 1
+        if grade != .again { correct += 1 }
         isFlipped = false
         if let updated, updated.due <= moment.addingTimeInterval(requeueWindow) {
             queue.append(card)

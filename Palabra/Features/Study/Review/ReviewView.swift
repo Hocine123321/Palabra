@@ -33,10 +33,17 @@ struct ReviewView: View {
 
     private func session(model: ReviewViewModel, card: Card) -> some View {
         VStack(spacing: Theme.Spacing.lg) {
-            Text("\(model.remaining) left")
-                .font(.subheadline)
-                .foregroundStyle(Theme.inkSecondary)
-                .accessibilityIdentifier("remainingLabel")
+            VStack(spacing: Theme.Spacing.xs) {
+                ProgressView(value: model.progress)
+                    .tint(Theme.accent)
+                    .animation(Motion.reduced(Motion.quick), value: model.progress)
+                    .accessibilityHidden(true)
+                Text("\(model.remaining) left")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkSecondary)
+                    .accessibilityIdentifier("remainingLabel")
+            }
+            .padding(.horizontal, Theme.Spacing.md)
 
             GlassSurface {
                 VStack(spacing: Theme.Spacing.md) {
@@ -101,16 +108,37 @@ struct ReviewView: View {
     }
 
     private func finished(model: ReviewViewModel) -> some View {
-        VStack(spacing: Theme.Spacing.md) {
+        VStack(spacing: Theme.Spacing.lg) {
             EmptyStateView(
                 systemImage: "checkmark.circle",
                 title: "All caught up",
                 message: model.answered == 0 ? LocalizedStringKey("Nothing is due right now.") : LocalizedStringKey("You reviewed \(model.answered) cards.")
             )
+            if model.answered > 0 {
+                let streak = environment.cards.reviewStats(now: Date()).streak
+                HStack(spacing: Theme.Spacing.sm) {
+                    summaryTile(value: "\(model.answered)", caption: "Reviewed")
+                    summaryTile(value: model.accuracyPercent.map { "\($0)%" } ?? "–", caption: "Correct")
+                    summaryTile(value: "\(streak)", caption: "Day streak")
+                }
+                .padding(.horizontal, Theme.Spacing.md)
+                .accessibilityIdentifier("sessionSummary")
+            }
             Button("Done") { dismiss() }
                 .buttonStyle(.primary)
                 .padding(.horizontal, Theme.Spacing.md)
                 .accessibilityIdentifier("doneButton")
+        }
+    }
+
+    private func summaryTile(value: String, caption: LocalizedStringKey) -> some View {
+        GlassSurface {
+            VStack(spacing: Theme.Spacing.xs) {
+                Text(verbatim: value).font(Theme.Font.title).foregroundStyle(Theme.ink)
+                Text(caption).font(.caption).foregroundStyle(Theme.inkSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Theme.Spacing.md)
         }
     }
 }

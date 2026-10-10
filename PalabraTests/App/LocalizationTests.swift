@@ -67,6 +67,16 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveStudyRefinementKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Decks", "Today", "Nothing due today", "%lld-day streak", "Review a card to start a streak", "Reviews in the last 7 days: %lld",
+            "Make a deck from notes", "Reviewed", "Correct", "Day streak", "New Card", "This card is already in the deck.",
+            "Add Card", "Due", "New", "%lld new",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
     func testArabicStringsHaveNeedReviewKeys() throws {
         let table = try arabicTable()
         let keys = ["Need Review", "Needs review", "Mark as learned", "Nothing to review", "Words your artifacts flag will show up here."]
