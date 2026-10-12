@@ -15,10 +15,10 @@ struct ResilienceOverlay: View {
                 StatusPill(systemImage: "wifi.slash", text: "Waiting for a connection…", tint: Theme.error)
                     .transition(.opacity)
             } else if let retrying = center.retrying {
-                StatusPill(systemImage: "arrow.triangle.2.circlepath", text: retryText(retrying), tint: Theme.accent)
+                StatusPill(systemImage: "arrow.triangle.2.circlepath", text: retryText(retrying), tint: Theme.accentDeep)
                     .transition(.opacity)
             } else if let notice = center.notice {
-                StatusPill(systemImage: notice.isWarning ? "key.fill" : "checkmark.circle", text: LocalizedStringKey(notice.text), tint: notice.isWarning ? Theme.error : Theme.accent)
+                StatusPill(systemImage: notice.isWarning ? "key.fill" : "checkmark.circle", text: LocalizedStringKey(notice.text), tint: notice.isWarning ? Theme.error : Theme.accentDeep)
                     .onTapGesture { center.dismissNotice() }
                     .transition(.opacity)
             }
@@ -50,9 +50,8 @@ private struct StatusPill: View {
             .font(.footnote.weight(.medium))
             .foregroundStyle(Theme.ink)
             .padding(.horizontal, Theme.Spacing.md).padding(.vertical, Theme.Spacing.sm)
-            .background(.regularMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(tint.opacity(0.5), lineWidth: 1))
-            .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+            .glassCapsule()
+            .overlay(Capsule().strokeBorder(tint.opacity(0.45), lineWidth: 1))
             .accessibilityElement(children: .combine)
     }
 }
@@ -74,29 +73,28 @@ private struct DecisionCard: View {
 
             VStack(spacing: Theme.Spacing.sm) {
                 if decision.error.canBenefitFromWaiting {
-                    Button { onChoose(.retryNow) } label: { Text("Try Again").frame(maxWidth: .infinity) }
-                        .buttonStyle(.borderedProminent)
+                    Button { onChoose(.retryNow) } label: { Text("Try Again") }
+                        .buttonStyle(.primary)
                     Button { onChoose(.retryPatiently) } label: { Text("Retry with Longer Waits").frame(maxWidth: .infinity) }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.glassAction)
                 } else {
                     Button { onChoose(.retryNow) } label: { Text("Try Again").frame(maxWidth: .infinity) }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.glassAction)
                 }
                 if decision.error.recovery == .openSettings {
                     Button {
                         onChoose(.stop)
                         environment.router.openSettings()
                     } label: { Text(decision.error.settingsButtonTitle).frame(maxWidth: .infinity) }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.glassAction)
                 }
                 Button(role: .cancel) { onChoose(.stop) } label: { Text("Stop").frame(maxWidth: .infinity) }
                     .buttonStyle(.plain).foregroundStyle(Theme.inkSecondary)
             }
         }
         .padding(Theme.Spacing.md)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).strokeBorder(Theme.error.opacity(0.4), lineWidth: 1))
-        .shadow(color: .black.opacity(0.15), radius: 16, y: 4)
+        .glassCard(cornerRadius: Theme.Radius.card)
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).strokeBorder(Theme.error.opacity(0.35), lineWidth: 1))
         .accessibilityIdentifier("resilienceDecisionCard")
     }
 }

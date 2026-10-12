@@ -38,16 +38,21 @@ private struct WordTile: View {
     let word: Word
     let size: CGFloat
 
+    /// A paper cutout: most tiles are circles, some rounded squares, picked from the word's key.
+    private var kind: CutoutKind {
+        WordKey.tintIndex(word.key + "#shape", count: 3) == 0 ? .roundedSquare : .circle
+    }
+
     var body: some View {
         ZStack {
-            Circle().fill(Theme.tint(for: word.key))
+            CutoutShape(kind: kind).fill(Theme.tint(for: word.key))
             Text(word.spanish)
                 .font(Theme.Font.tile)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onTint)
                 .multilineTextAlignment(.center)
                 .minimumScaleFactor(0.5)
                 .lineLimit(2)
-                .padding(8)
+                .padding(10)
         }
         .frame(width: size, height: size)
         .scrollTransition { content, phase in

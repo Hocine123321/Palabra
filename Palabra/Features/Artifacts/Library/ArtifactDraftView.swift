@@ -22,7 +22,7 @@ struct ArtifactDraftView: View {
             Group {
                 if let model { content(model) } else { Color.clear }
             }
-            .background(Theme.background.ignoresSafeArea())
+            .background(ScreenBackdrop())
             .navigationTitle(mode == .create ? LocalizedStringKey("New Artifact") : LocalizedStringKey("Update"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -102,30 +102,31 @@ struct ArtifactDraftView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                Divider()
-                Button {
-                    Task { await model.generate() }
-                } label: {
-                    Text("Generate")
-                }
-                .buttonStyle(.primary)
-                .disabled(!model.canGenerate)
-                .accessibilityIdentifier("generateArtifactButton")
-                .padding(Theme.Spacing.md)
+            Button {
+                Task { await model.generate() }
+            } label: {
+                Text("Generate")
             }
-            .background(Theme.background)
+            .buttonStyle(.primary)
+            .disabled(!model.canGenerate)
+            .accessibilityIdentifier("generateArtifactButton")
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.top, Theme.Spacing.md)
+            .padding(.bottom, Theme.Spacing.sm)
+            .background {
+                // Fades the content out behind the pinned action instead of a hard bar.
+                LinearGradient(
+                    colors: [Theme.backgroundBottom.opacity(0), Theme.backgroundBottom.opacity(0.92)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
         }
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.md) {
-            Image(systemName: mode == .create ? "sparkles" : "wand.and.stars")
-                .font(.title2)
-                .foregroundStyle(Theme.accent)
-                .frame(width: 48, height: 48)
-                .background(Theme.accent.opacity(0.12), in: Circle())
-                .accessibilityHidden(true)
+            IconTile(systemImage: mode == .create ? "sparkles" : "wand.and.stars", tint: Theme.accent, size: 52)
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 if mode == .create {
                     Text("What do you want to make?").font(Theme.Font.title).foregroundStyle(Theme.ink)
@@ -140,6 +141,7 @@ struct ArtifactDraftView: View {
 
     private func editor(_ text: Binding<String>) -> some View {
         let clipped = Binding(get: { text.wrappedValue }, set: { text.wrappedValue = String($0.prefix(ArtifactDraftModel.maxInput)) })
+        // Glass card (radius 28) around an inner fill (radius 20) with 8pt between them: concentric.
         return ZStack(alignment: .topLeading) {
             TextEditor(text: clipped)
                 .scrollContentBackground(.hidden)
@@ -155,6 +157,8 @@ struct ArtifactDraftView: View {
                     .accessibilityHidden(true)
             }
         }
+        .innerFill(cornerRadius: Theme.Radius.medium)
+        .padding(Theme.Spacing.sm)
         .glassCard()
         .overlay(alignment: .bottomTrailing) {
             if text.wrappedValue.count > ArtifactDraftModel.maxInput * 3 / 4 {
@@ -200,17 +204,20 @@ struct ArtifactDraftView: View {
                             model.format = idea.format
                         }
                     } label: {
-                        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            Image(systemName: idea.symbol).font(.title3).foregroundStyle(Theme.accent)
-                            Text(LocalizedStringKey(idea.title)).font(Theme.Font.tile).foregroundStyle(Theme.ink)
-                            Text(LocalizedStringKey(idea.subtitle)).font(.caption).foregroundStyle(Theme.inkSecondary).lineLimit(2)
+                        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                            IconTile(systemImage: idea.symbol, tint: Theme.tint(for: idea.id), size: 34)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(LocalizedStringKey(idea.title)).font(Theme.Font.tile).foregroundStyle(Theme.ink)
+                                Text(LocalizedStringKey(idea.subtitle)).font(.caption).foregroundStyle(Theme.inkSecondary).lineLimit(2)
+                            }
                         }
-                        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
                         .padding(Theme.Spacing.md)
                         .glassCard()
                         .overlay {
                             RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                                .stroke(Theme.accent, lineWidth: selected ? 2 : 0)
+                                .strokeBorder(Theme.accent, lineWidth: selected ? 2 : 0)
                         }
                     }
                     .buttonStyle(.plain)
@@ -231,7 +238,7 @@ struct ArtifactDraftView: View {
                     .padding(.horizontal, Theme.Spacing.md)
                     .padding(.vertical, Theme.Spacing.sm)
                     .background(Theme.surface, in: Capsule())
-                    .overlay(Capsule().stroke(Theme.inkSecondary.opacity(0.25), lineWidth: 1))
+                    .overlay(Capsule().strokeBorder(Theme.ink.opacity(0.08), lineWidth: 1))
             }
             .buttonStyle(.plain)
         }
@@ -248,28 +255,28 @@ struct ArtifactDraftView: View {
     }
 
     private func preview(_ model: ArtifactDraftModel) -> some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                    if let draft = model.draft {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(verbatim: draft.title)
-                                .font(Theme.Font.heading)
-                                .foregroundStyle(Theme.ink)
-                            Spacer(minLength: Theme.Spacing.sm)
-                            Text(draft.kind == .app ? LocalizedStringKey("Interactive app") : LocalizedStringKey("Page"))
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Theme.accent)
-                                .padding(.horizontal, Theme.Spacing.sm)
-                                .padding(.vertical, Theme.Spacing.xs)
-                                .background(Theme.accent.opacity(0.12), in: Capsule())
-                        }
-                        previewBody(model, draft)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                if let draft = model.draft {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(verbatim: draft.title)
+                            .font(Theme.Font.heading)
+                            .foregroundStyle(Theme.ink)
+                        Spacer(minLength: Theme.Spacing.sm)
+                        Text(draft.kind == .app ? LocalizedStringKey("Interactive app") : LocalizedStringKey("Page"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.accentDeep)
+                            .padding(.horizontal, Theme.Spacing.sm + 2)
+                            .padding(.vertical, Theme.Spacing.xs)
+                            .background(Theme.accentSoft, in: Capsule())
                     }
+                    previewBody(model, draft)
                 }
-                .padding(Theme.Spacing.md)
             }
-            Divider()
+            .padding(Theme.Spacing.md)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            // One floating glass panel; everything inside it is a flat fill.
             VStack(spacing: Theme.Spacing.sm) {
                 if let error = model.saveError {
                     Text(LocalizedStringKey(error)).font(.footnote).foregroundStyle(Theme.error)
@@ -277,7 +284,10 @@ struct ArtifactDraftView: View {
                 quickChanges(compact: true) { refineText = ArtifactQuickChange.request(for: $0) }
                 HStack(spacing: Theme.Spacing.sm) {
                     TextField("Ask for a change", text: $refineText)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, Theme.Spacing.md)
+                        .padding(.vertical, Theme.Spacing.sm + 2)
+                        .innerFill(cornerRadius: Theme.Radius.pill)
                         .accessibilityIdentifier("refineArtifactField")
                     Button("Refine") {
                         let change = refineText
@@ -285,6 +295,7 @@ struct ArtifactDraftView: View {
                         Task { await model.refine(change: change) }
                     }
                     .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
                     .disabled(refineText.trimmingCharacters(in: .whitespacesAndNewlines).count < ArtifactGeneratorLimits.minRequestLength)
                     .accessibilityIdentifier("refineArtifactButton")
                 }
@@ -294,18 +305,25 @@ struct ArtifactDraftView: View {
                         dismiss()
                     }
                     .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
                     .accessibilityIdentifier("discardArtifactButton")
-                    Button("Save") {
+                    Button {
                         if let id = model.save() {
                             onSaved(id)
                             dismiss()
                         }
+                    } label: {
+                        Text("Save")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.primary)
                     .accessibilityIdentifier("saveArtifactButton")
                 }
             }
             .padding(Theme.Spacing.md)
+            .glassCard()
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.bottom, Theme.Spacing.sm)
         }
     }
 

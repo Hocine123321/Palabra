@@ -36,7 +36,7 @@ struct ArtifactDetailView: View {
         Group {
             if let snapshot { content(snapshot) } else { ProgressView() }
         }
-        .background(Theme.background.ignoresSafeArea())
+        .background(ScreenBackdrop())
         .navigationTitle(Text(verbatim: snapshot?.title ?? ""))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -120,6 +120,9 @@ struct ArtifactDetailView: View {
                 )
                 .id(webID)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                .padding(.horizontal, Theme.Spacing.md)
                 if !log.entries.isEmpty { errorsSection }
             }
         }
@@ -135,7 +138,7 @@ struct ArtifactDetailView: View {
                 updateRequest = "Fix these runtime errors:\n" + log.summary
                 showUpdate = true
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.primary)
             .accessibilityIdentifier("fixWithAIButton")
         }
         .padding(Theme.Spacing.md)
@@ -188,13 +191,19 @@ struct ArtifactVersionsView: View {
                             }
                             Spacer()
                             if version.number == current {
-                                Text("Current").font(.caption).foregroundStyle(Theme.accent)
+                                Text("Current")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Theme.accentDeep)
+                                    .padding(.horizontal, Theme.Spacing.sm + 2)
+                                    .padding(.vertical, Theme.Spacing.xs)
+                                    .background(Theme.accentSoft, in: Capsule())
                             } else {
                                 Button("Restore") {
                                     _ = environment.artifacts.restore(artifactID: artifactID, versionNumber: version.number, now: Date())
                                     dismiss()
                                 }
                                 .buttonStyle(.bordered)
+                                .buttonBorderShape(.capsule)
                                 .accessibilityIdentifier("restoreVersion-\(version.number)")
                             }
                         }
@@ -202,7 +211,7 @@ struct ArtifactVersionsView: View {
                 }
                 .themedSection()
             }
-            .creamScreen()
+            .glassScreen()
             .navigationTitle("Versions")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

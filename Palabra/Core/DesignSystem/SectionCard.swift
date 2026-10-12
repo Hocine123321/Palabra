@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A collapsible glass card used for each of the four word-detail sections.
+/// A collapsible glass card used for each of the word-detail sections.
 struct SectionCard<Content: View>: View {
     let title: LocalizedStringKey
     let systemImage: String
@@ -13,15 +13,19 @@ struct SectionCard<Content: View>: View {
                 Button {
                     Motion.animate(Motion.standard) { isExpanded.toggle() }
                 } label: {
-                    HStack {
-                        Label(title, systemImage: systemImage)
-                            .font(.headline)
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: systemImage, size: 30)
+                        Text(title)
+                            .font(Theme.Font.heading)
                             .foregroundStyle(Theme.ink)
                         Spacer()
                         Image(systemName: "chevron.down")
+                            .font(.footnote.weight(.bold))
                             .rotationEffect(.degrees(isExpanded ? 0 : -90))
                             .foregroundStyle(Theme.inkSecondary)
+                            .accessibilityHidden(true)
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isExpanded ? [.isHeader] : [.isHeader, .isButton])

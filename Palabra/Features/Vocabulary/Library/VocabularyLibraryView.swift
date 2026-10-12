@@ -19,7 +19,7 @@ struct VocabularyLibraryView: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            ScreenBackdrop()
             ScrollView {
                 if !queuedItems.isEmpty {
                     QueuedWordsBanner(
@@ -154,7 +154,6 @@ struct VocabularyLibraryView: View {
                 AddWordBar(text: $inputText, isEnabled: activeFlow == nil, onSubmit: submit)
             }
         }
-        .padding(.bottom, Theme.Spacing.sm)
     }
 
     private func open(_ word: Word) {

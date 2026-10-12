@@ -18,6 +18,7 @@ struct ChatView: View {
                 ProgressView()
             }
         }
+        .background(ScreenBackdrop())
         .navigationTitle(session.map { Text(verbatim: $0.title) } ?? Text("Chat"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -53,32 +54,29 @@ private struct ChatContent: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                        if session.turns.isEmpty { intro }
-                        ForEach(session.turns) { turn in
-                            ChatTurnView(turn: turn, session: session, isLast: turn.id == session.turns.last?.id)
-                        }
-                        if session.phase == .thinking { ChatTypingIndicator() }
-                        if session.phase == .running {
-                            HStack(spacing: Theme.Spacing.sm) {
-                                ProgressView()
-                                Text("Working…").font(.caption).foregroundStyle(Theme.inkSecondary)
-                            }
-                        }
-                        Color.clear.frame(height: 1).id("bottom")
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                    if session.turns.isEmpty { intro }
+                    ForEach(session.turns) { turn in
+                        ChatTurnView(turn: turn, session: session, isLast: turn.id == session.turns.last?.id)
                     }
-                    .padding(Theme.Spacing.md)
+                    if session.phase == .thinking { ChatTypingIndicator() }
+                    if session.phase == .running {
+                        HStack(spacing: Theme.Spacing.sm) {
+                            ProgressView()
+                            Text("Working…").font(.caption).foregroundStyle(Theme.inkSecondary)
+                        }
+                    }
+                    Color.clear.frame(height: 1).id("bottom")
                 }
-                .scrollDismissesKeyboard(.interactively)
-                .onChange(of: session.turns.count) { scrollToBottom(proxy) }
-                .onChange(of: session.phase) { scrollToBottom(proxy) }
+                .padding(Theme.Spacing.md)
             }
-            inputBar
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: session.turns.count) { scrollToBottom(proxy) }
+            .onChange(of: session.phase) { scrollToBottom(proxy) }
+            .safeAreaInset(edge: .bottom, spacing: 0) { inputBar }
         }
-        .background(Theme.background)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -87,9 +85,7 @@ private struct ChatContent: View {
 
     private var intro: some View {
         VStack(spacing: Theme.Spacing.md) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 36))
-                .foregroundStyle(Theme.accent)
+            IconTile(systemImage: "sparkles", tint: Theme.accent, size: 64)
             Text("Ask me anything, or have me change your library, decks and review list.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.inkSecondary)
@@ -97,8 +93,10 @@ private struct ChatContent: View {
             FlowLayout {
                 ForEach(starters, id: \.self) { starter in
                     Button { Task { await session.send(starter) } } label: {
-                        Chip(titleKey: LocalizedStringKey(starter))
+                        Text(LocalizedStringKey(starter))
+                            .multilineTextAlignment(.leading)
                     }
+                    .buttonStyle(.glassAction)
                     .accessibilityIdentifier("chatStarter")
                 }
             }
@@ -111,29 +109,36 @@ private struct ChatContent: View {
         !session.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !session.isBusy
     }
 
+    /// A floating glass capsule over the conversation. The field and the send button
+    /// sit on flat fills inside it, never on more glass.
     private var inputBar: some View {
         HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
             TextField("Message…", text: $session.draft, axis: .vertical)
                 .lineLimit(1...5)
                 .textFieldStyle(.plain)
                 .focused($focused)
-                .padding(.horizontal, Theme.Spacing.md)
                 .padding(.vertical, Theme.Spacing.sm)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
                 .accessibilityIdentifier("chatField")
             Button {
                 Task { await session.send() }
             } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(canSend ? Theme.accent : Theme.inkSecondary.opacity(0.4))
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(canSend ? Theme.onTint : Theme.inkSecondary)
+                    .frame(width: 38, height: 38)
+                    .background(canSend ? Theme.accent : Theme.fill, in: Circle())
             }
+            .buttonStyle(.plain)
             .disabled(!canSend)
             .accessibilityLabel("Send")
             .accessibilityIdentifier("chatSendButton")
         }
-        .padding(Theme.Spacing.md)
-        .background(.ultraThinMaterial)
+        .padding(.leading, Theme.Spacing.md)
+        .padding(.trailing, Theme.Spacing.xs + 2)
+        .padding(.vertical, Theme.Spacing.xs + 2)
+        .glassCapsule()
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.bottom, Theme.Spacing.sm)
     }
 }
 
@@ -142,15 +147,29 @@ private struct ChatTurnView: View {
     let session: ChatSession
     let isLast: Bool
 
+    /// Bubble corners: the corner nearest the speaker is tight. Leading/trailing, so it mirrors in RTL.
+    private func bubbleShape(tightLeading: Bool) -> UnevenRoundedRectangle {
+        let tight: CGFloat = 6
+        let round = Theme.Radius.medium
+        return UnevenRoundedRectangle(
+            topLeadingRadius: round,
+            bottomLeadingRadius: tightLeading ? tight : round,
+            bottomTrailingRadius: tightLeading ? round : tight,
+            topTrailingRadius: round,
+            style: .continuous
+        )
+    }
+
     var body: some View {
         switch turn.role {
         case .user:
             HStack {
                 Spacer(minLength: 48)
                 Text(verbatim: turn.text)
-                    .foregroundStyle(.white)
-                    .padding(Theme.Spacing.md)
-                    .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+                    .foregroundStyle(Theme.onTint)
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.vertical, Theme.Spacing.sm + 4)
+                    .background(Theme.accent, in: bubbleShape(tightLeading: false))
             }
         case .assistant:
             assistant
@@ -160,39 +179,56 @@ private struct ChatTurnView: View {
     @ViewBuilder
     private var assistant: some View {
         if turn.status == .failed {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 Text(LocalizedStringKey(turn.errorText ?? "Something went wrong. Try again."))
                     .foregroundStyle(Theme.error)
                 if isLast {
                     Button("Retry") { Task { await session.retry() } }
-                        .font(.caption.weight(.semibold))
+                        .buttonStyle(.glassAction)
                         .accessibilityIdentifier("chatRetryButton")
                 }
             }
             .padding(Theme.Spacing.md)
-            .background(Theme.error.opacity(0.1), in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+            .background(Theme.error.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         } else {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 if !turn.text.isEmpty {
-                    Text(ChatMarkdown.attributed(turn.text))
-                        .foregroundStyle(Theme.ink)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: 0) {
+                        Text(ChatMarkdown.attributed(turn.text))
+                            .foregroundStyle(Theme.ink)
+                            .padding(.horizontal, Theme.Spacing.md)
+                            .padding(.vertical, Theme.Spacing.sm + 4)
+                            .background(Theme.surface, in: bubbleShape(tightLeading: true))
+                            .overlay {
+                                bubbleShape(tightLeading: true)
+                                    .stroke(Theme.ink.opacity(0.06), lineWidth: 1)
+                            }
+                        Spacer(minLength: 24)
+                    }
                 }
                 ForEach(turn.actions) { action in
                     ChatActionRow(action: action)
                 }
                 if isLast && turn.actions.contains(where: { $0.state == .pending }) {
                     HStack(spacing: Theme.Spacing.sm) {
-                        Button("Apply") { Task { await session.approvePending() } }
-                            .buttonStyle(.borderedProminent)
-                            .accessibilityIdentifier("applyActionsButton")
-                        Button("Not now") { Task { await session.declinePending() } }
-                            .buttonStyle(.bordered)
-                            .accessibilityIdentifier("declineActionsButton")
+                        Button { Task { await session.approvePending() } } label: {
+                            Text("Apply")
+                        }
+                        .buttonStyle(.primary)
+                        .accessibilityIdentifier("applyActionsButton")
+                        Button { Task { await session.declinePending() } } label: {
+                            Text("Not now")
+                                .font(.headline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, Theme.Spacing.xs)
+                        }
+                        .buttonStyle(.glassAction)
+                        .accessibilityIdentifier("declineActionsButton")
                     }
                     .disabled(session.isBusy)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -202,17 +238,16 @@ private struct ChatActionRow: View {
 
     var body: some View {
         if action.isWrite {
-            GlassSurface(cornerRadius: Theme.Radius.medium) {
-                HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                    Image(systemName: icon)
-                        .foregroundStyle(action.state == .failed ? Theme.error : Theme.accent)
+            GlassSurface(cornerRadius: Theme.Radius.card) {
+                HStack(alignment: .center, spacing: Theme.Spacing.md) {
+                    IconTile(systemImage: icon, tint: iconTint, size: 36)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(verbatim: action.summary)
-                            .font(.subheadline.weight(.medium))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Theme.ink)
                         status
-                            .font(.caption)
-                            .foregroundStyle(action.state == .failed ? Theme.error : Theme.inkSecondary)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(statusColor)
                     }
                     Spacer(minLength: 0)
                 }
@@ -223,10 +258,14 @@ private struct ChatActionRow: View {
         } else {
             HStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: action.state == .failed ? "exclamationmark.triangle" : "eye")
+                    .accessibilityHidden(true)
                 ChatActionText.readTitle(action.capability)
             }
-            .font(.caption)
+            .font(.caption.weight(.medium))
             .foregroundStyle(action.state == .failed ? Theme.error : Theme.inkSecondary)
+            .padding(.horizontal, Theme.Spacing.sm + 4)
+            .padding(.vertical, 6)
+            .background(Theme.fill.opacity(0.8), in: Capsule())
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("chatReadChip")
         }
@@ -235,9 +274,27 @@ private struct ChatActionRow: View {
     private var icon: String {
         switch action.state {
         case .pending: return "circle.dashed"
-        case .applied: return "checkmark.circle.fill"
-        case .declined: return "xmark.circle"
+        case .applied: return "checkmark"
+        case .declined: return "xmark"
         case .failed: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    /// Orange while it waits for the person; muted tints once it is settled.
+    private var iconTint: Color {
+        switch action.state {
+        case .pending: return Theme.tileTints[0]
+        case .applied: return Theme.tileTints[1]
+        case .declined: return Theme.tileTints[5]
+        case .failed: return Theme.tileTints[4]
+        }
+    }
+
+    private var statusColor: Color {
+        switch action.state {
+        case .pending: return Theme.accentDeep
+        case .applied, .declined: return Theme.inkSecondary
+        case .failed: return Theme.error
         }
     }
 
@@ -291,8 +348,10 @@ private struct ChatTypingIndicator: View {
                     .animation(Motion.reduced(.easeInOut(duration: 0.5).repeatForever().delay(Double(i) * 0.15)), value: animate)
             }
         }
-        .padding(Theme.Spacing.sm)
-        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm + 4)
+        .background(Theme.surface, in: Capsule())
+        .accessibilityHidden(true)
         .onAppear { animate = true }
     }
 }

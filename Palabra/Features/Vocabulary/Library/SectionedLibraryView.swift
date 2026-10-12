@@ -51,7 +51,7 @@ struct SectionedLibraryView: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Theme.inkSecondary)
                     .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Theme.surface, in: Capsule())
+                    .background(Theme.fill, in: Capsule())
                 Spacer()
             }
             .padding(.horizontal, Theme.Spacing.md)
@@ -79,8 +79,8 @@ struct TagFilterBar: View {
                             Text(verbatim: "#\(item.tag)  \(item.count)")
                                 .font(.caption.weight(.medium))
                                 .padding(.horizontal, Theme.Spacing.sm).padding(.vertical, 6)
-                                .background(isOn ? Theme.accent : Theme.surface, in: Capsule())
-                                .foregroundStyle(isOn ? Color.white : Theme.inkSecondary)
+                                .background(isOn ? Theme.accent : Theme.fill, in: Capsule())
+                                .foregroundStyle(isOn ? Theme.onTint : Theme.inkSecondary)
                         }
                         .buttonStyle(.plain)
                     }

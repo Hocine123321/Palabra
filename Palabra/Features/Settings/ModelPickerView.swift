@@ -33,7 +33,7 @@ struct ModelPickerView: View {
                                 }
                                 Spacer()
                                 if model.id == selection {
-                                    Image(systemName: "checkmark").foregroundStyle(Theme.accent)
+                                    Image(systemName: "checkmark").foregroundStyle(Theme.accentDeep)
                                 }
                             }
                         }
@@ -46,7 +46,7 @@ struct ModelPickerView: View {
                 }
                 .themedSection()
             }
-            .creamScreen()
+            .glassScreen()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

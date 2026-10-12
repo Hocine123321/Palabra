@@ -20,7 +20,7 @@ struct SolveHomeView: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            ScreenBackdrop(style: .rich)
             if let model { content(model) }
         }
         .navigationTitle("Solve")
@@ -84,7 +84,7 @@ struct SolveHomeView: View {
                 Text("Solving uses your own free Wolfram|Alpha App ID (2,000 calls a month). Sign in at the developer portal, create an App ID for the Full Results API, and paste it here.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSecondary)
-                VStack(alignment: .leading, spacing: Theme.Spacing.sm) { WolframKeyField() }
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) { WolframKeyField(embedded: true) }
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -113,19 +113,20 @@ struct SolveHomeView: View {
                     ProgressView()
                     Text("Reading your photo\u{2026}").font(.subheadline).foregroundStyle(Theme.ink)
                 }
-                .padding(Theme.Spacing.md)
-                .background(Theme.surface, in: Capsule())
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.sm + 4)
+                .glassCapsule()
             }
         }
     }
 
     private func captureLabel(_ title: LocalizedStringKey, systemImage: String) -> some View {
-        VStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: systemImage).font(.title2).foregroundStyle(Theme.accent)
+        HStack(spacing: Theme.Spacing.sm) {
+            Image(systemName: systemImage).font(.body.weight(.semibold)).foregroundStyle(Theme.accentDeep)
             Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
         }
-        .frame(maxWidth: .infinity, minHeight: 76)
-        .glassCard()
+        .frame(maxWidth: .infinity, minHeight: 52)
+        .glassCapsule()
     }
 
     private func problemEditor(_ text: Binding<String>) -> some View {
@@ -137,6 +138,7 @@ struct SolveHomeView: View {
                     .frame(minHeight: 110)
                     .padding(Theme.Spacing.sm)
                     .font(.system(.title3, design: .monospaced))
+                    .foregroundStyle(Theme.ink)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .accessibilityIdentifier("solveInputField")
@@ -165,7 +167,7 @@ struct SolveHomeView: View {
                             .font(.system(.body, design: .monospaced).weight(.semibold))
                             .foregroundStyle(Theme.ink)
                             .frame(minWidth: 40, minHeight: 40)
-                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+                            .background(Theme.surface, in: Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -208,7 +210,7 @@ struct SolveHomeView: View {
                             .foregroundStyle(Theme.ink)
                             .padding(Theme.Spacing.sm)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -219,24 +221,30 @@ struct SolveHomeView: View {
 
     private var recentsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            Text("Recent").font(.footnote.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
+            Text("Recent").font(Theme.Font.heading).foregroundStyle(Theme.ink)
             ForEach(recents) { row in
                 Button { path.append(.result(row.id)) } label: {
                     GlassSurface {
-                        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            Text(verbatim: row.query)
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(Theme.ink)
-                                .lineLimit(2)
-                            if !row.answer.isEmpty {
-                                Text(verbatim: row.answer)
-                                    .font(.subheadline)
-                                    .foregroundStyle(Theme.accent)
-                                    .lineLimit(1)
+                        HStack(spacing: Theme.Spacing.sm) {
+                            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                                Text(verbatim: row.query)
+                                    .font(.system(.body, design: .monospaced).weight(.semibold))
+                                    .foregroundStyle(Theme.ink)
+                                    .lineLimit(2)
+                                if !row.answer.isEmpty {
+                                    Text(verbatim: row.answer)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.accentDeep)
+                                        .lineLimit(1)
+                                }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: "chevron.forward")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Theme.inkSecondary)
+                                .accessibilityHidden(true)
                         }
                         .padding(Theme.Spacing.md)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .buttonStyle(.plain)

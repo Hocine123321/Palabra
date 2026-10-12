@@ -21,7 +21,7 @@ struct ChatListView: View {
                     message: "Start a chat to ask questions or have the assistant change your library."
                 )
                 .frame(maxHeight: .infinity)
-                .background(Theme.background)
+                .background(ScreenBackdrop())
             } else {
                 List {
                     Section {
@@ -35,7 +35,7 @@ struct ChatListView: View {
                     }
                     .themedSection()
                 }
-                .creamScreen()
+                .glassScreen()
             }
         }
         .navigationTitle("Chat")
@@ -50,21 +50,25 @@ struct ChatListView: View {
     }
 
     private func rowView(_ row: Row) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            ChatTitleText(title: row.title)
-                .font(Theme.Font.rowTitle)
-                .foregroundStyle(Theme.ink)
-                .lineLimit(1)
-            if !row.preview.isEmpty {
-                Text(verbatim: row.preview)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.inkSecondary)
+        HStack(alignment: .center, spacing: Theme.Spacing.md) {
+            IconTile(systemImage: "bubble.left.fill", tint: Theme.tint(for: row.id.uuidString), size: 40)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                ChatTitleText(title: row.title)
+                    .font(Theme.Font.rowTitle)
+                    .foregroundStyle(Theme.ink)
                     .lineLimit(1)
+                if !row.preview.isEmpty {
+                    Text(verbatim: row.preview)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSecondary)
+                        .lineLimit(1)
+                }
+                Text(row.updatedAt, style: .relative)
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkSecondary)
             }
-            Text(row.updatedAt, style: .relative)
-                .font(.caption)
-                .foregroundStyle(Theme.inkSecondary)
         }
+        .padding(.vertical, Theme.Spacing.xs)
     }
 
     private func reload() {

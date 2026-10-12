@@ -73,14 +73,15 @@ struct SpecBlockView: View {
             SpecChartView(chart: chart, context: context)
         case .stats(let tiles):
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: Theme.Spacing.sm, alignment: .top)], alignment: .leading, spacing: Theme.Spacing.sm) {
-                ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
+                ForEach(Array(tiles.enumerated()), id: \.offset) { index, tile in
+                    // Flat muted cutout tint with ink text: orange first, then the quiet palette.
                     VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        Text(verbatim: tile.value).font(Theme.Font.heading).foregroundStyle(Theme.ink)
-                        Text(verbatim: tile.label).font(.caption).foregroundStyle(Theme.inkSecondary)
+                        Text(verbatim: tile.value).font(Theme.Font.heading).foregroundStyle(Theme.onTint)
+                        Text(verbatim: tile.label).font(.caption).foregroundStyle(Theme.onTint.opacity(0.8))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(Theme.Spacing.md)
-                    .glassCard(cornerRadius: Theme.Radius.medium)
+                    .background(Theme.tileTints[index % Theme.tileTints.count], in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
                     .accessibilityElement(children: .combine)
                 }
             }

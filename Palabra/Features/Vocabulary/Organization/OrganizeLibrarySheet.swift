@@ -34,7 +34,7 @@ struct OrganizeLibrarySheet: View {
                 }
                 .padding(Theme.Spacing.md)
             }
-            .background(Theme.background)
+            .background { ScreenBackdrop() }
             .navigationTitle("Re-organize Library")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -61,7 +61,7 @@ struct OrganizeLibrarySheet: View {
 
             GlassSurface {
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                    Text("What to organize").font(.headline).foregroundStyle(Theme.ink)
+                    Text("What to organize").font(Theme.Font.heading).foregroundStyle(Theme.ink)
                     Picker("Scope", selection: $scope) {
                         Text("All \(wordCount) words").tag(LibraryOrganizer.Scope.all)
                         if unorganizedCount > 0 {
@@ -81,7 +81,13 @@ struct OrganizeLibrarySheet: View {
                 OrganizationSettingsView()
             } label: {
                 Label("Organization Settings", systemImage: "slider.horizontal.3")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.vertical, 10)
+                    .glassCapsule()
             }
+            .buttonStyle(.plain)
 
             Button {
                 organizer.start(scope: scope, environment: environment)
@@ -118,11 +124,12 @@ struct OrganizeLibrarySheet: View {
     private func finished(organized: Int, sections: Int) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             Label("Done", systemImage: "checkmark.circle.fill")
-                .font(Theme.Font.title).foregroundStyle(Theme.accent)
+                .font(Theme.Font.title).foregroundStyle(Theme.accentDeep)
             Text("Organized \(organized) words into \(sections) sections.")
                 .foregroundStyle(Theme.ink)
             Button("Close") { organizer.dismissResult(); dismiss() }
                 .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
         }
     }
 }

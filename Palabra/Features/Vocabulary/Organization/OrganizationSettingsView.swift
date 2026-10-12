@@ -61,7 +61,7 @@ struct OrganizationSettingsView: View {
             }
             .themedSection()
         }
-        .creamScreen()
+        .glassScreen()
         .navigationTitle("Organization")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

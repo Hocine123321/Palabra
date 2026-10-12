@@ -7,12 +7,11 @@ struct MissingAPIKeyPrompt: View {
             Label("Add your Google API key in Settings to add words", systemImage: "key")
                 .font(.subheadline)
                 .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity)
-        .glassCard()
-        .padding(.horizontal, Theme.Spacing.md)
+        .glassAccessory()
     }
 }
 
@@ -23,11 +22,10 @@ struct MissingModelPrompt: View {
             Label("Choose a Google AI model in Settings", systemImage: "cpu")
                 .font(.subheadline)
                 .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(Theme.Spacing.md)
-        .frame(maxWidth: .infinity)
-        .glassCard()
-        .padding(.horizontal, Theme.Spacing.md)
+        .glassAccessory()
     }
 }

@@ -13,7 +13,7 @@ struct ReviewView: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            ScreenBackdrop()
             if let model {
                 if let card = model.current {
                     session(model: model, card: card)
@@ -32,65 +32,77 @@ struct ReviewView: View {
     }
 
     private func session(model: ReviewViewModel, card: Card) -> some View {
-        VStack(spacing: Theme.Spacing.lg) {
-            VStack(spacing: Theme.Spacing.xs) {
-                ProgressView(value: model.progress)
-                    .tint(Theme.accent)
-                    .animation(Motion.reduced(Motion.quick), value: model.progress)
-                    .accessibilityHidden(true)
+        VStack(spacing: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.sm + 4) {
+                StudyProgressTrack(fraction: model.progress, height: 8)
                 Text("\(model.remaining) left")
-                    .font(.subheadline)
+                    .font(.subheadline.weight(.bold).monospacedDigit())
                     .foregroundStyle(Theme.inkSecondary)
                     .accessibilityIdentifier("remainingLabel")
             }
             .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, 12)
+            .glassCapsule()
+            .padding(.horizontal, Theme.Spacing.md)
 
-            GlassSurface {
+            CutoutCard(tint: DeckTint.color(for: card.deckID)) {
                 VStack(spacing: Theme.Spacing.md) {
                     HStack {
                         Spacer()
                         if let source = card.sourceWordID { cardAccessory(source) }
                     }
+                    Spacer(minLength: 0)
                     Text(verbatim: card.front)
                         .font(Theme.Font.display)
-                        .foregroundStyle(Theme.ink)
+                        .minimumScaleFactor(0.7)
                         .multilineTextAlignment(.center)
                         .accessibilityIdentifier("cardFront")
                     if model.isFlipped {
-                        Divider()
+                        Rectangle()
+                            .fill(Theme.onTint.opacity(0.18))
+                            .frame(height: 1)
+                            .accessibilityHidden(true)
                         Text(verbatim: card.back)
-                            .font(.title3)
-                            .foregroundStyle(Theme.ink)
+                            .font(Theme.Font.heading)
                             .multilineTextAlignment(.center)
                             .accessibilityIdentifier("cardBack")
                     }
+                    Spacer(minLength: 0)
                 }
                 .padding(Theme.Spacing.lg)
-                .frame(maxWidth: .infinity, minHeight: 220)
+                .frame(maxWidth: .infinity, minHeight: 260, maxHeight: .infinity)
             }
+            .shadow(color: .black.opacity(0.10), radius: 18, y: 8)
             .contentShape(Rectangle())
             .onTapGesture { Motion.animate(Motion.quick) { model.flip() } }
             .padding(.horizontal, Theme.Spacing.md)
 
-            Spacer()
-
             if model.isFlipped {
-                HStack(spacing: Theme.Spacing.sm) {
-                    ForEach(SRSGrade.allCases, id: \.self) { grade in
-                        Button {
-                            Motion.animate(Motion.quick) { model.grade(grade) }
-                        } label: {
-                            VStack(spacing: 2) {
-                                Text(grade.title).font(.headline)
-                                Text(verbatim: model.intervalLabel(for: grade)).font(.caption)
+                GlassSurface(cornerRadius: Theme.Radius.pill) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        ForEach(SRSGrade.allCases, id: \.self) { grade in
+                            Button {
+                                Motion.animate(Motion.quick) { model.grade(grade) }
+                            } label: {
+                                VStack(spacing: 2) {
+                                    Text(grade.title)
+                                        .font(.headline.weight(.bold))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
+                                    Text(verbatim: model.intervalLabel(for: grade))
+                                        .font(.caption.weight(.semibold))
+                                        .opacity(0.75)
+                                }
+                                .foregroundStyle(grade == .hard ? Theme.ink : Theme.onTint)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, Theme.Spacing.sm + 2)
+                                .background(gradeFill(grade), in: Capsule(style: .continuous))
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, Theme.Spacing.sm)
+                            .buttonStyle(GradePressStyle())
+                            .accessibilityIdentifier(grade.identifier)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(grade == .again ? Theme.error : nil)
-                        .accessibilityIdentifier(grade.identifier)
                     }
+                    .padding(Theme.Spacing.sm)
                 }
                 .padding(.horizontal, Theme.Spacing.md)
             } else {
@@ -104,7 +116,18 @@ struct ReviewView: View {
                 .accessibilityIdentifier("showAnswerButton")
             }
         }
-        .padding(.vertical, Theme.Spacing.md)
+        .padding(.top, Theme.Spacing.sm)
+        .padding(.bottom, Theme.Spacing.md)
+    }
+
+    /// Again is apricot, Hard a quiet fill, Good Claude Orange, Easy sage.
+    private func gradeFill(_ grade: SRSGrade) -> Color {
+        switch grade {
+        case .again: return Theme.tileTints[4]
+        case .hard: return Theme.fill
+        case .good: return Theme.accent
+        case .easy: return Theme.tileTints[1]
+        }
     }
 
     private func finished(model: ReviewViewModel) -> some View {
@@ -140,5 +163,13 @@ struct ReviewView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, Theme.Spacing.md)
         }
+    }
+}
+
+private struct GradePressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(Motion.reduced(Motion.quick), value: configuration.isPressed)
     }
 }

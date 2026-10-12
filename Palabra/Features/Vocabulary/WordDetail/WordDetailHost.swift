@@ -18,6 +18,8 @@ struct WordDetailHost: View {
                 WordDetailView(word: word, banner: banner(wordID), onAsk: onAsk)
             } else if didLoad {
                 EmptyStateView(systemImage: "questionmark.circle", title: "Word not found", message: "This word may have been deleted.")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background { ScreenBackdrop(style: .rich) }
             } else {
                 ProgressView()
             }

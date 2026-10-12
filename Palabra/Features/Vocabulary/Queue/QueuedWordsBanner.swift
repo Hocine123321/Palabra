@@ -21,9 +21,10 @@ struct QueuedWordsBanner: View {
                 }
             } icon: {
                 Image(systemName: "wifi.slash")
+                    .foregroundStyle(Theme.accentDeep)
             }
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Theme.inkSecondary)
+            .foregroundStyle(Theme.ink)
             VStack(spacing: Theme.Spacing.sm) {
                 ForEach(items, id: \.id) { item in
                     row(for: item)
@@ -56,6 +57,7 @@ struct QueuedWordsBanner: View {
                 Button("Retry") { onRetry(item.id) }
                     .font(.caption.weight(.semibold))
                     .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
             }
             Button {
                 onRemove(item.id)

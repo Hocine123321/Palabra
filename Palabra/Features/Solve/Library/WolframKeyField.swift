@@ -6,10 +6,32 @@ struct WolframKeyField: View {
     @State private var input = ""
     @State private var isEditing = false
     @State private var showRemoveConfirm = false
+    /// True when shown inside a card on the Solve tab (not in a Settings row): fields get a flat fill, buttons flat capsules.
+    private let embedded: Bool
+
+    init(embedded: Bool = false) {
+        self.embedded = embedded
+    }
 
     private static let portal = URL(string: "https://developer.wolframalpha.com/")!
 
     var body: some View {
+        let tool = environment.solve
+        Group {
+            if embedded {
+                rows.buttonStyle(.bordered).buttonBorderShape(.capsule)
+            } else {
+                rows
+            }
+        }
+        .confirmationDialog("Remove your App ID?", isPresented: $showRemoveConfirm) {
+            Button("Remove", role: .destructive) { tool.removeAppID() }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private var rows: some View {
         let tool = environment.solve
         Group {
             if tool.hasKey, !isEditing {
@@ -24,6 +46,9 @@ struct WolframKeyField: View {
                 SecureField("Wolfram|Alpha App ID", text: $input)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .frame(minHeight: embedded ? 44 : nil)
+                    .padding(.horizontal, embedded ? Theme.Spacing.sm + 4 : 0)
+                    .background(embedded ? Theme.fill.opacity(0.7) : Color.clear, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
                     .accessibilityIdentifier("wolframKeyField")
                 Button("Save App ID") {
                     if tool.saveAppID(input) { input = ""; isEditing = false }
@@ -37,10 +62,6 @@ struct WolframKeyField: View {
                     Label("Get a free App ID", systemImage: "arrow.up.right.square")
                 }
             }
-        }
-        .confirmationDialog("Remove your App ID?", isPresented: $showRemoveConfirm) {
-            Button("Remove", role: .destructive) { tool.removeAppID() }
-            Button("Cancel", role: .cancel) {}
         }
     }
 }

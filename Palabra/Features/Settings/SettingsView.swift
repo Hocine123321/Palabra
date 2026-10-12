@@ -184,7 +184,7 @@ struct SettingsView: View {
             }
             .themedSection()
         }
-        .creamScreen()
+        .glassScreen()
         .navigationTitle("Settings")
         .sheet(isPresented: $showModelPicker) {
             ModelPickerView(

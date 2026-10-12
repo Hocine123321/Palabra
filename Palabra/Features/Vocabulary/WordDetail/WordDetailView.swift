@@ -25,7 +25,7 @@ struct WordDetailView: View {
                 .padding(Theme.Spacing.md)
             }
         }
-        .background(Theme.background)
+        .background { ScreenBackdrop() }
         .navigationTitle(word.spanish)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { askBar }
@@ -74,16 +74,14 @@ struct WordDetailView: View {
 
     private func askButton(_ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            GlassSurface(cornerRadius: Theme.Radius.pill) {
-                Label("Ask about this word", systemImage: "bubble.left.and.bubble.right")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Theme.ink)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, Theme.Spacing.sm)
-            }
-            .padding(.horizontal, Theme.Spacing.md)
+            Label("Ask about this word", systemImage: "bubble.left.and.bubble.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .glassAccessory()
     }
 
     /// Dismiss first, delete 0.6s later — so nothing on screen reads a

@@ -29,7 +29,7 @@ struct WordListView: View {
                                 if showTags, !word.tags.isEmpty {
                                     Text(verbatim: word.tags.map { "#\($0)" }.joined(separator: "  "))
                                         .font(.caption)
-                                        .foregroundStyle(Theme.accent)
+                                        .foregroundStyle(Theme.accentDeep)
                                         .lineLimit(2)
                                 }
                             }

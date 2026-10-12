@@ -58,7 +58,8 @@ struct SpecTableView: View {
             }
             .padding(Theme.Spacing.md)
         }
-        .glassCard(cornerRadius: Theme.Radius.medium)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
     }
 
     private func load() async {

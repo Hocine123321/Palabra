@@ -2,29 +2,35 @@ import SwiftUI
 
 struct Chip: View {
     private let label: Text
+    private let tint: Color?
 
     /// Verbatim text — for AI-generated or user-entered content (a word,
     /// a part of speech, an example's context tag) that must never be run
     /// through the localization table.
-    init(text: String) {
+    init(text: String, tint: Color? = nil) {
         label = Text(text)
+        self.tint = tint
     }
 
     /// Localized app-chrome text (e.g. a fixed jump-bar section label).
-    init(titleKey: LocalizedStringKey) {
+    init(titleKey: LocalizedStringKey, tint: Color? = nil) {
         label = Text(titleKey)
+        self.tint = tint
     }
 
     var body: some View {
         label
-            .font(.caption.weight(.medium))
+            .font(.caption.weight(.semibold))
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, Theme.Spacing.sm)
-            .padding(.vertical, 4)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
-            .foregroundStyle(Theme.inkSecondary)
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).strokeBorder(Theme.inkSecondary.opacity(0.15)))
+            .padding(.horizontal, Theme.Spacing.sm + 4)
+            .padding(.vertical, 6)
+            .foregroundStyle(tint == nil ? Theme.inkSecondary : Theme.onTint)
+            .background {
+                // A chip sits on a card or on glass, so it is a flat fill, never glass.
+                RoundedRectangle(cornerRadius: Theme.Radius.pill, style: .continuous)
+                    .fill(tint ?? Theme.fill.opacity(0.8))
+            }
     }
 }
 
@@ -46,21 +52,24 @@ struct ErrorBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             Label(message, systemImage: systemImage)
-                .font(.subheadline)
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(Theme.error)
             HStack(spacing: Theme.Spacing.sm) {
                 if let retryTitle, let onRetry {
                     Button(retryTitle, action: onRetry)
                         .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
                 }
                 if let secondaryTitle, let onSecondary {
                     Button(secondaryTitle, action: onSecondary)
                         .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
                 }
             }
         }
         .padding(Theme.Spacing.md)
-        .background(Theme.error.opacity(0.08), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.error.opacity(0.10), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
     }
 }
 
@@ -72,8 +81,11 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: Theme.Spacing.md) {
             Image(systemName: systemImage)
-                .font(.system(size: 44))
-                .foregroundStyle(Theme.accent)
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(Theme.onTint)
+                .frame(width: 76, height: 76)
+                .background(Theme.accent, in: CutoutShape(kind: .roundedSquare))
+                .accessibilityHidden(true)
             Text(title)
                 .font(Theme.Font.heading)
                 .foregroundStyle(Theme.ink)

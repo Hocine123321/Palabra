@@ -20,8 +20,8 @@ struct NeedReviewView: View {
         Group {
             if rows.isEmpty {
                 EmptyStateView(systemImage: "flag", title: "Nothing to review", message: "Words your artifacts flag will show up here.")
-                    .frame(maxHeight: .infinity)
-                    .background(Theme.background)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background { ScreenBackdrop(style: .rich) }
             } else {
                 List {
                     Section {
@@ -35,7 +35,7 @@ struct NeedReviewView: View {
                     }
                     .themedSection()
                 }
-                .creamScreen()
+                .glassScreen()
             }
         }
         .navigationTitle("Need Review")
@@ -43,7 +43,8 @@ struct NeedReviewView: View {
     }
 
     private func rowView(_ row: NeedRow) -> some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+        HStack(alignment: .center, spacing: Theme.Spacing.md) {
+            scoreRing(row.score)
             Button { environment.router.openWord(row.wordID) } label: {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     Text(verbatim: row.headword)
@@ -60,8 +61,8 @@ struct NeedReviewView: View {
                             .foregroundStyle(Theme.inkSecondary)
                     }
                     Text(verbatim: "\(Int((row.score * 100).rounded()))% · ×\(row.flagCount)")
-                        .font(.caption)
-                        .foregroundStyle(Theme.accent)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.accentDeep)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -69,8 +70,10 @@ struct NeedReviewView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("openNeedWordButton")
             Button { markLearned(row) } label: {
-                Image(systemName: "checkmark.circle")
-                    .font(.title3)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .background(Theme.fill, in: Circle())
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Mark as learned")
@@ -78,6 +81,20 @@ struct NeedReviewView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("needReviewRow")
+    }
+
+    /// A quiet score ring: decorative, the percentage is also written out beside the word.
+    private func scoreRing(_ score: Double) -> some View {
+        let clamped = min(max(score, 0), 1)
+        return ZStack {
+            Circle().stroke(Theme.fill, lineWidth: 5)
+            Circle()
+                .trim(from: 0, to: clamped)
+                .stroke(Theme.accent, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 40, height: 40)
+        .accessibilityHidden(true)
     }
 
     private func reload() {
@@ -111,7 +128,7 @@ struct ReviewNeedBanner: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 Label("Needs review", systemImage: "flag.fill")
                     .font(Theme.Font.heading)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentDeep)
                 if !need.note.isEmpty {
                     Text(verbatim: need.note)
                         .font(.subheadline)
@@ -122,11 +139,13 @@ struct ReviewNeedBanner: View {
                     Motion.animate(Motion.standard) { load() }
                 }
                 .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
                 .accessibilityIdentifier("markLearnedBannerButton")
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+            // A flat highlight, not glass: it sits in the page content, not floating above it.
+            .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("reviewBanner")
         } else {

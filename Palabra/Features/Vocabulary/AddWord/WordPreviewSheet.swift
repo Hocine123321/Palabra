@@ -47,7 +47,7 @@ struct WordPreviewSheet: View {
                                 .font(Theme.Font.display)
                                 .foregroundStyle(Theme.inkSecondary)
                             Text("You're offline")
-                                .font(.headline)
+                                .font(Theme.Font.heading)
                                 .foregroundStyle(Theme.ink)
                             Text("\"\(flow.inputWord)\" is queued and will be added automatically once you're back online.")
                                 .font(.subheadline)
@@ -59,7 +59,7 @@ struct WordPreviewSheet: View {
                     }
                 }
             }
-            .background(Theme.background)
+            .background { ScreenBackdrop() }
             .navigationTitle(flow.inputWord.capitalized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

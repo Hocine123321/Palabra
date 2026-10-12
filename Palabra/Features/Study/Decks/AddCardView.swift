@@ -32,7 +32,7 @@ struct AddCardView: View {
                 }
                 .themedSection()
             }
-            .creamScreen()
+            .glassScreen()
             .navigationTitle("New Card")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

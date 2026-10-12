@@ -7,25 +7,25 @@ struct AddWordBar: View {
     var onSubmit: () -> Void
 
     var body: some View {
-        GlassSurface(cornerRadius: Theme.Radius.pill) {
-            HStack {
-                TextField("Add a Spanish word…", text: $text)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.done)
-                    .onSubmit(onSubmit)
-                Button(action: onSubmit) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(Theme.accent)
-                }
-                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier("addWordButton")
+        HStack(spacing: Theme.Spacing.sm) {
+            Image(systemName: "sparkle")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Theme.accentDeep)
+                .accessibilityHidden(true)
+            TextField("Add a Spanish word…", text: $text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .onSubmit(onSubmit)
+            Button(action: onSubmit) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(Theme.accentDeep)
             }
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.vertical, Theme.Spacing.sm)
+            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("addWordButton")
         }
-        .padding(.horizontal, Theme.Spacing.md)
+        .glassAccessory()
         .opacity(isEnabled ? 1 : 0.4)
         .disabled(!isEnabled)
     }

@@ -29,14 +29,11 @@ struct DeckDetailView: View {
     var body: some View {
         List {
             Section {
-                HStack {
+                HStack(spacing: Theme.Spacing.sm) {
                     summary("\(rows.count)", "Cards")
-                    Divider()
                     summary("\(dueCount)", "Due", highlight: dueCount > 0)
-                    Divider()
                     summary("\(newCount)", "New")
                 }
-                .frame(height: 52)
                 Button { path.append(.review(deckID)) } label: {
                     Label("Review This Deck", systemImage: "play.circle.fill")
                 }
@@ -54,7 +51,7 @@ struct DeckDetailView: View {
                 ForEach(visibleRows) { row in
                     HStack(alignment: .firstTextBaseline) {
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            Text(verbatim: row.front).font(Theme.Font.rowTitle)
+                            Text(verbatim: row.front).font(Theme.Font.rowTitle).foregroundStyle(Theme.ink)
                             Text(verbatim: row.back).font(.subheadline).foregroundStyle(Theme.inkSecondary)
                         }
                         Spacer(minLength: Theme.Spacing.sm)
@@ -78,7 +75,7 @@ struct DeckDetailView: View {
                 .themedSection()
             }
         }
-        .creamScreen()
+        .glassScreen()
         .searchable(text: $query)
         .sheet(isPresented: $showAddCard) { AddCardView(deckID: deckID, onAdded: { reload() }) }
         .navigationTitle(kind == .vocabulary ? Text("Vocabulary") : Text(verbatim: name))
@@ -112,17 +109,19 @@ struct DeckDetailView: View {
 
     private func summary(_ value: String, _ caption: LocalizedStringKey, highlight: Bool = false) -> some View {
         VStack(spacing: 2) {
-            Text(verbatim: value).font(Theme.Font.heading).foregroundStyle(highlight ? Theme.accent : Theme.ink)
-            Text(caption).font(.caption).foregroundStyle(Theme.inkSecondary)
+            Text(verbatim: value).font(Theme.Font.heading).foregroundStyle(highlight ? Theme.accentDeep : Theme.ink)
+            Text(caption).font(.caption.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, Theme.Spacing.sm + 2)
+        .innerFill()
     }
 
     @ViewBuilder
     private func statusBadge(_ status: CardRow.Status) -> some View {
         switch status {
         case .new: Text("New").font(.caption.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
-        case .due: Text("Due").font(.caption.weight(.semibold)).foregroundStyle(Theme.accent)
+        case .due: Text("Due").font(.caption.weight(.bold)).foregroundStyle(Theme.accentDeep)
         case .later(let seconds): Text(verbatim: IntervalLabel.text(seconds: seconds)).font(.caption).foregroundStyle(Theme.inkSecondary)
         }
     }

@@ -16,15 +16,21 @@ struct OnboardingView: View {
             keyPage.tag(1)
         }
         .tabViewStyle(.page(indexDisplayMode: .always))
-        .background(Theme.background)
+        .background { ScreenBackdrop(style: .rich) }
     }
 
     private var welcomePage: some View {
         VStack(spacing: Theme.Spacing.lg) {
             Spacer()
             Image(systemName: "text.book.closed.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(Theme.accent)
+                .font(.system(size: 48, weight: .semibold))
+                .foregroundStyle(Theme.onTint)
+                .frame(width: 112, height: 112)
+                .background(Theme.accent, in: CutoutShape(kind: .arch))
+                .overlay(alignment: .topTrailing) {
+                    Circle().fill(Theme.tileTints[1]).frame(width: 34, height: 34).offset(x: 14, y: -10)
+                }
+                .accessibilityHidden(true)
             Text("Palabra")
                 .font(Theme.Font.display)
                 .foregroundStyle(Theme.ink)
@@ -51,9 +57,10 @@ struct OnboardingView: View {
                 .foregroundStyle(Theme.inkSecondary)
                 .padding(.horizontal, Theme.Spacing.xl)
             SecureField("Google API Key", text: $keyInput)
-                .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .padding(Theme.Spacing.md)
+                .glassCard(cornerRadius: Theme.Radius.medium)
                 .padding(.horizontal, Theme.Spacing.xl)
             if let keyError {
                 Text(LocalizedStringKey(keyError)).font(.footnote).foregroundStyle(Theme.error)

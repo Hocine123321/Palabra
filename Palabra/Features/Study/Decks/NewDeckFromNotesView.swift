@@ -11,7 +11,7 @@ struct NewDeckFromNotesView: View {
             Group {
                 if let model { content(model) } else { Color.clear }
             }
-            .background(Theme.background.ignoresSafeArea())
+            .background(ScreenBackdrop())
             .navigationTitle("New Deck")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -57,6 +57,8 @@ struct NewDeckFromNotesView: View {
                 .font(.subheadline)
                 .foregroundStyle(Theme.inkSecondary)
             TextEditor(text: $model.notes)
+                .scrollContentBackground(.hidden)
+                .foregroundStyle(Theme.ink)
                 .frame(minHeight: 220)
                 .padding(Theme.Spacing.sm)
                 .glassCard()
@@ -85,7 +87,9 @@ struct NewDeckFromNotesView: View {
             Section("Cards") {
                 ForEach($model.drafts) { $draft in
                     VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        TextField("Front", text: $draft.front, axis: .vertical).font(.headline)
+                        TextField("Front", text: $draft.front, axis: .vertical)
+                            .font(Theme.Font.rowTitle)
+                            .foregroundStyle(Theme.ink)
                         TextField("Back", text: $draft.back, axis: .vertical)
                             .font(.subheadline)
                             .foregroundStyle(Theme.inkSecondary)
@@ -94,18 +98,20 @@ struct NewDeckFromNotesView: View {
                 .onDelete { model.deleteDrafts(at: $0) }
             }
             .themedSection()
-            Section {
-                Button("Save Deck") {
-                    if let id = model.save() {
-                        onSaved(id)
-                        dismiss()
-                    }
-                }
-                .disabled(!model.canSave)
-                .accessibilityIdentifier("saveDeckButton")
-            }
-            .themedSection()
         }
-        .creamScreen()
+        .glassScreen()
+        .safeAreaInset(edge: .bottom) {
+            Button("Save Deck") {
+                if let id = model.save() {
+                    onSaved(id)
+                    dismiss()
+                }
+            }
+            .buttonStyle(.primary)
+            .disabled(!model.canSave)
+            .accessibilityIdentifier("saveDeckButton")
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.bottom, Theme.Spacing.sm)
+        }
     }
 }

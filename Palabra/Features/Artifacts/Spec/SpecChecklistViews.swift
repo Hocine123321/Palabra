@@ -71,7 +71,7 @@ struct SpecRoadmapView: View {
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: Theme.Radius.medium)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         .onAppear { done = state.completed(blockID: blockID) }
     }
 

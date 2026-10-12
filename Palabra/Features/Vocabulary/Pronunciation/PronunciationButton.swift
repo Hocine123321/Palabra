@@ -20,10 +20,12 @@ struct PronunciationButton: View {
         Button(action: handleTap) {
             icon
                 .font(.title2)
-                .frame(width: 32, height: 32)
+                .frame(width: 44, height: 44)
+                // A flat paper disc: this button sits on the headword's cutout, never on glass.
+                .background(Color.white.opacity(0.55), in: Circle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(iconColor)
+        .foregroundStyle(Theme.onTint)
         .disabled(status == .loading)
         .accessibilityLabel(pronunciationAccessibilityLabel)
     }
@@ -42,11 +44,6 @@ struct PronunciationButton: View {
                 Image(systemName: "speaker.wave.2.circle")
             }
         }
-    }
-
-    private var iconColor: Color {
-        if case .failed = status { return Theme.error }
-        return Theme.accent
     }
 
     private var pronunciationAccessibilityLabel: LocalizedStringKey {

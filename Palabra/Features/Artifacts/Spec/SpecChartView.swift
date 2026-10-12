@@ -72,21 +72,23 @@ struct SpecChartView: View {
                     .foregroundStyle(by: .value("Series", point.series))
             }
         }
-        .chartForegroundStyleScale(range: [Theme.accent, Color.teal, Color.indigo, Color.orange])
+        .chartForegroundStyleScale(range: [
+            Theme.accent, Theme.tileTints[2], Theme.tileTints[1], Theme.tileTints[4], Theme.tileTints[5], Theme.tileTints[3]
+        ])
         .chartLegend(multi ? .visible : .hidden)
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: min(max(labels.count, 1), 7))) { value in
-                AxisGridLine()
+                AxisGridLine().foregroundStyle(Theme.inkSecondary.opacity(0.2))
                 AxisValueLabel {
                     if let index = value.as(Int.self), labels.indices.contains(index) {
-                        Text(verbatim: labels[index])
+                        Text(verbatim: labels[index]).foregroundStyle(Theme.inkSecondary)
                     }
                 }
             }
         }
         .frame(height: 200)
         .padding(Theme.Spacing.md)
-        .glassCard(cornerRadius: Theme.Radius.medium)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
     }
 
     private func load() async {

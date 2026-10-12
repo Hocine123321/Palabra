@@ -1,24 +1,42 @@
 import SwiftUI
 import UIKit
 
-/// The cream / warm off-white palette, type, spacing and radii used
-/// throughout the app, adapting to light and dark appearance.
+/// "Recortes & Glass": a quiet warm-neutral ground, muted paper cutouts behind
+/// Liquid Glass controls, and Claude Orange as the one accent. Colours, type,
+/// spacing and radii adapt to light and dark appearance.
 enum Theme {
-    static let backgroundTop = Color(lightHex: 0xFBF7EE, darkHex: 0x1D1916)
-    static let backgroundBottom = Color(lightHex: 0xF3EBDC, darkHex: 0x120F0D)
-    static let surface = Color(lightHex: 0xFFFDF8, darkHex: 0x29231F)
-    static let ink = Color(lightHex: 0x2A2520, darkHex: 0xF6EFE5)
-    static let inkSecondary = Color(lightHex: 0x6B6258, darkHex: 0xB8AA9C)
-    static let accent = Color(lightHex: 0xB8694A, darkHex: 0xD88961)
-    static let error = Color(lightHex: 0xA8483D, darkHex: 0xF08A80)
+    // MARK: Ground and ink
 
+    static let backgroundTop = Color(lightHex: 0xF5F3EE, darkHex: 0x1B1A18)
+    static let backgroundBottom = Color(lightHex: 0xECE9E1, darkHex: 0x121110)
+    /// Solid surface for small things (text editors, popovers) and list rows.
+    static let surface = Color(lightHex: 0xFCFBF8, darkHex: 0x262522)
+    static let ink = Color(lightHex: 0x1F1D1A, darkHex: 0xF1EFE8)
+    static let inkSecondary = Color(lightHex: 0x67645C, darkHex: 0xB4B1A7)
+    /// Fill for things that sit *inside* glass (inputs, inner chips, tracks). Glass never nests glass.
+    static let fill = Color(lightHex: 0xE7E4DB, darkHex: 0x34322E)
+
+    // MARK: Accent
+
+    /// Claude Orange. Fills, tint, selection.
+    static let accent = Color(hex: 0xD97757)
+    /// Pressed state and orange *text* on light ground (the plain accent is too light for small text).
+    static let accentDeep = Color(lightHex: 0xA9502F, darkHex: 0xE89574)
+    static let accentSoft = Color(lightHex: 0xF4DDD2, darkHex: 0x4A3228)
+    static let error = Color(lightHex: 0xA8483D, darkHex: 0xF08A80)
+    static let success = Color(lightHex: 0x5E7A4A, darkHex: 0x9DBB86)
+
+    /// Text on a cutout tint. Tints are light enough in both appearances for dark ink.
+    static let onTint = Color(hex: 0x1F1D1A)
+
+    /// Muted cutout palette: Claude Orange first, then sage, sky, sand, apricot, stone.
     static let tileTints: [Color] = [
         accent,
-        Color(lightHex: 0x8FA58C, darkHex: 0x789A80), // sage
-        Color(lightHex: 0xE7D9BF, darkHex: 0xB69D76), // sand
-        Color(lightHex: 0x8FA3B5, darkHex: 0x7792AD), // dusty blue
-        Color(lightHex: 0xE8B48B, darkHex: 0xD49069), // apricot
-        Color(lightHex: 0xA9A58A, darkHex: 0x9E9B77)  // olive-gray
+        Color(hex: 0xA3B18A), // sage
+        Color(hex: 0x9DBAD5), // sky
+        Color(hex: 0xE3D5B8), // sand
+        Color(hex: 0xEBB491), // apricot
+        Color(hex: 0xC6C3B6)  // stone
     ]
 
     static var background: LinearGradient {
@@ -30,23 +48,31 @@ enum Theme {
         tileTints[WordKey.tintIndex(key, count: tileTints.count)]
     }
 
+    // MARK: Type
+
     enum Font {
-        static func serif(_ size: CGFloat, weight: SwiftUI.Font.Weight = .semibold) -> SwiftUI.Font {
-            .system(size: size, weight: weight, design: .serif)
+        /// Display face: SF Rounded, bold. Headwords, titles, numbers.
+        static func face(size: CGFloat, weight: SwiftUI.Font.Weight = .bold) -> SwiftUI.Font {
+            .system(size: size, weight: weight, design: .rounded)
         }
 
-        /// Serif roles. Use these instead of ad-hoc `serif(<n>)` sizes so the same
-        /// kind of heading looks the same on every screen.
+        /// Kept for call sites that pick a size; same face as the roles below.
+        static func serif(_ size: CGFloat, weight: SwiftUI.Font.Weight = .semibold) -> SwiftUI.Font {
+            .system(size: size, weight: weight, design: .rounded)
+        }
+
+        /// Use these roles instead of ad-hoc sizes so the same kind of heading looks
+        /// the same on every screen.
         /// Hero word / flashcard face.
-        static let display = serif(32)
+        static let display = face(size: 40, weight: .bold)
         /// Onboarding and sheet headings.
-        static let title = serif(24)
+        static let title = face(size: 26, weight: .bold)
         /// Card titles, section titles, empty-state titles.
-        static let heading = serif(20)
+        static let heading = face(size: 20, weight: .bold)
         /// A row's main text in lists.
-        static let rowTitle = serif(18)
-        /// Text inside a honeycomb tile.
-        static let tile = serif(15)
+        static let rowTitle = face(size: 18, weight: .semibold)
+        /// Text inside a cutout tile.
+        static let tile = face(size: 16, weight: .bold)
     }
 
     enum Spacing {
@@ -57,13 +83,17 @@ enum Theme {
         static let xl: CGFloat = 32
     }
 
+    /// Concentric: an inner radius is its container's radius minus the inset between them.
     enum Radius {
         /// Skeleton blocks, small inline shapes.
-        static let small: CGFloat = 8
-        /// Chips, list rows, buttons, text fields, chat bubbles.
-        static let medium: CGFloat = 16
-        /// Cards and sheets-level surfaces.
-        static let card: CGFloat = 20
+        static let small: CGFloat = 10
+        /// Inner controls: text fields, inner cards, bubbles, list rows.
+        static let medium: CGFloat = 20
+        /// Cards and surfaces.
+        static let card: CGFloat = 28
+        /// Sheets and hero cutouts.
+        static let sheet: CGFloat = 40
+        /// Capsules: chips, buttons, bars. Larger than any control height.
         static let pill: CGFloat = 100
     }
 }

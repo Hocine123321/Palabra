@@ -61,7 +61,7 @@ struct AssistantSettingsView: View {
             }
             .themedSection()
         }
-        .creamScreen()
+        .glassScreen()
         .navigationTitle("Assistant")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Delete all chats? This can't be undone.", isPresented: $showDeleteChats) {

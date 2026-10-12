@@ -113,15 +113,18 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 - A green `ipa` job means the app compiles; it does not prove the app works on a device. Check behaviour changes with tests.
 - Swift settings: `SWIFT_VERSION 5.0`, `SWIFT_STRICT_CONCURRENCY targeted`.
 
-## Design system (use these, don't hardcode)
+## Design system: "Recortes & Glass" (use these, don't hardcode)
 
-- **Screens:** `Form`/`List` screens call `.creamScreen()` and wrap rows in `Section { }.themedSection()` so they sit on the cream gradient with `Theme.surface` rows. `ScrollView` screens put `Theme.background` behind the content.
-- **Cards:** `GlassSurface` for primary cards; `.glassCard()` for views that lay out their own padding. Use `Theme.surface` only for small things (chips, pills, text editors), not for cards.
-- **Radii:** `Theme.Radius.small` (8), `.medium` (16: chips, rows, buttons, bubbles), `.card` (20). No numeric corner radii.
-- **Type:** serif roles `Theme.Font.display / title / heading / rowTitle / tile` instead of `serif(<n>)`. The same word is `display` on the add-word preview, the word detail and the flashcard.
-- **Buttons:** one full-width main action per screen uses `.buttonStyle(.primary)`. Compact inline actions use `.bordered` / `.borderedProminent`. Do not add `.tint(Theme.accent)`: `RootView` sets it for the whole app (only override for a semantic colour, such as `Theme.error`).
+A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one accent: Claude Orange (`Theme.accent`, #D97757). Glass only floats (bars, bottom accessories, sheets, capsule controls). Content inside glass sits on flat fills (`Theme.fill`, `.innerFill()`), never on nested glass.
+
+- **Screens:** `Form`/`List` screens call `.glassScreen()` and wrap rows in `Section { }.themedSection()` (thin material rows over the cutouts). `ScrollView` screens put `ScreenBackdrop(style:)` behind the content (`.calm` for lists/forms, `.rich` for hubs/onboarding/empty states).
+- **Cards:** `GlassSurface` for primary cards; `.glassCard()` for views that lay out their own padding; `.glassCapsule()` for chips/controls; `.glassAccessory()` for a floating bottom bar (add word, ask about this word) via `.safeAreaInset(edge: .bottom)`. Hero surfaces use `CutoutCard(tint:)` (word hero, flashcard, Solve answer) with muted `Theme.tileTints`; ink text on tints is `Theme.onTint`. Decorative shapes are `.accessibilityHidden(true)`.
+- **Colour:** orange for fills, tint and selection; use `Theme.accentDeep` for orange *text* or small icons (the plain accent is too light on the light ground). Do not add `.tint(Theme.accent)`: `RootView` sets it. Never hardcode hex values in views.
+- **Radii (concentric):** `Theme.Radius.small` (10), `.medium` (20: inner controls, bubbles, rows), `.card` (28), `.sheet` (40: hero cutouts), `.pill` (capsules). No numeric corner radii.
+- **Type:** SF Rounded via roles `Theme.Font.display / title / heading / rowTitle / tile`; body copy uses system text styles. No bundled fonts.
+- **Buttons:** one full-width main action per screen uses `.buttonStyle(.primary)` (orange capsule). Secondary actions: `.glassAction`; round icon buttons: `.glassIcon`. Compact inline actions may use `.bordered` / `.borderedProminent` with `.buttonBorderShape(.capsule)`.
 - **Motion:** never call `withAnimation` or `.animation(...)` directly. Use `Motion.animate(...)` and `.animation(Motion.reduced(...), value:)` so Reduce Motion is honoured.
-- **Tabs:** `RootView` has four tabs (Spanish, Study, Solve, Settings; `AppTab`). `router.openSettings()` switches to the Settings tab from anywhere, so banners and prompts never push Settings onto the wrong stack. The Spanish tab's stack root is `SpanishHomeView`; `Router.path` is `[Router.Destination]` and `openWord` stacks `.vocabulary` under `.wordDetail`. New hub pages add a `Router.Destination` case and a row in `SpanishHomeView`.
+- **Tabs:** `RootView` has four tabs (Spanish, Study, Solve, Settings; `AppTab`) on the native `TabView` (the system draws the floating Liquid Glass bar; UI tests rely on `app.tabBars.buttons[...]`). `router.openSettings()` switches to the Settings tab from anywhere, so banners and prompts never push Settings onto the wrong stack. The Spanish tab's stack root is `SpanishHomeView` (a card hub, rows are `NavigationLink`s by `Router.Destination` value with `spanishRow.*` identifiers); `Router.path` is `[Router.Destination]` and `openWord` stacks `.vocabulary` under `.wordDetail`. New hub pages add a `Router.Destination` case and a card in `SpanishHomeView`.
 
 ## Layout safety (learned the hard way)
 

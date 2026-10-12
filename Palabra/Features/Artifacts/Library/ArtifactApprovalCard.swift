@@ -25,24 +25,62 @@ struct ArtifactApprovalCard: View {
             Text("This artifact wants to")
                 .font(Theme.Font.heading)
                 .foregroundStyle(Theme.ink)
-            ForEach(Array(capabilities.enumerated()), id: \.offset) { _, capability in
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    Text(Self.label(capability.kind)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent)
-                    Text(verbatim: capability.summary).font(.subheadline).foregroundStyle(Theme.ink)
+            VStack(spacing: Theme.Spacing.sm) {
+                ForEach(Array(capabilities.enumerated()), id: \.offset) { _, capability in
+                    HStack(alignment: .center, spacing: Theme.Spacing.md) {
+                        IconTile(systemImage: Self.icon(capability.kind), tint: Self.tint(capability.kind), size: 36)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(Self.label(capability.kind))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                            Text(verbatim: capability.summary)
+                                .font(.footnote)
+                                .foregroundStyle(Theme.inkSecondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(Theme.Spacing.md - 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .innerFill(cornerRadius: Theme.Radius.medium)
                 }
             }
             HStack(spacing: Theme.Spacing.sm) {
-                Button("Not now", action: onDeny)
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("denyArtifactButton")
-                Button("Allow", action: onAllow)
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("allowArtifactButton")
+                Button(action: onAllow) {
+                    Text("Allow")
+                }
+                .buttonStyle(.primary)
+                .accessibilityIdentifier("allowArtifactButton")
+                Button(action: onDeny) {
+                    Text("Not now")
+                        .font(.headline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Theme.Spacing.xs)
+                }
+                .buttonStyle(.glassAction)
+                .accessibilityIdentifier("denyArtifactButton")
             }
         }
         .padding(Theme.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard()
+    }
+
+    private static func icon(_ kind: CapabilityClass) -> String {
+        switch kind {
+        case .read: return "eye"
+        case .write: return "pencil"
+        case .ai: return "sparkles"
+        case .local: return "internaldrive"
+        }
+    }
+
+    private static func tint(_ kind: CapabilityClass) -> Color {
+        switch kind {
+        case .read: return Theme.tileTints[2]
+        case .write: return Theme.tileTints[4]
+        case .ai: return Theme.tileTints[0]
+        case .local: return Theme.tileTints[1]
+        }
     }
 
     private static func label(_ kind: CapabilityClass) -> LocalizedStringKey {

@@ -21,6 +21,36 @@ struct DeckTitle: View {
     }
 }
 
+/// A stable muted tint per deck. Claude Orange is left out: it is reserved for actions.
+enum DeckTint {
+    static func color(for deckID: UUID) -> Color {
+        let muted = Array(Theme.tileTints.dropFirst())
+        let seed = deckID.uuidString.utf8.reduce(UInt32(0)) { $0 &* 31 &+ UInt32($1) }
+        return muted[Int(seed % UInt32(muted.count))]
+    }
+}
+
+/// A flat capsule progress track (fill on the ground, orange fill on top). Sits on glass or on a bar.
+struct StudyProgressTrack: View {
+    let fraction: Double
+    var height: CGFloat = 6
+
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(Theme.fill)
+            .frame(height: height)
+            .overlay(alignment: .leading) {
+                GeometryReader { proxy in
+                    Capsule(style: .continuous)
+                        .fill(Theme.accent)
+                        .frame(width: proxy.size.width * CGFloat(max(0, min(1, fraction))))
+                        .animation(Motion.reduced(Motion.quick), value: fraction)
+                }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
 /// A ring that fills as today's reviews are done.
 struct StudyProgressRing: View {
     let fraction: Double
@@ -28,10 +58,10 @@ struct StudyProgressRing: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(Theme.inkSecondary.opacity(0.18), lineWidth: 8)
+            Circle().stroke(Theme.fill, lineWidth: 9)
             Circle()
                 .trim(from: 0, to: max(0.001, min(1, fraction)))
-                .stroke(Theme.accent, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .stroke(Theme.accent, style: StrokeStyle(lineWidth: 9, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(Motion.reduced(Motion.standard), value: fraction)
             Text(verbatim: "\(label)")
@@ -51,8 +81,8 @@ struct StudyWeekBars: View {
         let peak = max(1, counts.max() ?? 1)
         HStack(alignment: .bottom, spacing: Theme.Spacing.xs + 2) {
             ForEach(Array(counts.enumerated()), id: \.offset) { index, count in
-                Capsule()
-                    .fill(index == counts.count - 1 ? Theme.accent : Theme.accent.opacity(count == 0 ? 0.18 : 0.45))
+                Capsule(style: .continuous)
+                    .fill(index == counts.count - 1 ? Theme.accent : (count == 0 ? Theme.fill : Theme.accent.opacity(0.4)))
                     .frame(width: 10, height: 6 + CGFloat(count) / CGFloat(peak) * 30)
             }
         }
@@ -74,7 +104,7 @@ struct StudyHomeView: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            ScreenBackdrop(style: .rich)
             ScrollView {
                 VStack(spacing: Theme.Spacing.md) {
                     if rows.isEmpty {
@@ -130,8 +160,8 @@ struct StudyHomeView: View {
                         }
                         if stats.streak > 0 {
                             Label("\(stats.streak)-day streak", systemImage: "flame.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.accent)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.accentDeep)
                                 .accessibilityIdentifier("streakLabel")
                         } else {
                             Text("Review a card to start a streak").font(.subheadline).foregroundStyle(Theme.inkSecondary)
@@ -166,10 +196,11 @@ struct StudyHomeView: View {
 
     private func sectionTitle(_ key: LocalizedStringKey) -> some View {
         Text(key)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(Theme.inkSecondary)
+            .font(Theme.Font.heading)
+            .foregroundStyle(Theme.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, Theme.Spacing.sm)
+            .padding(.horizontal, Theme.Spacing.xs)
     }
 
     private func deckCard(_ row: DeckRow) -> some View {
@@ -177,21 +208,25 @@ struct StudyHomeView: View {
         return GlassSurface {
             HStack(spacing: Theme.Spacing.sm) {
                 Button { path.append(.deck(row.id)) } label: {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                        DeckTitle(name: row.name, kind: row.kind)
-                            .font(Theme.Font.heading)
-                            .foregroundStyle(Theme.ink)
-                        Text("\(row.counts.total) cards")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.inkSecondary)
-                        ProgressView(value: started)
-                            .tint(Theme.accent)
-                            .accessibilityHidden(true)
-                        HStack(spacing: Theme.Spacing.md) {
-                            Text("\(row.counts.due) due").foregroundStyle(row.counts.due > 0 ? Theme.accent : Theme.inkSecondary)
-                            Text("\(row.counts.new) new").foregroundStyle(Theme.inkSecondary)
+                    HStack(spacing: Theme.Spacing.md) {
+                        IconTile(
+                            systemImage: row.kind == .vocabulary ? "book.closed" : "rectangle.stack",
+                            tint: DeckTint.color(for: row.id),
+                            size: 52
+                        )
+                        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                            DeckTitle(name: row.name, kind: row.kind)
+                                .font(Theme.Font.heading)
+                                .foregroundStyle(Theme.ink)
+                            HStack(spacing: Theme.Spacing.sm) {
+                                countChip(Text("\(row.counts.due) due"), highlighted: row.counts.due > 0)
+                                countChip(Text("\(row.counts.new) new"), highlighted: false)
+                                Text("\(row.counts.total) cards")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Theme.inkSecondary)
+                            }
+                            StudyProgressTrack(fraction: started)
                         }
-                        .font(.caption)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -202,9 +237,9 @@ struct StudyHomeView: View {
                     Button { path.append(.review(row.id)) } label: {
                         Image(systemName: "play.fill")
                             .font(.body.weight(.semibold))
-                            .foregroundStyle(Theme.accent)
+                            .foregroundStyle(Theme.onTint)
                             .frame(width: 44, height: 44)
-                            .background(Theme.accent.opacity(0.12), in: Circle())
+                            .background(Theme.accent, in: Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Review This Deck")
@@ -215,19 +250,22 @@ struct StudyHomeView: View {
         }
     }
 
+    /// A flat count pill on a deck card: orange when there is something due, quiet otherwise.
+    private func countChip(_ text: Text, highlighted: Bool) -> some View {
+        text
+            .font(.caption.weight(.bold))
+            .foregroundStyle(highlighted ? Theme.onTint : Theme.inkSecondary)
+            .padding(.horizontal, Theme.Spacing.sm + 1)
+            .padding(.vertical, 4)
+            .background(highlighted ? Theme.accent : Theme.fill, in: Capsule(style: .continuous))
+    }
+
     private var notesTile: some View {
         Button { showNewDeck = true } label: {
             Label("Make a deck from notes", systemImage: "square.and.pencil")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.accent)
                 .frame(maxWidth: .infinity)
-                .padding(Theme.Spacing.md)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                        .strokeBorder(Theme.accent.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glassAction)
         .accessibilityIdentifier("newDeckTile")
     }
 

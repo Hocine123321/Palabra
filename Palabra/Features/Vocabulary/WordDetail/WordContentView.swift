@@ -29,12 +29,7 @@ struct WordContentView<Accessory: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
-                Text(content.word)
-                    .font(Theme.Font.display)
-                    .foregroundStyle(Theme.ink)
-                accessory()
-            }
+            hero
 
             SectionCard(title: "Example Paragraphs", systemImage: "text.quote") {
                 VStack(alignment: .leading, spacing: Theme.Spacing.md) {
@@ -61,7 +56,6 @@ struct WordContentView<Accessory: View>: View {
 
             SectionCard(title: "Meaning & Usage", systemImage: "text.book.closed") {
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                    FlowChips(items: content.meaning.translations)
                     Text(content.meaning.explanation)
                         .foregroundStyle(Theme.ink)
                     Chip(text: content.usage.register)
@@ -100,7 +94,7 @@ struct WordContentView<Accessory: View>: View {
                     ForEach(Array(content.similarWords.enumerated()), id: \.offset) { _, similar in
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                             Text(similar.word)
-                                .font(.body.weight(.semibold))
+                                .font(Theme.Font.rowTitle)
                                 .foregroundStyle(Theme.ink)
                             Text(similar.difference)
                                 .font(.subheadline)
@@ -110,6 +104,37 @@ struct WordContentView<Accessory: View>: View {
                 }
             }
             .id(WordSection.similar)
+        }
+    }
+
+    /// The headword on a muted cutout: part of speech, the word itself (with the optional
+    /// pronunciation accessory) and its translations as flat chips.
+    private var hero: some View {
+        let paper = Color.white.opacity(0.45)
+        return CutoutCard(tint: Theme.tint(for: WordKey.identity(content.word))) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                if !content.forms.partOfSpeech.isEmpty {
+                    Chip(text: content.forms.partOfSpeech, tint: paper)
+                }
+                HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+                    Text(content.word)
+                        .font(Theme.Font.display)
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(2)
+                    Spacer(minLength: Theme.Spacing.sm)
+                    accessory()
+                }
+                if !content.meaning.translations.isEmpty {
+                    FlowLayout {
+                        ForEach(Array(content.meaning.translations.enumerated()), id: \.offset) { _, translation in
+                            Chip(text: translation, tint: paper)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(Theme.Spacing.lg)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

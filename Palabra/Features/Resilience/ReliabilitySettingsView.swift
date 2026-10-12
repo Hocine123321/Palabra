@@ -28,7 +28,7 @@ struct ReliabilitySettingsView: View {
             .themedSection()
             recentProblemsSection
         }
-        .creamScreen()
+        .glassScreen()
         .navigationTitle("Reliability")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Remove the backup key?", isPresented: $showRemoveConfirm) {
