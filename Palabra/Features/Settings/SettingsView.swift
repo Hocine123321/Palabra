@@ -31,7 +31,8 @@ struct SettingsView: View {
                 Button {
                     showModelPicker = true
                 } label: {
-                    HStack {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "cpu", tint: Theme.tileTints[0], size: 30)
                         Text("Model")
                         Spacer()
                         if let name = environment.selectedModel?.displayName {
@@ -62,7 +63,8 @@ struct SettingsView: View {
                 NavigationLink {
                     ReliabilitySettingsView()
                 } label: {
-                    HStack {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "lifepreserver", tint: Theme.tileTints[4], size: 30)
                         Text("Reliability")
                         Spacer()
                         Text(environment.hasFallbackKey ? "Backup key on" : "No backup key")
@@ -78,7 +80,8 @@ struct SettingsView: View {
                 Button {
                     showTTSModelPicker = true
                 } label: {
-                    HStack {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "waveform", tint: Theme.tileTints[2], size: 30)
                         Text("Pronunciation Model")
                         Spacer()
                         if let name = environment.selectedTTSModel?.displayName {
@@ -136,7 +139,14 @@ struct SettingsView: View {
                     Text("Readability").tag(SettingsStore.LibraryLayout.list)
                 }
                 .pickerStyle(.segmented)
-                NavigationLink("Organization") { OrganizationSettingsView() }
+                NavigationLink {
+                    OrganizationSettingsView()
+                } label: {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "square.grid.2x2", tint: Theme.tileTints[1], size: 30)
+                        Text("Organization")
+                    }
+                }
             }
             .themedSection()
 
@@ -151,7 +161,14 @@ struct SettingsView: View {
             .themedSection()
 
             Section("Assistant") {
-                NavigationLink("Chat Assistant") { AssistantSettingsView() }
+                NavigationLink {
+                    AssistantSettingsView()
+                } label: {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "bubble.left.and.bubble.right", tint: Theme.tileTints[2], size: 30)
+                        Text("Chat Assistant")
+                    }
+                }
             }
             .themedSection()
 

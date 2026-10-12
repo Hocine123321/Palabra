@@ -81,7 +81,7 @@ struct ReliabilitySettingsView: View {
             Text("Using now")
             Spacer()
             Text(center.activeSlot == .primary ? "Main key" : "Backup key")
-                .foregroundStyle(center.activeSlot == .primary ? Theme.inkSecondary : Theme.accent)
+                .foregroundStyle(center.activeSlot == .primary ? Theme.inkSecondary : Theme.accentDeep)
         }
         if center.health.isBenched(.primary, now: Date()), let reason = center.health.reason(.primary) {
             Text(LocalizedStringKey(Self.benchText(reason)))
