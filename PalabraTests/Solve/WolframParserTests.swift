@@ -78,6 +78,10 @@ final class WolframParserTests: XCTestCase {
 }
 
 extension Result {
+    var success: Success? {
+        if case .success(let value) = self { return value }
+        return nil
+    }
     var failure: Failure? {
         if case .failure(let error) = self { return error }
         return nil

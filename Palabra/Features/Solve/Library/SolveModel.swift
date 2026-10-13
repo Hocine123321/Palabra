@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// The Solve screen's state: the problem text, reading a photo, and solving (cache first, then Wolfram|Alpha).
+/// The Solve screen's state: the problem text, reading a photo, and solving (saved answer first, then the solver chain).
 @MainActor
 @Observable
 final class SolveModel {
@@ -58,18 +58,20 @@ final class SolveModel {
             error = nil
             return tool.history.save(query: cached.query, key: key, result: result, now: moment).id
         }
-        guard let appID = tool.appID else { error = .missingKey; return nil }
+        // The App ID is optional: without one the chain is the on-device engine, then Gemini.
+        let appID = tool.appID ?? ""
 
         phase = .solving
         error = nil
         defer { phase = .idle }
         switch await tool.solver.solve(query: query, appID: appID) {
         case .success(let result):
-            tool.recordCall(now: moment)
+            // Only Wolfram|Alpha's answers use its free calls.
+            if result.isFromWolfram { tool.recordCall(now: moment) }
             return tool.history.save(query: query, key: key, result: result, now: moment).id
         case .failure(let failure):
             // Wolfram counts a question it could not understand; a dead connection or a refused key costs nothing.
-            if case .noResult = failure { tool.recordCall(now: moment) }
+            if case .noResult = failure, !appID.isEmpty { tool.recordCall(now: moment) }
             error = failure
             return nil
         }
@@ -98,23 +100,25 @@ final class SolveResultModel {
         result = tool.history.entry(id: entryID)?.result
     }
 
-    /// Asks Wolfram|Alpha for one pod's steps (one more call) and saves the richer answer.
+    /// Gets one pod's steps and saves the richer answer: from Gemini (no free call used) or, for a Wolfram|Alpha
+    /// answer, from Wolfram|Alpha (one more call).
     func loadSteps(podID: String) async {
         guard loadingStepsPodID == nil, let current = result,
               let pod = current.pods.first(where: { $0.id == podID }), let stepsInput = pod.stepsInput else { return }
-        guard let appID = tool.appID else { stepsError = .missingKey; return }
+        let appID = tool.appID ?? ""
+        let usesWolframCall = !pod.stepsAreAIWritten
         loadingStepsPodID = podID
         stepsError = nil
         defer { loadingStepsPodID = nil }
         switch await tool.solver.steps(query: current.query, podID: podID, stepsInput: stepsInput, appID: appID) {
         case .success(let richer):
-            tool.recordCall(now: now())
+            if usesWolframCall { tool.recordCall(now: now()) }
             let updated = current.replacing(richer)
             result = updated
             tool.history.update(id: entryID, result: updated, now: now())
         case .failure(let failure):
             if failure == .noSteps {
-                tool.recordCall(now: now())
+                if usesWolframCall { tool.recordCall(now: now()) }
                 // Remember there is nothing to fetch, so the button does not offer it again.
                 var withoutOffer = pod
                 withoutOffer.stepsInput = nil

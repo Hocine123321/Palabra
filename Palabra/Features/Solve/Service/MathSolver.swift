@@ -1,6 +1,6 @@
 import Foundation
 
-/// Solves a typed problem. The live one is Wolfram|Alpha; tests and UI tests use doubles.
+/// Solves a typed problem. The live one tries the device, then Wolfram|Alpha (if an App ID is saved), then Gemini; tests and UI tests use doubles.
 protocol MathSolver: Sendable {
     func solve(query: String, appID: String) async -> Result<SolveResult, SolveError>
     /// The same pod with its step-by-step part (costs one more call). `stepsInput` is `SolvePod.stepsInput`.

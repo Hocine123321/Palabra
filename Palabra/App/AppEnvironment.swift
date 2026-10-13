@@ -154,6 +154,16 @@ final class AppEnvironment {
         ttsCatalogue.loadCacheIfPresent()
         wireAIGateway()
         wireCapabilityHooks()
+        wireSolve()
+    }
+
+    /// Gives the Solve tab's Gemini solver the current AI client, key, model and language. Read when a problem needs
+    /// Gemini, so a key or model chosen later is picked up.
+    private func wireSolve() {
+        solve.attachAI { [weak self] in
+            guard let self, let apiKey = self.apiKey, let model = self.selectedModel else { return nil }
+            return GeminiLink.Credentials(ai: self.ai, apiKey: apiKey, model: model, language: self.aiLanguage)
+        }
     }
 
     /// Lets `words.add` start the queue and use the current AI-output language.

@@ -54,7 +54,6 @@ struct SolveHomeView: View {
         let tool = environment.solve
         return ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                if !tool.hasKey { setupCard }
                 captureRow(model)
                 problemEditor($bindable.input)
                 symbolRow(model)
@@ -74,22 +73,6 @@ struct SolveHomeView: View {
     }
 
     // MARK: - Pieces
-
-    private var setupCard: some View {
-        GlassSurface {
-            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                Label("Set up Wolfram|Alpha", systemImage: "key.fill")
-                    .font(Theme.Font.rowTitle)
-                    .foregroundStyle(Theme.ink)
-                Text("Solving uses your own free Wolfram|Alpha App ID (2,000 calls a month). Sign in at the developer portal, create an App ID for the Full Results API, and paste it here.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.inkSecondary)
-                VStack(alignment: .leading, spacing: Theme.Spacing.sm) { WolframKeyField(embedded: true) }
-            }
-            .padding(Theme.Spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
 
     private func captureRow(_ model: SolveModel) -> some View {
         HStack(spacing: Theme.Spacing.sm) {
@@ -261,10 +244,14 @@ struct SolveHomeView: View {
 
     private func usageFooter(_ tool: SolveTool) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text("About \(tool.callsThisMonth) of \(SolveUsage.freeMonthlyCalls) free solves used this month")
-                .accessibilityIdentifier("usageLabel")
+            Text("Solves on your device first. Gemini writes the steps and handles harder problems.")
             Text("Answers are saved, so opening one again costs nothing.")
-            Text("Powered by Wolfram|Alpha")
+            // Wolfram|Alpha is an optional extra: its usage and credit only show once an App ID is saved.
+            if tool.hasKey {
+                Text("About \(tool.callsThisMonth) of \(SolveUsage.freeMonthlyCalls) free solves used this month")
+                    .accessibilityIdentifier("usageLabel")
+                Text("Powered by Wolfram|Alpha")
+            }
         }
         .font(.caption)
         .foregroundStyle(Theme.inkSecondary)

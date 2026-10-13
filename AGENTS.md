@@ -27,7 +27,7 @@ Palabra/
   Features/
     Onboarding/         first-run screen
     Spanish/            hub page list (SpanishHomeView), the Spanish tab's stack root
-    Solve/              Solve tab: Wolfram|Alpha solver, on-device photo OCR, saved answers (see "Solve")
+    Solve/              Solve tab: on-device nerdamer + optional Wolfram|Alpha + Gemini fallback, on-device photo OCR, saved answers (see "Solve")
     Settings/           settings + model picker (app-wide, not vocabulary-specific)
     Artifacts/          AI-built tables/charts/roadmaps/checklists, saved and versioned (Spanish hub page)
       Domain/           ArtifactKind, GrantPolicy, AIUsageLimiter (the registry itself lives in Core/Capabilities)
@@ -205,11 +205,12 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 ## Solve
 
 - `Features/Solve` is self-contained (never imports `Word`, `Deck`, `Card`). Own tab and `NavigationStack` (`SolveRootView`, `SolveRoute`). Everything hangs off `SolveTool` (`environment.solve`).
+- **Solver chain** (`CompositeMathSolver`): `LocalMathSolver` (nerdamer in JavaScriptCore, `Resources/Math/solver.js` is the dispatcher; it answers only what it can verify numerically, else "unsupported") → `WolframSolver` (only if an App ID is saved) → `GeminiMathSolver` (`AIClient.generateJSON` with a schema; credentials via the late-bound `GeminiLink`, wired in `AppEnvironment.wireSolve()`). Gemini does not do code execution. Steps offered as `ai:<answer>` are written by Gemini; Wolfram's own offer stays `Result__Step-by-step solution`. `SolveResult.source` says who answered; only Wolfram answers/steps count toward `SolveUsage`. A hung JS run can't be killed, only abandoned after 8 s (new context).
 - Wolfram|Alpha takes text only; photos go through on-device Vision (`VisionTextRecognizer`), then `MathInputNormalizer`, then an editable box. Do not send images anywhere.
 - **Never spend a call on the person's behalf.** Solving checks the saved answer first (`SolveEntry`, `queryKey`); steps are a button ("Uses one more free call."). Network failures and a refused key are not counted by `SolveUsage`; success and "no result" are.
-- "Powered by Wolfram|Alpha" must stay on the home and result screens (API terms).
+- "Powered by Wolfram|Alpha" shows whenever Wolfram answered (result screen) or an App ID is saved (home), per API terms.
 - `SolveResult` / `SolvePod` / `SolveSubpod` are stored as JSON in `SolveEntry.resultData`: tolerant decoders, add fields, never rename. Pod images are stored as bytes (Wolfram's image URLs expire).
-- The App ID is the person's own, in the Keychain (`KeychainStore.wolfram()`). UI tests: `-UITestStub` uses `StubMathSolver` / `StubTextRecognizer`; `-UITestNoSolveKey` starts without an App ID.
+- The App ID is optional and the person's own, in the Keychain (`KeychainStore.wolfram()`). UI tests: `-UITestStub` uses `StubMathSolver` / `StubTextRecognizer`; `-UITestNoSolveKey` starts without an App ID.
 - Spec: `docs/features/solve.md`.
 
 ## Adding a feature (for example a study tool)

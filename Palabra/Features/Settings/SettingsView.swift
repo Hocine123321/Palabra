@@ -152,11 +152,15 @@ struct SettingsView: View {
 
             Section {
                 WolframKeyField()
-                Text("About \(environment.solve.callsThisMonth) of \(SolveUsage.freeMonthlyCalls) free solves used this month")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.inkSecondary)
+                if environment.solve.hasKey {
+                    Text("About \(environment.solve.callsThisMonth) of \(SolveUsage.freeMonthlyCalls) free solves used this month")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.inkSecondary)
+                }
             } header: {
                 Text("Math Solver")
+            } footer: {
+                Text("Optional. Palabra solves on your device and with Gemini. A Wolfram|Alpha App ID adds Wolfram's answers for problems your device can't solve.")
             }
             .themedSection()
 

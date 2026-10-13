@@ -42,12 +42,18 @@ final class SolveUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "solveError").firstMatch.waitForExistence(timeout: 10))
     }
 
-    func testWithoutAnAppIDTheSetupFieldShows() {
+    func testWithoutAnAppIDSolvingStillWorks() {
         let app = XCUIApplication()
         app.launchArguments = ["-UITestStub", "-UITestReset", "-UITestNoSolveKey"]
         app.launch()
 
         app.tabBars.buttons["Solve"].tap()
-        XCTAssertTrue(app.secureTextFields["wolframKeyField"].waitForExistence(timeout: 5))
+        let input = app.textViews["solveInputField"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.secureTextFields["wolframKeyField"].exists, "no setup card: the solver needs no key")
+        input.tap()
+        input.typeText("x^2-4=0")
+        app.buttons["solveButton"].tap()
+        XCTAssertTrue(app.navigationBars["Answer"].waitForExistence(timeout: 10))
     }
 }

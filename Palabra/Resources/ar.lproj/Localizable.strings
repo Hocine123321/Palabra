@@ -480,3 +480,22 @@
 "AI request" = "طلب إلى الذكاء الاصطناعي";
 "Your model was removed, so I switched to %@." = "تمت إزالة نموذجك، فانتقلتُ إلى %@.";
 "Added \"%@\" now that you're back online." = "تمت إضافة \"%@\" بعد عودة الاتصال.";
+
+/* Math solver */
+"Solving this needs Gemini. Check your API key and model in Settings." = "يحتاج هذا الحل إلى Gemini. تحقق من مفتاح API والنموذج في الإعدادات.";
+"The solver is busy. Try again in a moment." = "المحلّل مشغول. حاول مرة أخرى بعد قليل.";
+"Couldn't understand this. Check the problem and try again." = "تعذّر فهم هذا. تحقق من المسألة وحاول مرة أخرى.";
+"Couldn't reach the solver. Check your connection." = "تعذر الوصول إلى المحلّل. تحقق من اتصالك.";
+"The solver sent an answer the app couldn't read." = "أرسل المحلّل إجابة لم يستطع التطبيق قراءتها.";
+"Written by Gemini from the checked answer." = "يكتبها Gemini انطلاقاً من الإجابة المتحقَّق منها.";
+"Solved on your device." = "تم الحل على جهازك.";
+"Solved by Gemini. Double-check it before you rely on it." = "تم الحل بواسطة Gemini. تحقق منه قبل الاعتماد عليه.";
+"Solves on your device first. Gemini writes the steps and handles harder problems." = "يُحَل على جهازك أولاً. يكتب Gemini الخطوات ويتولى المسائل الأصعب.";
+"Optional. Palabra solves on your device and with Gemini. A Wolfram|Alpha App ID adds Wolfram's answers for problems your device can't solve." = "اختياري. يحل Palabra المسائل على جهازك ومع Gemini. يضيف معرّف تطبيق Wolfram|Alpha إجابات Wolfram للمسائل التي لا يستطيع جهازك حلها.";
+"Result" = "النتيجة";
+"Input" = "المدخل";
+"Decimal approximation" = "التقريب العشري";
+"Factored form" = "الصيغة المحلَّلة إلى عوامل";
+"Expanded form" = "الصيغة الموسَّعة";
+"Simplified form" = "الصيغة المبسَّطة";
+"Steps" = "الخطوات";

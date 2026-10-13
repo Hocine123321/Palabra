@@ -1,6 +1,6 @@
 import Foundation
 
-/// One piece of a Wolfram|Alpha pod: typeset image (kept as bytes, because the image URLs expire) and its plain text.
+/// One piece of a pod: its plain text, and for Wolfram|Alpha a typeset image (kept as bytes, because the image URLs expire).
 struct SolveSubpod: Codable, Equatable, Sendable {
     var title: String = ""
     var plaintext: String = ""
@@ -27,14 +27,15 @@ struct SolveSubpod: Codable, Equatable, Sendable {
     }
 }
 
-/// A titled section of the answer ("Result", "Plot", "Alternate forms", ...).
+/// A titled section of the answer ("Result", "Plot", "Decimal approximation", ...).
 struct SolvePod: Codable, Equatable, Sendable {
-    /// Wolfram's pod id ("Input", "Result", "Solution", ...).
+    /// The pod id ("Input", "Result", "Solution", ...).
     var id: String
     var title: String
     var primary: Bool = false
     var subpods: [SolveSubpod] = []
-    /// The `podstate` value that asks for this pod with steps; nil when none is offered or steps are already here.
+    /// What asks for this pod's steps: Wolfram's `podstate`, or "ai:" followed by the verified answer when Gemini
+    /// should write the steps. Nil when none is offered or steps are already here.
     var stepsInput: String?
     /// True when `subpods` already contain the step-by-step part.
     var hasSteps: Bool = false
@@ -61,6 +62,17 @@ struct SolvePod: Codable, Equatable, Sendable {
     var plainText: String {
         subpods.map(\.plaintext).filter { !$0.isEmpty }.joined(separator: "\n")
     }
+
+    /// True when the steps offer is for Gemini to write (not Wolfram's, which costs a free call).
+    var stepsAreAIWritten: Bool { stepsInput?.hasPrefix(GeminiMathSolver.stepsPrefix) ?? false }
+}
+
+/// Who produced an answer: the math engine on the device, Gemini, or Wolfram|Alpha.
+/// Answers saved before this existed have no source and were always Wolfram's.
+enum SolveSource: String, Codable, Equatable, Sendable {
+    case onDevice
+    case gemini
+    case wolfram
 }
 
 /// What a solved problem looks like. Saved (JSON) in `SolveEntry` so reopening it costs no API call.
@@ -68,11 +80,13 @@ struct SolveResult: Codable, Equatable, Sendable {
     var query: String
     var interpretation: String?
     var pods: [SolvePod] = []
+    var source: SolveSource?
 
-    init(query: String, interpretation: String? = nil, pods: [SolvePod] = []) {
+    init(query: String, interpretation: String? = nil, pods: [SolvePod] = [], source: SolveSource? = nil) {
         self.query = query
         self.interpretation = interpretation
         self.pods = pods
+        self.source = source
     }
 
     init(from decoder: Decoder) throws {
@@ -80,9 +94,13 @@ struct SolveResult: Codable, Equatable, Sendable {
         query = try c.decodeIfPresent(String.self, forKey: .query) ?? ""
         interpretation = try c.decodeIfPresent(String.self, forKey: .interpretation)
         pods = try c.decodeIfPresent([SolvePod].self, forKey: .pods) ?? []
+        source = try c.decodeIfPresent(SolveSource.self, forKey: .source)
     }
 
-    /// The pod Wolfram marks as the main answer, else the first one that is not the echo of the input.
+    /// True for answers that came from Wolfram|Alpha, including ones saved before `source` existed.
+    var isFromWolfram: Bool { source == nil || source == .wolfram }
+
+    /// The pod marked as the main answer, else the first one that is not the echo of the input.
     var answerPod: SolvePod? {
         pods.first(where: \.primary) ?? pods.first { $0.id != "Input" }
     }
@@ -111,6 +129,7 @@ struct SolveResult: Codable, Equatable, Sendable {
 
 enum SolveError: Error, Equatable {
     case emptyInput
+    /// Gemini isn't set up (no key or model), so the problem can't go beyond the on-device engine.
     case missingKey
     /// Wolfram refused the App ID (wrong, or the monthly free calls are used up).
     case invalidKey
@@ -124,13 +143,13 @@ enum SolveError: Error, Equatable {
     var userMessage: String {
         switch self {
         case .emptyInput: return "Type or scan a problem first."
-        case .missingKey: return "Add your Wolfram|Alpha App ID to solve problems."
+        case .missingKey: return "Solving this needs Gemini. Check your API key and model in Settings."
         case .invalidKey: return "Wolfram|Alpha refused the App ID. Check it, or the free calls for this month may be used up."
-        case .rateLimited: return "Wolfram|Alpha is busy. Try again in a moment."
-        case .noResult: return "Wolfram|Alpha couldn't understand this. Check the problem and try again."
+        case .rateLimited: return "The solver is busy. Try again in a moment."
+        case .noResult: return "Couldn't understand this. Check the problem and try again."
         case .noSteps: return "There are no steps available for this one."
-        case .network: return "Couldn't reach Wolfram|Alpha. Check your connection."
-        case .malformed: return "Wolfram|Alpha sent an answer the app couldn't read."
+        case .network: return "Couldn't reach the solver. Check your connection."
+        case .malformed: return "The solver sent an answer the app couldn't read."
         }
     }
 }

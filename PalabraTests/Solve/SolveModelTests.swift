@@ -73,14 +73,47 @@ final class SolveModelTests: XCTestCase {
         XCTAssertNil(model.error)
     }
 
-    func testMissingKeyMakesNoCall() async {
+    func testWithoutAnAppIDTheSolverIsStillAskedAndNothingIsCounted() async {
+        var onDevice = SolveResult.sample()
+        onDevice.source = .onDevice
+        solver.solveResults = [.success(onDevice)]
         let model = model()
         model.input = "x^2 - 4 = 0"
         let id = await model.solve()
+        XCTAssertNotNil(id)
+        XCTAssertNil(model.error)
+        XCTAssertEqual(solver.solveCalls.count, 1)
+        XCTAssertEqual(solver.solveCalls.first?.appID, "", "no App ID: the chain skips Wolfram|Alpha")
+        XCTAssertEqual(tool.callsThisMonth, 0, "only Wolfram|Alpha's answers use its free calls")
+    }
+
+    func testGeminiAnswersAreNotCountedEither() async {
+        tool.saveAppID("abc")
+        var gemini = SolveResult.sample()
+        gemini.source = .gemini
+        solver.solveResults = [.success(gemini)]
+        let model = model()
+        model.input = "x^2 - 4 = 0"
+        _ = await model.solve()
+        XCTAssertEqual(tool.callsThisMonth, 0)
+    }
+
+    func testNoResultWithoutAnAppIDIsNotCounted() async {
+        solver.solveResults = [.failure(.noResult(suggestions: []))]
+        let model = model()
+        model.input = "gibberish"
+        _ = await model.solve()
+        XCTAssertEqual(model.error, .noResult(suggestions: []))
+        XCTAssertEqual(tool.callsThisMonth, 0)
+    }
+
+    func testNeedingGeminiSurfacesTheMissingKeyError() async {
+        solver.solveResults = [.failure(.missingKey)]
+        let model = model()
+        model.input = "integral of e^(x^2)"
+        let id = await model.solve()
         XCTAssertNil(id)
         XCTAssertEqual(model.error, .missingKey)
-        XCTAssertTrue(solver.solveCalls.isEmpty)
-        XCTAssertEqual(tool.callsThisMonth, 0)
     }
 
     func testEmptyInputIsAnError() async {
@@ -250,12 +283,27 @@ final class SolveResultModelTests: XCTestCase {
         XCTAssertTrue(solver.stepsCalls.isEmpty)
     }
 
-    func testStepsWithoutAKeyReportsMissingKey() async {
+    func testStepsWithoutAnAppIDStillAskTheSolver() async {
         tool.removeAppID()
+        solver.stepsResults = [.failure(.noSteps)]
         let model = model()
         await model.loadSteps(podID: "Result")
-        XCTAssertEqual(model.stepsError, .missingKey)
-        XCTAssertTrue(solver.stepsCalls.isEmpty)
+        XCTAssertEqual(model.stepsError, .noSteps)
+        XCTAssertEqual(solver.stepsCalls.count, 1, "the solver decides who writes the steps; an App ID is optional")
+    }
+
+    func testGeminiWrittenStepsAreSavedAndCostNoFreeCall() async {
+        var local = SolveResult.sample(withStepsOffer: false)
+        local.source = .onDevice
+        local.pods[1].stepsInput = GeminiMathSolver.stepsPrefix + "x = -2 or x = 2"
+        let id = tool.history.save(query: "x^2-4=0 again", key: "x^2-4=0again", result: local, now: now).id
+        solver.stepsResults = [.success(stepsPod())]
+        let model = SolveResultModel(tool: tool, entryID: id, now: { self.now })
+        await model.loadSteps(podID: "Result")
+        XCTAssertNil(model.stepsError)
+        XCTAssertEqual(solver.stepsCalls.first?.stepsInput, "ai:x = -2 or x = 2")
+        XCTAssertEqual(tool.callsThisMonth, 0)
+        XCTAssertEqual(model.result?.pods.first { $0.id == "Result" }?.hasSteps, true)
     }
 }
 

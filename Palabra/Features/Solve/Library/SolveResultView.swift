@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// A solved problem as a page: the answer first, then Wolfram|Alpha's other sections. Images are saved with the answer.
+/// A solved problem as a page: the answer first, then the other sections. Wolfram|Alpha images are saved with the answer.
 struct SolveResultView: View {
     let entryID: UUID
     @Environment(AppEnvironment.self) private var environment
@@ -85,7 +85,7 @@ struct SolveResultView: View {
     private func podContent(_ pod: SolvePod, hero: Bool, model: SolveResultModel) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack {
-                Text(verbatim: pod.title)
+                Text(LocalizedStringKey(pod.title))
                     .font(hero ? Theme.Font.tile : SwiftUI.Font.footnote.weight(.semibold))
                     .foregroundStyle(hero ? Theme.onTint.opacity(0.7) : Theme.inkSecondary)
                 Spacer()
@@ -116,7 +116,7 @@ struct SolveResultView: View {
     private func subpodView(_ sub: SolveSubpod, hero: Bool) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             if !sub.title.isEmpty {
-                Text(verbatim: sub.title)
+                Text(LocalizedStringKey(sub.title))
                     .font(.caption)
                     .foregroundStyle(hero ? Theme.onTint.opacity(0.7) : Theme.inkSecondary)
             }
@@ -163,7 +163,7 @@ struct SolveResultView: View {
             .buttonStyle(.plain)
             .disabled(model.loadingStepsPodID != nil)
             .accessibilityIdentifier("showStepsButton")
-            Text("Uses one more free call.")
+            Text(pod.stepsAreAIWritten ? LocalizedStringKey("Written by Gemini from the checked answer.") : LocalizedStringKey("Uses one more free call."))
                 .font(.caption)
                 .foregroundStyle(hero ? Theme.onTint.opacity(0.7) : Theme.inkSecondary)
         }
@@ -190,9 +190,18 @@ struct SolveResultView: View {
                 }
                 .accessibilityIdentifier("openInWolframLink")
             }
-            Text("Powered by Wolfram|Alpha").font(.caption).foregroundStyle(Theme.inkSecondary)
+            Text(sourceNote(result.source)).font(.caption).foregroundStyle(Theme.inkSecondary)
         }
         .padding(.top, Theme.Spacing.sm)
+    }
+
+    /// Where the answer came from. Answers saved before sources were recorded were Wolfram|Alpha's.
+    private func sourceNote(_ source: SolveSource?) -> LocalizedStringKey {
+        switch source {
+        case .onDevice: return "Solved on your device."
+        case .gemini: return "Solved by Gemini. Double-check it before you rely on it."
+        case .wolfram, nil: return "Powered by Wolfram|Alpha"
+        }
     }
 
     private func shareText(_ result: SolveResult) -> String {

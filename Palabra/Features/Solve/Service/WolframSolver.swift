@@ -29,7 +29,10 @@ struct WolframSolver: MathSolver {
     func solve(query: String, appID: String) async -> Result<SolveResult, SolveError> {
         switch await fetch(query: query, appID: appID, podstate: nil) {
         case .failure(let error): return .failure(error)
-        case .success(let parsed): return .success(await withImages(parsed).result)
+        case .success(let parsed):
+            var result = await withImages(parsed).result
+            result.source = .wolfram
+            return .success(result)
         }
     }
 

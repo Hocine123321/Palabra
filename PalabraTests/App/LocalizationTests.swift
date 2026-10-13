@@ -93,6 +93,10 @@ final class LocalizationTests: XCTestCase {
             "About %lld of %lld free solves used this month", "Answers are saved, so opening one again costs nothing.",
             "Powered by Wolfram|Alpha", "Show steps", "Loading steps…", "Uses one more free call.", "Open in Wolfram|Alpha",
             "Copy", "Copied", "Share",
+            "Written by Gemini from the checked answer.", "Solved on your device.",
+            "Solved by Gemini. Double-check it before you rely on it.",
+            "Solves on your device first. Gemini writes the steps and handles harder problems.",
+            "Result", "Input", "Decimal approximation", "Factored form", "Expanded form", "Simplified form", "Steps",
             "Solving uses your own free Wolfram|Alpha App ID (2,000 calls a month). Sign in at the developer portal, create an App ID for the Full Results API, and paste it here.",
         ]
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
