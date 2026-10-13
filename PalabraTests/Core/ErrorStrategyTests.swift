@@ -93,9 +93,12 @@ final class ErrorStrategyTests: XCTestCase {
         for error in all {
             XCTAssertFalse(error.headline.isEmpty)
             XCTAssertFalse(error.shortReason.isEmpty)
-            XCTAssertFalse(error.explanation(tried: 2, hasBackupKey: true).isEmpty)
+            XCTAssertFalse(error.advice(hasBackupKey: true).isEmpty)
+            XCTAssertFalse(error.advice(hasBackupKey: false).isEmpty)
             XCTAssertFalse(error.userMessage.isEmpty)
         }
+        XCTAssertFalse(AIError.quotaExhausted.mentionsAttempts, "only the person can fix a spent quota, so no \"I tried\" line")
+        XCTAssertTrue(AIError.timeout.mentionsAttempts)
         XCTAssertFalse(AIError.quotaExhausted.canBenefitFromWaiting, "waiting never refills a spent quota")
         XCTAssertTrue(AIError.serverError(503).canBenefitFromWaiting)
     }
