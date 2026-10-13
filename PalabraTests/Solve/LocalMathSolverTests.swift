@@ -8,7 +8,7 @@ final class LocalMathSolverTests: XCTestCase {
     private func answer(_ query: String, file: StaticString = #filePath, line: UInt = #line) async -> SolveResult? {
         let result = await solver.solve(query: query, appID: "")
         guard case .success(let value) = result else {
-            XCTFail("expected an answer for \\(query), got \\(result)", file: file, line: line)
+            XCTFail("expected an answer for \(query), got \(result)", file: file, line: line)
             return nil
         }
         return value
@@ -68,7 +68,7 @@ final class LocalMathSolverTests: XCTestCase {
     func testResultShapeOffersGeminiStepsForTheVerifiedAnswer() async {
         let result = await answer("x^2 - 4 = 0")
         XCTAssertEqual(result?.source, .onDevice)
-        XCTAssertEqual(result?.pods.map(\\.id).prefix(2), ["Input", "Result"])
+        XCTAssertEqual(Array((result?.pods.map(\.id) ?? []).prefix(2)), ["Input", "Result"])
         XCTAssertEqual(result?.answerPod?.stepsInput, "ai:x = -2 or x = 2")
         XCTAssertEqual(result?.answerPod?.stepsAreAIWritten, true)
     }
@@ -78,7 +78,7 @@ final class LocalMathSolverTests: XCTestCase {
         let queries = ["x^2 - 4 > 0", "sin(x) = 1/2", "e^x = 5", "x^5 - x - 1 = 0", "log(100)", "10 mod 3", "100 degrees", "integral of 1/x^2 from -1 to 1", "limit of 1/x as x -> 0", "gibberish ((", "x + y = 1; x + y = 2"]
         for query in queries {
             let unsupported = await isUnsupported(query)
-            XCTAssertTrue(unsupported, "\\(query) should be left to Gemini")
+            XCTAssertTrue(unsupported, "\(query) should be left to Gemini")
         }
     }
 
@@ -88,8 +88,8 @@ final class LocalMathSolverTests: XCTestCase {
     }
 
     func testEngineParseRejectsEmptyAndBrokenPayloads() {
-        XCTAssertEqual(LocalMathEngine.parse(Data("{\\"ok\\":false,\\"reason\\":\\"unsupported\\"}".utf8)), .unsupported)
-        XCTAssertEqual(LocalMathEngine.parse(Data("{\\"ok\\":true,\\"answer\\":\\"  \\"}".utf8)), .unsupported)
+        XCTAssertEqual(LocalMathEngine.parse(Data("{\"ok\":false,\"reason\":\"unsupported\"}".utf8)), .unsupported)
+        XCTAssertEqual(LocalMathEngine.parse(Data("{\"ok\":true,\"answer\":\"  \"}".utf8)), .unsupported)
         XCTAssertEqual(LocalMathEngine.parse(Data("not json".utf8)), .unsupported)
     }
 }

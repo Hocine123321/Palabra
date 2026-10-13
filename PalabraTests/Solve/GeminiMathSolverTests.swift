@@ -57,7 +57,7 @@ final class GeminiMathSolverTests: XCTestCase {
 
     func testNotSolvableIsNoResult() async {
         attach()
-        ai.generateJSONResult = .success("{\\"solvable\\": false, \\"interpretation\\": \\"\\", \\"answer\\": \\"\\", \\"steps\\": []}")
+        ai.generateJSONResult = .success("{\"solvable\": false, \"interpretation\": \"\", \"answer\": \"\", \"steps\": []}")
         let result = await solver.solve(query: "what is love", appID: "")
         XCTAssertEqual(result.failure, .noResult(suggestions: []))
     }
@@ -84,7 +84,7 @@ final class GeminiMathSolverTests: XCTestCase {
         for (aiError, expected) in cases {
             ai.generateJSONResult = .failure(aiError)
             let result = await solver.solve(query: "x", appID: "")
-            XCTAssertEqual(result.failure, expected, "\\(aiError)")
+            XCTAssertEqual(result.failure, expected, "\(aiError)")
         }
     }
 
@@ -92,18 +92,18 @@ final class GeminiMathSolverTests: XCTestCase {
 
     func testStepsPromptCarriesTheVerifiedAnswerAndKeepsIt() async throws {
         attach()
-        ai.generateJSONResult = .success("{\\"steps\\": [\\"Subtract 3 from both sides.\\", \\"Divide by 2.\\"]}")
+        ai.generateJSONResult = .success("{\"steps\": [\"Subtract 3 from both sides.\", \"Divide by 2.\"]}")
         let result = await solver.steps(query: "2x + 3 = 11", podID: "Result", stepsInput: "ai:x = 4", appID: "")
         let pod = try XCTUnwrap(result.success)
 
         let call = try XCTUnwrap(ai.generateJSONCalls.first)
-        XCTAssertEqual(call.prompt, "Problem: 2x + 3 = 11\\nVerified answer: x = 4")
+        XCTAssertEqual(call.prompt, "Problem: 2x + 3 = 11\nVerified answer: x = 4")
         XCTAssertTrue(call.systemInstruction.contains("The answer is correct"))
 
         XCTAssertEqual(pod.id, "Result")
         XCTAssertTrue(pod.primary)
         XCTAssertEqual(pod.subpods.first?.plaintext, "x = 4", "the verified answer is kept, never rewritten")
-        XCTAssertEqual(pod.subpods.last?.plaintext, "1. Subtract 3 from both sides.\\n2. Divide by 2.")
+        XCTAssertEqual(pod.subpods.last?.plaintext, "1. Subtract 3 from both sides.\n2. Divide by 2.")
         XCTAssertTrue(pod.hasSteps)
     }
 
@@ -116,16 +116,16 @@ final class GeminiMathSolverTests: XCTestCase {
 
     func testEmptyStepsAreNoSteps() async {
         attach()
-        ai.generateJSONResult = .success("{\\"steps\\": [\\"  \\", \\"\\"]}")
+        ai.generateJSONResult = .success("{\"steps\": [\"  \", \"\"]}")
         let result = await solver.steps(query: "x", podID: "Result", stepsInput: "ai:x = 1", appID: "")
         XCTAssertEqual(result.failure, .noSteps)
     }
 
     func testStepsAreCappedInCountAndLength() {
-        let many = (1...30).map { "step \\($0)" }
-        XCTAssertEqual(GeminiMathSolver.parseSteps("{\\"steps\\": \\(String(data: try! JSONEncoder().encode(many), encoding: .utf8)!)}")?.count, GeminiMathSolver.maxSteps)
+        let many = (1...30).map { "step \($0)" }
+        XCTAssertEqual(GeminiMathSolver.parseSteps("{\"steps\": \(String(data: try! JSONEncoder().encode(many), encoding: .utf8)!)}")?.count, GeminiMathSolver.maxSteps)
         let long = String(repeating: "a", count: 1_000)
-        XCTAssertEqual(GeminiMathSolver.parseSteps("{\\"steps\\": [\\"\\(long)\\"]}")?.first?.count, GeminiMathSolver.maxStepLength)
+        XCTAssertEqual(GeminiMathSolver.parseSteps("{\"steps\": [\"\(long)\"]}")?.first?.count, GeminiMathSolver.maxStepLength)
     }
 }
 
