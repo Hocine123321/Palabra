@@ -45,11 +45,23 @@ extension AIError {
         }
     }
 
-    func explanation(tried attempts: Int, hasBackupKey: Bool) -> String {
-        let tried = attempts > 0 ? "I tried \(attempts) time\(attempts == 1 ? "" : "s") already. " : ""
+    /// Whether the advice is preceded by "I tried N times already." Problems that only the person
+    /// can fix (key, quota, model, blocked content) don't mention attempts.
+    var mentionsAttempts: Bool {
+        switch self {
+        case .quotaExhausted, .invalidAPIKey, .permissionDenied, .modelUnavailable, .blocked: return false
+        default: return true
+        }
+    }
+
+    /// The advice as an English localization key (views look it up with `LocalizedStringKey`).
+    /// Keys are static so each one can be translated; `.modelUnavailable` is shown with the
+    /// model's name by the view, and this is its name-free form.
+    func advice(hasBackupKey: Bool) -> String {
         switch self {
         case .rateLimited:
-            return tried + (hasBackupKey ? "The backup key is limited too. Waiting a bit usually clears it." : "Waiting a bit usually clears it. A backup key from another account would avoid the wait.")
+            return hasBackupKey ? "The backup key is limited too. Waiting a bit usually clears it."
+                                : "Waiting a bit usually clears it. A backup key from another account would avoid the wait."
         case .quotaExhausted:
             return hasBackupKey ? "Both keys are out of quota. Try again later, or use a key from another account."
                                 : "Waiting won't help until the quota resets. Add a key from another account in Settings to keep going."
@@ -58,13 +70,13 @@ extension AIError {
         case .permissionDenied:
             return "This key can't use that model. Pick another model, or use a different key."
         case .serverError, .timeout:
-            return tried + "This is usually temporary on Google's side. Waiting longer between tries often works."
-        case .modelUnavailable(let id):
-            return "The model \"\(id)\" no longer exists. Choose another one in Settings."
+            return "This is usually temporary on Google's side. Waiting longer between tries often works."
+        case .modelUnavailable:
+            return "Your chosen model no longer exists. Choose another one in Settings."
         case .blocked:
             return "Google's safety filter blocked this. Trying again won't change that."
         default:
-            return tried + "It may work on another try."
+            return "It may work on another try."
         }
     }
 

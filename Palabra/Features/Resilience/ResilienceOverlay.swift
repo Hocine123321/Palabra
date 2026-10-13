@@ -12,13 +12,13 @@ struct ResilienceOverlay: View {
                 DecisionCard(decision: decision) { center.answer($0) }
                     .transition(.move(edge: .top).combined(with: .opacity))
             } else if center.isOffline {
-                StatusPill(systemImage: "wifi.slash", text: "Waiting for a connection…", tint: Theme.error)
+                StatusPill(systemImage: "wifi.slash", text: Text("Waiting for a connection…"), tint: Theme.error)
                     .transition(.opacity)
             } else if let retrying = center.retrying {
                 StatusPill(systemImage: "arrow.triangle.2.circlepath", text: retryText(retrying), tint: Theme.accentDeep)
                     .transition(.opacity)
             } else if let notice = center.notice {
-                StatusPill(systemImage: notice.isWarning ? "key.fill" : "checkmark.circle", text: LocalizedStringKey(notice.text), tint: notice.isWarning ? Theme.error : Theme.accentDeep)
+                StatusPill(systemImage: notice.isWarning ? "key.fill" : "checkmark.circle", text: Text(LocalizedStringKey(notice.text)), tint: notice.isWarning ? Theme.error : Theme.accentDeep)
                     .onTapGesture { center.dismissNotice() }
                     .transition(.opacity)
             }
@@ -31,22 +31,26 @@ struct ResilienceOverlay: View {
         .animation(Motion.reduced(Motion.quick), value: center.isOffline)
     }
 
-    private func retryText(_ r: ResilienceCenter.Retrying) -> LocalizedStringKey {
-        let key = r.usingFallbackKey ? " (backup key)" : ""
+    /// "<reason> (backup key). Retrying in 4s (1 of 3)", built from separately translated parts
+    /// so the reason and the countdown both follow the app language.
+    private func retryText(_ r: ResilienceCenter.Retrying) -> Text {
+        var text = Text(LocalizedStringKey(r.reason.shortReason))
+        if r.usingFallbackKey { text = text + Text(" ") + Text("(backup key)") }
+        text = text + Text(". ")
         if r.secondsLeft > 0 {
-            return "\(r.reason.shortReason)\(key). Retrying in \(r.secondsLeft)s (\(r.attempt) of \(r.of))"
+            return text + Text("Retrying in \(r.secondsLeft)s (\(r.attempt) of \(r.of))")
         }
-        return "\(r.reason.shortReason)\(key). Retrying now… (\(r.attempt) of \(r.of))"
+        return text + Text("Retrying now… (\(r.attempt) of \(r.of))")
     }
 }
 
 private struct StatusPill: View {
     let systemImage: String
-    let text: LocalizedStringKey
+    let text: Text
     let tint: Color
 
     var body: some View {
-        Label(text, systemImage: systemImage)
+        Label { text } icon: { Image(systemName: systemImage) }
             .font(.footnote.weight(.medium))
             .foregroundStyle(Theme.ink)
             .padding(.horizontal, Theme.Spacing.md).padding(.vertical, Theme.Spacing.sm)
@@ -63,11 +67,24 @@ private struct DecisionCard: View {
     var onChoose: (RetryDecision) -> Void
     @Environment(AppEnvironment.self) private var environment
 
+    /// "I tried 3 times already. <advice>", each part translated on its own.
+    private var explanation: Text {
+        var text = Text("")
+        if decision.error.mentionsAttempts, decision.attempts > 0 {
+            text = decision.attempts == 1 ? Text("I tried 1 time already.") : Text("I tried \(decision.attempts) times already.")
+            text = text + Text(" ")
+        }
+        if case .modelUnavailable(let id) = decision.error {
+            return text + Text("The model \"\(id)\" no longer exists. Choose another one in Settings.")
+        }
+        return text + Text(LocalizedStringKey(decision.error.advice(hasBackupKey: environment.hasFallbackKey)))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             Label(LocalizedStringKey(decision.error.headline), systemImage: "exclamationmark.triangle.fill")
                 .font(.headline).foregroundStyle(Theme.ink)
-            Text(LocalizedStringKey(decision.error.explanation(tried: decision.attempts, hasBackupKey: environment.hasFallbackKey)))
+            explanation
                 .font(.subheadline).foregroundStyle(Theme.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -85,7 +102,7 @@ private struct DecisionCard: View {
                     Button {
                         onChoose(.stop)
                         environment.router.openSettings()
-                    } label: { Text(decision.error.settingsButtonTitle).frame(maxWidth: .infinity) }
+                    } label: { Text(LocalizedStringKey(decision.error.settingsButtonTitle)).frame(maxWidth: .infinity) }
                         .buttonStyle(.glassAction)
                 }
                 Button(role: .cancel) { onChoose(.stop) } label: { Text("Stop").frame(maxWidth: .infinity) }

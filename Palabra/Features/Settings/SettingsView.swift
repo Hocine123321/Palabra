@@ -67,7 +67,7 @@ struct SettingsView: View {
                         IconTile(systemImage: "lifepreserver", tint: Theme.tileTints[4], size: 30)
                         Text("Reliability")
                         Spacer()
-                        Text(environment.hasFallbackKey ? "Backup key on" : "No backup key")
+                        Text(environment.hasFallbackKey ? LocalizedStringKey("Backup key on") : LocalizedStringKey("No backup key"))
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 }

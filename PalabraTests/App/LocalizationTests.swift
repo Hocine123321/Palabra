@@ -120,4 +120,76 @@ final class LocalizationTests: XCTestCase {
         ]
         for key in storage { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
+    func testArabicStringsHaveReliabilityKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Reliability", "Backup API Key", "Backup key", "Main key", "Using now", "Retry Automatically", "Retrying",
+            "Remove the backup key?", "Remove Backup Key", "Paste a key from another account", "Verify and Save",
+            "Recent Problems", "No problems so far.", "Scope", "Backup key on", "No backup key",
+            "Automatic Tries: %lld", "First Wait: %lld s", "Longest Automatic Wait: %lld s",
+            "Waiting for a connection…", "(backup key)", "Retrying in %llds (%lld of %lld)", "Retrying now… (%lld of %lld)",
+            "Try Again", "Retry with Longer Waits", "I tried 1 time already.", "I tried %lld times already.",
+            "The model \"%@\" no longer exists. Choose another one in Settings.", "Generating \"%@\"",
+            "That's the same as your main key. Use a key from a different account.", "Couldn't save that key.",
+            "Switched to your backup key", "Your main key failed, so the backup key is being used.",
+            "Automatic retries and a backup API key for when your main one fails.",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
+    /// Every wording the retry overlay and the log can show is looked up by its English text.
+    @MainActor
+    func testArabicStringsCoverResilienceWording() throws {
+        let table = try arabicTable()
+        let errors: [AIError] = [
+            .missingAPIKey, .noModelSelected, .modelUnavailable("m"), .offline, .timeout, .invalidAPIKey, .permissionDenied,
+            .rateLimited, .quotaExhausted, .serverError(500), .blocked(nil), .truncated, .malformedResponse,
+            .validationFailed([]), .emptyCatalogue, .unknown(nil, ""),
+        ]
+        var keys: [String] = []
+        for error in errors {
+            keys += [error.shortReason, error.headline, error.settingsButtonTitle]
+            keys += [error.advice(hasBackupKey: true), error.advice(hasBackupKey: false)]
+        }
+        for reason in [KeyHealth.Reason.rateLimited, .quotaExhausted, .rejected, .flaky] {
+            keys.append(ReliabilitySettingsView.benchText(reason))
+        }
+        keys += [
+            "Loading models", "Chat reply", "Pronunciation", "AI request", "Organizing words",
+            "Stopped", "Not retryable", "Stopped while offline", "Switched to backup key", "Stopped by you",
+        ]
+        for key in Set(keys) { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
+    /// Guards the whole app: any fixed text passed to Text, Button, Label and similar must have an
+    /// Arabic entry, or it shows English inside the RTL layout. Reads the sources next to this file,
+    /// and is skipped where they are not on disk.
+    func testEveryFixedUIStringHasArabic() throws {
+        let table = try arabicTable()
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Palabra")
+        guard FileManager.default.fileExists(atPath: root.appendingPathComponent("Features").path) else {
+            throw XCTSkip("App sources are not available to the test runner")
+        }
+        let pattern = try NSRegularExpression(
+            pattern: #"(?:Text|Button|Label|Toggle|Section|NavigationLink|Picker|Stepper|TextField|SecureField|navigationTitle|confirmationDialog|Chip)\(\s*(?:text:\s*)?"((?:[^"\\]|\\.)+)""#
+        )
+        let brandNames: Set<String> = ["Palabra"]
+        var missing: [String] = []
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root.appendingPathComponent("Features"), includingPropertiesForKeys: nil))
+        for case let file as URL in enumerator where file.pathExtension == "swift" {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            let range = NSRange(source.startIndex..., in: source)
+            for match in pattern.matches(in: source, range: range) {
+                guard let r = Range(match.range(at: 1), in: source) else { continue }
+                var text = String(source[r])
+                if text.contains("\\(") { continue } // interpolated: its format key is checked by hand
+                text = text.replacingOccurrences(of: "\\u{2026}", with: "…").replacingOccurrences(of: "\\\"", with: "\"").replacingOccurrences(of: "\\'", with: "'")
+                guard text.contains(where: \.isLetter), !brandNames.contains(text) else { continue }
+                if (table[text] ?? "").isEmpty { missing.append("\(text)  [\(file.lastPathComponent)]") }
+            }
+        }
+        XCTAssertTrue(missing.isEmpty, "UI strings without an Arabic entry:\n" + missing.sorted().joined(separator: "\n"))
+    }
 }

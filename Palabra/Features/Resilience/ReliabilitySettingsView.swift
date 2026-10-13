@@ -80,13 +80,27 @@ struct ReliabilitySettingsView: View {
         HStack {
             Text("Using now")
             Spacer()
-            Text(center.activeSlot == .primary ? "Main key" : "Backup key")
+            Text(center.activeSlot == .primary ? LocalizedStringKey("Main key") : LocalizedStringKey("Backup key"))
                 .foregroundStyle(center.activeSlot == .primary ? Theme.inkSecondary : Theme.accentDeep)
         }
         if center.health.isBenched(.primary, now: Date()), let reason = center.health.reason(.primary) {
             Text(LocalizedStringKey(Self.benchText(reason)))
                 .font(.footnote).foregroundStyle(Theme.error)
         }
+    }
+
+    /// A log line's subject. Most are fixed phrases; "Generating "word"" carries the word.
+    static func activityText(_ what: String) -> Text {
+        let prefix = "Generating \""
+        if what.hasPrefix(prefix), what.hasSuffix("\""), what.count > prefix.count {
+            return Text("Generating \"\(String(what.dropFirst(prefix.count).dropLast()))\"")
+        }
+        return Text(LocalizedStringKey(what))
+    }
+
+    /// "<reason>. <what happened>" for a log line, each part translated on its own.
+    static func detailText(_ entry: ResilienceCenter.LogEntry) -> Text {
+        Text(LocalizedStringKey(entry.error.shortReason)) + Text(". ") + Text(LocalizedStringKey(entry.outcome))
     }
 
     static func benchText(_ reason: KeyHealth.Reason) -> String {
@@ -140,8 +154,8 @@ struct ReliabilitySettingsView: View {
             } else {
                 ForEach(log) { entry in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: entry.what).font(.subheadline).foregroundStyle(Theme.ink)
-                        Text(verbatim: "\(entry.error.shortReason). \(entry.outcome)").font(.footnote).foregroundStyle(Theme.inkSecondary)
+                        Self.activityText(entry.what).font(.subheadline).foregroundStyle(Theme.ink)
+                        Self.detailText(entry).font(.footnote).foregroundStyle(Theme.inkSecondary)
                         Text(entry.date.formatted(.relative(presentation: .named))).font(.caption).foregroundStyle(Theme.inkSecondary)
                     }
                 }

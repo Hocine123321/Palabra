@@ -6,15 +6,10 @@ import SwiftUI
 struct SpanishHomeView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var needCount = 0
-    @State private var wordCount = 0
-    @State private var recentWords: [HubWord] = []
+    @State private var summary = HubSummary.empty
 
-    /// A plain snapshot of a recent word, so the hub never holds a SwiftData model.
-    private struct HubWord: Identifiable {
-        let id: UUID
-        let spanish: String
-        let key: String
-    }
+    private var wordCount: Int { summary.wordCount }
+    private var recentWords: [HubSummary.RecentWord] { summary.recent }
 
     var body: some View {
         ScrollView {
@@ -55,9 +50,7 @@ struct SpanishHomeView: View {
         .onAppear {
             environment.syncReviewNeeds()
             needCount = environment.review.openCount()
-            let all = environment.repository.allWords()
-            wordCount = all.count
-            recentWords = all.prefix(3).map { HubWord(id: $0.id, spanish: $0.spanish, key: $0.key) }
+            summary = HubSummary(newestFirst: environment.repository.allWords())
         }
     }
 
