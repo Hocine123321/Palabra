@@ -478,3 +478,5 @@
 "No backup key" = "لا يوجد مفتاح احتياطي";
 "Automatic retries and a backup API key for when your main one fails." = "إعادة محاولة تلقائية ومفتاح API احتياطي لحين يفشل مفتاحك الرئيسي.";
 "AI request" = "طلب إلى الذكاء الاصطناعي";
+"Your model was removed, so I switched to %@." = "تمت إزالة نموذجك، فانتقلتُ إلى %@.";
+"Added \"%@\" now that you're back online." = "تمت إضافة \"%@\" بعد عودة الاتصال.";

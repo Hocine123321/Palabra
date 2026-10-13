@@ -201,7 +201,7 @@ final class AppEnvironment {
         await target.refresh(apiKey: key, using: rawAI)
         guard let pick = DefaultModelPicker.pick(from: target.models) else { return nil }
         if isTTS { selectedTTSModelID = pick.id } else { selectedModelID = pick.id }
-        resilience.post("Your model was removed, so I switched to \(pick.displayName).", warning: false)
+        resilience.post(.modelSwitched(pick.displayName), warning: false)
         return pick.displayName
     }
 

@@ -131,6 +131,7 @@ final class LocalizationTests: XCTestCase {
             "Try Again", "Retry with Longer Waits", "I tried 1 time already.", "I tried %lld times already.",
             "The model \"%@\" no longer exists. Choose another one in Settings.", "Generating \"%@\"",
             "That's the same as your main key. Use a key from a different account.", "Couldn't save that key.",
+            "Your model was removed, so I switched to %@.", "Added \"%@\" now that you're back online.",
             "Switched to your backup key", "Your main key failed, so the backup key is being used.",
             "Automatic retries and a backup API key for when your main one fails.",
         ]

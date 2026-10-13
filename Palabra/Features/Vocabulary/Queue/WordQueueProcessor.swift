@@ -97,7 +97,7 @@ final class WordQueueProcessor {
             let saved = WordWriter.commit(content: content, mode: item.mode, environment: environment)
             environment.wordQueue.remove(id: item.id)
             if let saved {
-                environment.resilience.post("Added \"\(saved.spanish)\" now that you're back online.")
+                environment.resilience.post(.wordAdded(saved.spanish))
             }
         case .failure(let error):
             if error == .offline {

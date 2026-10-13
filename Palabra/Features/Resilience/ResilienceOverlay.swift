@@ -18,7 +18,7 @@ struct ResilienceOverlay: View {
                 StatusPill(systemImage: "arrow.triangle.2.circlepath", text: retryText(retrying), tint: Theme.accentDeep)
                     .transition(.opacity)
             } else if let notice = center.notice {
-                StatusPill(systemImage: notice.isWarning ? "key.fill" : "checkmark.circle", text: Text(LocalizedStringKey(notice.text)), tint: notice.isWarning ? Theme.error : Theme.accentDeep)
+                StatusPill(systemImage: notice.isWarning ? "key.fill" : "checkmark.circle", text: noticeText(notice.message), tint: notice.isWarning ? Theme.error : Theme.accentDeep)
                     .onTapGesture { center.dismissNotice() }
                     .transition(.opacity)
             }
@@ -29,6 +29,14 @@ struct ResilienceOverlay: View {
         .animation(Motion.reduced(Motion.standard), value: center.pendingDecision?.id)
         .animation(Motion.reduced(Motion.quick), value: center.retrying)
         .animation(Motion.reduced(Motion.quick), value: center.isOffline)
+    }
+
+    private func noticeText(_ message: ResilienceCenter.Message) -> Text {
+        switch message {
+        case .plain(let text): return Text(LocalizedStringKey(text))
+        case .modelSwitched(let name): return Text("Your model was removed, so I switched to \(name).")
+        case .wordAdded(let word): return Text("Added \"\(word)\" now that you're back online.")
+        }
     }
 
     /// "<reason> (backup key). Retrying in 4s (1 of 3)", built from separately translated parts

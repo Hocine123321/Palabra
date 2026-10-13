@@ -35,8 +35,17 @@ final class ResilienceCenter {
     /// A short, non-blocking notice ("Switched to your backup key").
     struct Notice: Identifiable, Equatable {
         let id = UUID()
-        var text: String
+        var message: Message
         var isWarning: Bool
+    }
+
+    /// What a notice says. Sentences that carry a name are cases of their own, so the view can
+    /// translate the sentence and insert the name (a plain `String` can't be translated once built).
+    enum Message: Equatable {
+        /// A fixed sentence, used as its own localization key.
+        case plain(String)
+        case modelSwitched(String)
+        case wordAdded(String)
     }
 
     /// Each in-flight request reports its own retry, so concurrent requests can't erase
@@ -79,7 +88,11 @@ final class ResilienceCenter {
     }
 
     func post(_ text: String, warning: Bool = false, duration: TimeInterval = 6) {
-        notice = Notice(text: text, isWarning: warning)
+        post(.plain(text), warning: warning, duration: duration)
+    }
+
+    func post(_ message: Message, warning: Bool = false, duration: TimeInterval = 6) {
+        notice = Notice(message: message, isWarning: warning)
         noticeTask?.cancel()
         let id = notice?.id
         noticeTask = Task { [weak self] in
