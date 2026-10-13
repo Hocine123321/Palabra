@@ -63,7 +63,7 @@ struct PrimaryButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .font(.headline.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onTint) // ink on orange: 5.4:1 (white is 3.1:1)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Theme.Spacing.md - 2)
                 .background {
