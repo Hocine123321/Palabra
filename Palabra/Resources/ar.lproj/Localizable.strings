@@ -477,3 +477,4 @@
 "Backup key on" = "المفتاح الاحتياطي مفعّل";
 "No backup key" = "لا يوجد مفتاح احتياطي";
 "Automatic retries and a backup API key for when your main one fails." = "إعادة محاولة تلقائية ومفتاح API احتياطي لحين يفشل مفتاحك الرئيسي.";
+"AI request" = "طلب إلى الذكاء الاصطناعي";
