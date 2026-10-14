@@ -83,12 +83,21 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    /// The camera prompt is where the photo privacy wording matters most, so Arabic users get it in Arabic.
+    func testCameraPermissionTextIsTranslated() throws {
+        let url = try XCTUnwrap(
+            Bundle(for: Router.self).url(forResource: "InfoPlist", withExtension: "strings", subdirectory: nil, localization: "ar")
+        )
+        let table = try XCTUnwrap(NSDictionary(contentsOf: url) as? [String: String])
+        XCTAssertFalse((table["NSCameraUsageDescription"] ?? "").isEmpty)
+    }
+
     func testArabicStringsHaveSolveKeys() throws {
         let table = try arabicTable()
         let keys = [
             "Solve", "Problem", "Answer", "Answer not found", "It may have been deleted.", "Recent", "Did you mean",
             "Take Photo", "Choose Photo", "Reading your photo…", "Solving…", "Check the text a photo gave you before you solve it.",
-            "Type or scan a problem, for example x^2 - 4 = 0", "Set up Wolfram|Alpha", "Wolfram|Alpha App ID",
+            "Type or scan a problem, for example x^2 - 4 = 0", "Wolfram|Alpha App ID",
             "Replace App ID", "Remove App ID", "Save App ID", "Get a free App ID", "Remove your App ID?", "Math Solver",
             "About %lld of %lld free solves used this month", "Answers are saved, so opening one again costs nothing.",
             "Powered by Wolfram|Alpha", "Show steps", "Loading steps…", "Uses one more free call.", "Open in Wolfram|Alpha",
@@ -99,7 +108,6 @@ final class LocalizationTests: XCTestCase {
             "Photos are read by Gemini when a key is set, otherwise on your device.",
             "More", "Add word", "Collapsed", "Expanded",
             "Result", "Input", "Decimal approximation", "Factored form", "Expanded form", "Simplified form", "Steps",
-            "Solving uses your own free Wolfram|Alpha App ID (2,000 calls a month). Sign in at the developer portal, create an App ID for the Full Results API, and paste it here.",
         ]
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }

@@ -368,8 +368,6 @@
 "Solving…" = "جارٍ الحل…";
 "Check the text a photo gave you before you solve it." = "تحقق من النص المستخرج من الصورة قبل أن تحلّه.";
 "Type or scan a problem, for example x^2 - 4 = 0" = "اكتب مسألة أو صوّرها، مثلاً x^2 - 4 = 0";
-"Set up Wolfram|Alpha" = "إعداد Wolfram|Alpha";
-"Solving uses your own free Wolfram|Alpha App ID (2,000 calls a month). Sign in at the developer portal, create an App ID for the Full Results API, and paste it here." = "يعتمد الحل على معرّف تطبيق Wolfram|Alpha المجاني الخاص بك (2000 طلب شهرياً). سجّل الدخول إلى بوابة المطورين، وأنشئ معرّف تطبيق لواجهة Full Results API، ثم الصقه هنا.";
 "Wolfram|Alpha App ID" = "معرّف تطبيق Wolfram|Alpha";
 "Replace App ID" = "استبدال معرّف التطبيق";
 "Remove App ID" = "إزالة معرّف التطبيق";
@@ -388,13 +386,8 @@
 "Copied" = "تم النسخ";
 "Share" = "مشاركة";
 "Type or scan a problem first." = "اكتب مسألة أو صوّرها أولاً.";
-"Add your Wolfram|Alpha App ID to solve problems." = "أضف معرّف تطبيق Wolfram|Alpha لحل المسائل.";
 "Wolfram|Alpha refused the App ID. Check it, or the free calls for this month may be used up." = "رفض Wolfram|Alpha معرّف التطبيق. تحقق منه، أو ربما انتهت الطلبات المجانية لهذا الشهر.";
-"Wolfram|Alpha is busy. Try again in a moment." = "Wolfram|Alpha مشغول. حاول مرة أخرى بعد قليل.";
-"Wolfram|Alpha couldn't understand this. Check the problem and try again." = "لم يستطع Wolfram|Alpha فهم هذه المسألة. تحقق منها وحاول مرة أخرى.";
 "There are no steps available for this one." = "لا توجد خطوات متاحة لهذه المسألة.";
-"Couldn't reach Wolfram|Alpha. Check your connection." = "تعذر الوصول إلى Wolfram|Alpha. تحقق من اتصالك.";
-"Wolfram|Alpha sent an answer the app couldn't read." = "أرسل Wolfram|Alpha إجابة لم يستطع التطبيق قراءتها.";
 "Couldn't read that photo. Try another one." = "تعذرت قراءة هذه الصورة. جرّب صورة أخرى.";
 "No text found in the photo. Get closer or add light." = "لم يُعثر على نص في الصورة. اقترب أو زد الإضاءة.";
 

@@ -1,0 +1,2 @@
+/* The camera permission prompt, in Arabic. Keep in step with NSCameraUsageDescription in project.yml. */
+"NSCameraUsageDescription" = "يستخدم Palabra الكاميرا لقراءة مسألة رياضية من صورة. تُقرأ الصورة بواسطة Gemini باستخدام مفتاح API الخاص بك، وإن لم يكن لديك مفتاح فتُقرأ على جهازك.";
