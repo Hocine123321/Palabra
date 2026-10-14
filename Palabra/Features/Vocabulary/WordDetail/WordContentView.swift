@@ -67,6 +67,7 @@ struct WordContentView<Accessory: View>: View {
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 }
+                .textSelection(.enabled)
             }
             .id(WordSection.meaning)
 

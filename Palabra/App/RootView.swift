@@ -44,7 +44,8 @@ struct RootView: View {
                 .tag(AppTab.settings)
         }
         .overlay(alignment: .top) { ResilienceOverlay() }
-        .tint(Theme.accent)
+        // The deeper orange: toolbar text and link buttons need 4.5:1 on cream, and white labels on prominent buttons need it too.
+        .tint(Theme.accentDeep)
         .preferredColorScheme(environment.appearanceMode.colorScheme)
         .environment(\.locale, environment.appLanguage.locale)
         .environment(\.layoutDirection, environment.appLanguage.layoutDirection)

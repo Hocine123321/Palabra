@@ -167,6 +167,7 @@ private struct ChatTurnView: View {
             HStack {
                 Spacer(minLength: 48)
                 Text(verbatim: turn.text)
+                    .textSelection(.enabled)
                     .foregroundStyle(Theme.onTint)
                     .padding(.horizontal, Theme.Spacing.md)
                     .padding(.vertical, Theme.Spacing.sm + 4)
@@ -197,6 +198,7 @@ private struct ChatTurnView: View {
                     HStack(spacing: 0) {
                         Text(ChatMarkdown.attributed(turn.text))
                             .foregroundStyle(Theme.ink)
+                            .textSelection(.enabled)
                             .padding(.horizontal, Theme.Spacing.md)
                             .padding(.vertical, Theme.Spacing.sm + 4)
                             .background(Theme.surface, in: bubbleShape(tightLeading: true))
