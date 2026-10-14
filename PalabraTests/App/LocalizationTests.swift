@@ -106,6 +106,7 @@ final class LocalizationTests: XCTestCase {
             "Solved by Gemini. Double-check it before you rely on it.",
             "Solves on your device first. Gemini writes the steps and handles harder problems.",
             "Photos are read by Gemini when a key is set, otherwise on your device.",
+            "Edit Problem", "Cancel", "Clear", "Share",
             "More", "Add word", "Collapsed", "Expanded",
             "Result", "Input", "Decimal approximation", "Factored form", "Expanded form", "Simplified form", "Steps",
         ]

@@ -11,6 +11,7 @@ struct VocabularyLibraryView: View {
     @State private var searchText = ""
     @State private var inputText = ""
     @State private var activeFlow: AddWordFlow?
+    @State private var savedCount = 0
     @State private var duplicateCandidate: Word?
     @State private var pendingDelete: Word?
     @State private var selectedTag: String?
@@ -95,8 +96,10 @@ struct VocabularyLibraryView: View {
         .sheet(isPresented: $showOrganizeSettings) {
             NavigationStack { OrganizationSettingsView() }
         }
+        .sensoryFeedback(.success, trigger: savedCount)
         .sheet(item: $activeFlow) { flow in
             WordPreviewSheet(flow: flow) { saved in
+                savedCount += 1
                 environment.router.openWord(saved.id)
             }
         }

@@ -10,6 +10,8 @@ struct SolveHomeView: View {
     @State private var showCamera = false
     @State private var recents: [RecentRow] = []
     @State private var solvedCount = 0
+    @State private var solveTask: Task<Void, Never>?
+    @FocusState private var problemFocused: Bool
 
     private struct RecentRow: Identifiable {
         let id: UUID
@@ -25,6 +27,13 @@ struct SolveHomeView: View {
             if let model { content(model) }
         }
         .navigationTitle("Solve")
+        .toolbar {
+            // A multi-line box has no Return-to-finish, so the keyboard gets a Done.
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { problemFocused = false }
+            }
+        }
         .sensoryFeedback(.success, trigger: solvedCount)
         .sensoryFeedback(.error, trigger: model?.error) { _, new in new != nil }
         .onAppear {
@@ -61,6 +70,7 @@ struct SolveHomeView: View {
                 problemEditor($bindable.input)
                 symbolRow(model)
                 solveButton(model)
+                cancelButton(model)
                 if let message = model.photoMessage {
                     Label(LocalizedStringKey(message), systemImage: "camera.metering.unknown")
                         .font(.subheadline)
@@ -117,7 +127,27 @@ struct SolveHomeView: View {
 
     private func problemEditor(_ text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text("Problem").font(.footnote.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
+            HStack {
+                Text("Problem").font(.footnote.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
+                Spacer()
+                if text.wrappedValue.isEmpty {
+                    PasteButton(payloadType: String.self) { strings in
+                        if let pasted = strings.first { text.wrappedValue = pasted }
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .tint(Theme.accentDeep)
+                    .accessibilityIdentifier("pasteProblemButton")
+                } else {
+                    Button { text.wrappedValue = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.inkSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear")
+                    .accessibilityIdentifier("clearProblemButton")
+                }
+            }
             ZStack(alignment: .topLeading) {
                 TextEditor(text: text)
                     .scrollContentBackground(.hidden)
@@ -127,6 +157,7 @@ struct SolveHomeView: View {
                     .foregroundStyle(Theme.ink)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .focused($problemFocused)
                     .accessibilityIdentifier("solveInputField")
                 if text.wrappedValue.isEmpty {
                     Text("Type or scan a problem, for example x^2 - 4 = 0")
@@ -163,12 +194,13 @@ struct SolveHomeView: View {
 
     /// Solves, then opens the saved answer. A soft haptic marks the outcome.
     private func solveAndOpen(_ model: SolveModel) {
-        Task {
+        solveTask = Task {
             if let id = await model.solve() {
                 solvedCount += 1
                 path.append(.result(id))
                 reloadRecents()
             }
+            solveTask = nil
         }
     }
 
@@ -185,6 +217,18 @@ struct SolveHomeView: View {
         .buttonStyle(.primary)
         .disabled(!model.canSolve)
         .accessibilityIdentifier("solveButton")
+    }
+
+    /// Gemini can take a while; a way out beats a spinner.
+    @ViewBuilder
+    private func cancelButton(_ model: SolveModel) -> some View {
+        if model.phase == .solving {
+            Button("Cancel") { solveTask?.cancel() }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.accentDeep)
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("cancelSolveButton")
+        }
     }
 
     private func errorView(_ error: SolveError, _ model: SolveModel) -> some View {
@@ -247,6 +291,7 @@ struct SolveHomeView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("recentSolve")
                 .contextMenu {
+                    Button("Edit Problem", systemImage: "pencil") { model?.input = row.query }
                     Button("Delete", role: .destructive) {
                         environment.solve.history.delete(id: row.id)
                         reloadRecents()

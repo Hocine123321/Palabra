@@ -24,6 +24,8 @@ struct ReviewView: View {
         }
         .navigationTitle("Review")
         .navigationBarTitleDisplayMode(.inline)
+        .sensoryFeedback(.selection, trigger: model?.isFlipped)
+        .sensoryFeedback(.impact(weight: .light), trigger: model?.answered)
         .onAppear {
             guard model == nil else { return }
             let queue = environment.cards.studyQueue(deckID: deckID, now: Date(), newLimit: environment.newCardsPerDay)

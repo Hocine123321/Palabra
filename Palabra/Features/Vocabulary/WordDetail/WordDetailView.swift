@@ -32,6 +32,9 @@ struct WordDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    ShareLink(item: WordShareText.make(word.content)) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
                     Button("Regenerate", systemImage: "arrow.clockwise") { showRegenerate = true }
                     Button("Delete", systemImage: "trash", role: .destructive) { showDeleteConfirm = true }
                 } label: {

@@ -102,6 +102,7 @@ struct SolveResultView: View {
                             .background(Theme.onTint.opacity(0.10), in: Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .sensoryFeedback(.success, trigger: copied) { _, new in new }
                     .accessibilityIdentifier("copyAnswerButton")
                 }
             }

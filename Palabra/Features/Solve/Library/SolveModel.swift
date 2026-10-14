@@ -64,7 +64,10 @@ final class SolveModel {
         phase = .solving
         error = nil
         defer { phase = .idle }
-        switch await tool.solver.solve(query: query, appID: appID) {
+        let outcome = await tool.solver.solve(query: query, appID: appID)
+        // The person pressed Cancel: no answer saved, no error shown, nothing counted.
+        if Task.isCancelled { return nil }
+        switch outcome {
         case .success(let result):
             // Only Wolfram|Alpha's answers use its free calls.
             if result.isFromWolfram { tool.recordCall(now: moment) }

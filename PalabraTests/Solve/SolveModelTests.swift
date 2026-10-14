@@ -107,6 +107,20 @@ final class SolveModelTests: XCTestCase {
         XCTAssertEqual(tool.callsThisMonth, 0)
     }
 
+    func testCancellingASolveSavesNothingAndShowsNoError() async {
+        solver.solveResults = [.success(.sample(query: "x^2-4=0"))]
+        let model = model()
+        model.input = "x^2-4=0"
+        let task = Task { await model.solve() }
+        task.cancel()
+        let id = await task.value
+        XCTAssertNil(id)
+        XCTAssertNil(model.error)
+        XCTAssertEqual(model.phase, .idle)
+        XCTAssertNil(tool.history.entry(forKey: MathInputNormalizer.key(for: "x^2-4=0")), "a cancelled solve is not saved")
+        XCTAssertEqual(tool.callsThisMonth, 0)
+    }
+
     func testNeedingGeminiSurfacesTheMissingKeyError() async {
         solver.solveResults = [.failure(.missingKey)]
         let model = model()
