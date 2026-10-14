@@ -9,6 +9,7 @@ struct SolveHomeView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var recents: [RecentRow] = []
+    @State private var solvedCount = 0
 
     private struct RecentRow: Identifiable {
         let id: UUID
@@ -24,6 +25,8 @@ struct SolveHomeView: View {
             if let model { content(model) }
         }
         .navigationTitle("Solve")
+        .sensoryFeedback(.success, trigger: solvedCount)
+        .sensoryFeedback(.error, trigger: model?.error) { _, new in new != nil }
         .onAppear {
             if model == nil { model = SolveModel(tool: environment.solve) }
             reloadRecents()
@@ -158,9 +161,20 @@ struct SolveHomeView: View {
         }
     }
 
+    /// Solves, then opens the saved answer. A soft haptic marks the outcome.
+    private func solveAndOpen(_ model: SolveModel) {
+        Task {
+            if let id = await model.solve() {
+                solvedCount += 1
+                path.append(.result(id))
+                reloadRecents()
+            }
+        }
+    }
+
     private func solveButton(_ model: SolveModel) -> some View {
         Button {
-            Task { if let id = await model.solve() { path.append(.result(id)); reloadRecents() } }
+            solveAndOpen(model)
         } label: {
             if model.phase == .solving {
                 HStack(spacing: Theme.Spacing.sm) { ProgressView(); Text("Solving\u{2026}") }
@@ -186,7 +200,7 @@ struct SolveHomeView: View {
                 ForEach(Array(suggestions.enumerated()), id: \.offset) { _, suggestion in
                     Button {
                         model.input = suggestion
-                        Task { if let id = await model.solve() { path.append(.result(id)); reloadRecents() } }
+                        solveAndOpen(model)
                     } label: {
                         Text(verbatim: suggestion)
                             .font(.system(.body, design: .monospaced))

@@ -59,6 +59,7 @@ struct SectionedLibraryView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(.isHeader)
+        .accessibilityValue(isCollapsed ? Text("Collapsed") : Text("Expanded"))
     }
 }
 

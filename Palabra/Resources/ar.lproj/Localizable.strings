@@ -499,3 +499,9 @@
 "Expanded form" = "الصيغة الموسَّعة";
 "Simplified form" = "الصيغة المبسَّطة";
 "Steps" = "الخطوات";
+
+/* Accessibility */
+"More" = "المزيد";
+"Add word" = "إضافة كلمة";
+"Collapsed" = "مطويّ";
+"Expanded" = "موسَّع";

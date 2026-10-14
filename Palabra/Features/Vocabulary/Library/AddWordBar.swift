@@ -23,6 +23,7 @@ struct AddWordBar: View {
                     .foregroundStyle(Theme.accentDeep)
             }
             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("Add word")
             .accessibilityIdentifier("addWordButton")
         }
         .glassAccessory()

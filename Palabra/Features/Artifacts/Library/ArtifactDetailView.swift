@@ -51,6 +51,7 @@ struct ArtifactDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityLabel("More")
                 .accessibilityIdentifier("artifactMenu")
             }
         }
