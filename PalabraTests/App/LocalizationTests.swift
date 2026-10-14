@@ -96,6 +96,7 @@ final class LocalizationTests: XCTestCase {
             "Written by Gemini from the checked answer.", "Solved on your device.",
             "Solved by Gemini. Double-check it before you rely on it.",
             "Solves on your device first. Gemini writes the steps and handles harder problems.",
+            "Photos are read by Gemini when a key is set, otherwise on your device.",
             "More", "Add word", "Collapsed", "Expanded",
             "Result", "Input", "Decimal approximation", "Factored form", "Expanded form", "Simplified form", "Steps",
             "Solving uses your own free Wolfram|Alpha App ID (2,000 calls a month). Sign in at the developer portal, create an App ID for the Full Results API, and paste it here.",

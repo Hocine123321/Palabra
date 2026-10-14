@@ -4,21 +4,25 @@ import Vision
 enum RecognitionError: Error, Equatable {
     case unreadable
     case nothingFound
+    /// The preferred reader (Gemini) could not be used: no key, offline, rate limited. Callers fall back.
+    case unavailable
 
     /// A localization key.
     var userMessage: String {
         switch self {
         case .unreadable: return "Couldn't read that photo. Try another one."
         case .nothingFound: return "No text found in the photo. Get closer or add light."
+        case .unavailable: return "Couldn't read that photo. Try another one."
         }
     }
 }
 
-/// Reads the text of a photo. The live one runs on the device (Apple Vision): free, offline, nothing leaves the phone.
+/// Reads the text of a photo. The live chain is Gemini (the person's key) with on-device Apple Vision as the fallback.
 protocol TextRecognizer: Sendable {
     func recognize(imageData: Data) async -> Result<String, RecognitionError>
 }
 
+/// On-device (Apple Vision): free and offline, but weak on maths notation and handwriting.
 struct VisionTextRecognizer: TextRecognizer {
     func recognize(imageData: Data) async -> Result<String, RecognitionError> {
         await Task.detached(priority: .userInitiated) { Self.run(imageData) }.value

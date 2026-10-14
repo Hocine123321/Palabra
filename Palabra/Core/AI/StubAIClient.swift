@@ -39,6 +39,11 @@ final class StubAIClient: AIClient {
         return .success(Self.sampleAudio())
     }
 
+    func generateJSON(prompt: String, image: AIImage, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        return .success(#"{"found":true,"text":"3 \u00D7 4 + x\u00B2"}"#)
+    }
+
     func generateJSON(prompt: String, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
         try? await Task.sleep(nanoseconds: 300_000_000)
         // Study "notes -> flashcards" call (its schema has a `cards` property). A prompt

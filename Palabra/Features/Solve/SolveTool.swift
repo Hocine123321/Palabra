@@ -31,11 +31,12 @@ final class SolveTool {
     }
 
     /// The real thing: the on-device math engine, Wolfram|Alpha when an App ID is saved, Gemini for steps and as a
-    /// fallback, and on-device text reading. Call `attachAI` once the app environment exists.
+    /// fallback, and Gemini photo reading with on-device text reading behind it. Call `attachAI` once the app environment exists.
     static func live(context: ModelContext) -> SolveTool {
         let link = GeminiLink()
         let solver = CompositeMathSolver(local: LocalMathSolver(), wolfram: WolframSolver(), gemini: GeminiMathSolver(link: link))
-        return SolveTool(solver: solver, recognizer: VisionTextRecognizer(), history: SwiftDataSolveRepository(context: context), geminiLink: link)
+        let recognizer = FallbackTextRecognizer(primary: GeminiTextRecognizer(link: link), fallback: VisionTextRecognizer())
+        return SolveTool(solver: solver, recognizer: recognizer, history: SwiftDataSolveRepository(context: context), geminiLink: link)
     }
 
     /// Lets the Gemini solver use the app's AI client, API key, selected model and language. No-op on test tools.

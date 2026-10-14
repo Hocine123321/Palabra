@@ -21,6 +21,8 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
     private let now: @Sendable () -> Date
     /// Background work (auto-pronunciation, auto-organize) must never pop up a question.
     private let interactive: Bool
+    /// One try, no waiting, no questions: for callers that have their own fallback (photo reading falls back to on-device OCR).
+    private let singleAttempt: Bool
 
     init(
         base: AIClient,
@@ -30,7 +32,8 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
         connectivity: ConnectivityWaiting = NetworkMonitor(),
         sleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) },
         now: @escaping @Sendable () -> Date = { Date() },
-        interactive: Bool = true
+        interactive: Bool = true,
+        singleAttempt: Bool = false
     ) {
         self.base = base
         self.center = center
@@ -40,12 +43,19 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
         self.sleep = sleep
         self.now = now
         self.interactive = interactive
+        self.singleAttempt = singleAttempt
+    }
+
+    /// A variant that tries once and returns the error, so the caller can use its own fallback at once.
+    func failingFast() -> ResilientAIClient {
+        ResilientAIClient(base: base, center: center, fallbackKey: fallbackKey, policy: policyProvider,
+                          connectivity: connectivity, sleep: sleep, now: now, interactive: false, singleAttempt: true)
     }
 
     /// A variant for background tasks: same retries and key switching, but it never asks.
     func quiet() -> ResilientAIClient {
         ResilientAIClient(base: base, center: center, fallbackKey: fallbackKey, policy: policyProvider,
-                          connectivity: connectivity, sleep: sleep, now: now, interactive: false)
+                          connectivity: connectivity, sleep: sleep, now: now, interactive: false, singleAttempt: singleAttempt)
     }
 
     // MARK: AIClient
@@ -70,6 +80,10 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
         await run("AI request", primary: apiKey) { key in await self.base.generateJSON(prompt: prompt, systemInstruction: systemInstruction, schema: schema, apiKey: key, model: model, temperature: temperature) }
     }
 
+    func generateJSON(prompt: String, image: AIImage, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
+        await run("Reading a photo", primary: apiKey) { key in await self.base.generateJSON(prompt: prompt, image: image, systemInstruction: systemInstruction, schema: schema, apiKey: key, model: model, temperature: temperature) }
+    }
+
     func organizeWords(_ words: [OrganizerWordInput], existingCategories: [String], settings: OrganizerSettings, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<OrganizerBatchResult, AIError> {
         await run("Organizing words", primary: apiKey) { key in await self.base.organizeWords(words, existingCategories: existingCategories, settings: settings, apiKey: key, model: model, language: language) }
     }
@@ -80,7 +94,7 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
     private func run<T: Sendable>(_ what: String, primary: String, _ operation: @escaping @Sendable (String) async -> Result<T, AIError>) async -> Result<T, AIError> {
         let policy = await policyProvider()
         // Feature off: behave exactly like the plain client.
-        guard policy.autoRetryEnabled else { return await operation(primary) }
+        guard policy.autoRetryEnabled, !singleAttempt else { return await operation(primary) }
 
         var patientRound = 0
         let requestID = UUID()

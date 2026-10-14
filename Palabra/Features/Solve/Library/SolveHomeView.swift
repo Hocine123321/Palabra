@@ -260,6 +260,7 @@ struct SolveHomeView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             Text("Solves on your device first. Gemini writes the steps and handles harder problems.")
             Text("Answers are saved, so opening one again costs nothing.")
+            Text("Photos are read by Gemini when a key is set, otherwise on your device.")
             // Wolfram|Alpha is an optional extra: its usage and credit only show once an App ID is saved.
             if tool.hasKey {
                 Text("About \(tool.callsThisMonth) of \(SolveUsage.freeMonthlyCalls) free solves used this month")

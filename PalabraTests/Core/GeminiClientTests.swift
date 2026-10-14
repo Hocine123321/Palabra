@@ -267,6 +267,28 @@ final class GeminiClientTests: XCTestCase {
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
+    func testGenerateJSONWithAPhotoSendsThePictureThenTheInstruction() async throws {
+        let captured = Box<URLRequest?>(nil)
+        MockURLProtocol.handler = { [self] request in
+            captured.value = request
+            return (200, responseJSON(parts: [["text": #"{"found":true,"text":"x"}"#]]))
+        }
+        let image = AIImage(data: Data([1, 2, 3, 4]), mimeType: "image/jpeg")
+        let result = await client.generateJSON(prompt: "Copy it.", image: image, systemInstruction: "sys", schema: ["type": "OBJECT"], apiKey: "key", model: model, temperature: 0)
+        guard case .success = result else { return XCTFail("expected success, got \(result)") }
+
+        let body = try XCTUnwrap(requestBody(from: captured.value))
+        let contents = body["contents"] as? [[String: Any]]
+        let parts = try XCTUnwrap(contents?.first?["parts"] as? [[String: Any]])
+        XCTAssertEqual(parts.count, 2)
+        let inline = parts.first?["inlineData"] as? [String: Any]
+        XCTAssertEqual(inline?["mimeType"] as? String, "image/jpeg")
+        XCTAssertEqual(inline?["data"] as? String, Data([1, 2, 3, 4]).base64EncodedString(), "the picture bytes are really in the request")
+        XCTAssertEqual(parts.last?["text"] as? String, "Copy it.")
+        let config = body["generationConfig"] as? [String: Any]
+        XCTAssertEqual(config?["responseMimeType"] as? String, "application/json")
+    }
+
     func testSynthesizeSpeechSendsExpectedRequestShape() async {
         let captured = Box<URLRequest?>(nil)
         let wav = WAVAudio.wav(fromPCM: Data([1, 2, 3]), sampleRate: 24000, channels: 1, bitsPerSample: 16)

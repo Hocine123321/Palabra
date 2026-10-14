@@ -119,7 +119,19 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
     }
 
     func generateJSON(prompt: String, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
+        await generateStructured(prompt: prompt, image: nil, systemInstruction: systemInstruction, schema: schema, apiKey: apiKey, model: model, temperature: temperature)
+    }
+
+    func generateJSON(prompt: String, image: AIImage, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
+        await generateStructured(prompt: prompt, image: image, systemInstruction: systemInstruction, schema: schema, apiKey: apiKey, model: model, temperature: temperature)
+    }
+
+    private func generateStructured(prompt: String, image: AIImage?, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
         let maxTokens = min(8192, model.outputTokenLimit ?? 8192)
+        // The picture goes first, then the instruction about it.
+        var parts: [[String: Any]] = []
+        if let image { parts.append(["inlineData": ["mimeType": image.mimeType, "data": image.data.base64EncodedString()]]) }
+        parts.append(["text": prompt])
         func body(useSchema: Bool) -> [String: Any] {
             var config: [String: Any] = ["temperature": temperature, "maxOutputTokens": maxTokens]
             if useSchema, let schema {
@@ -128,7 +140,7 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
             }
             return [
                 "systemInstruction": ["parts": [["text": systemInstruction]]],
-                "contents": [["role": "user", "parts": [["text": prompt]]]],
+                "contents": [["role": "user", "parts": parts]],
                 "generationConfig": config
             ]
         }

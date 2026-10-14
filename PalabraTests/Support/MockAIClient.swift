@@ -34,6 +34,13 @@ final class MockAIClient: AIClient, @unchecked Sendable {
         if !generateJSONScript.isEmpty { return generateJSONScript.removeFirst() }
         return generateJSONResult
     }
+    /// Every photo call: lets tests assert what was sent with the picture.
+    private(set) var imageCalls: [(prompt: String, image: AIImage, systemInstruction: String, schema: [String: Any]?)] = []
+    var imageResult: Result<String, AIError> = .success(#"{"found":true,"text":"x"}"#)
+    func generateJSON(prompt: String, image: AIImage, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
+        imageCalls.append((prompt, image, systemInstruction, schema))
+        return imageResult
+    }
     func organizeWords(_ words: [OrganizerWordInput], existingCategories: [String], settings: OrganizerSettings, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<OrganizerBatchResult, AIError> {
         organizeCalls.append((words, existingCategories))
         return organizeWordsResult

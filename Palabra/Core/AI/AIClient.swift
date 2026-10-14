@@ -15,8 +15,17 @@ protocol AIClient: Sendable {
     /// and returns the raw JSON text. Callers decode and validate it themselves.
     /// New tools should build on this instead of adding feature-specific methods.
     func generateJSON(prompt: String, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError>
+    /// Like `generateJSON`, with one photo attached. Used to read a problem from a picture.
+    func generateJSON(prompt: String, image: AIImage, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError>
     /// Places a batch of saved words into sections and tags them.
     func organizeWords(_ words: [OrganizerWordInput], existingCategories: [String], settings: OrganizerSettings, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<OrganizerBatchResult, AIError>
+}
+
+/// One picture sent with a prompt (already downscaled; see `PhotoPreparer`).
+struct AIImage: Sendable, Equatable {
+    let data: Data
+    /// For example `image/jpeg`.
+    let mimeType: String
 }
 
 /// Optional: a client that can tell how long the server asked us to wait after a rate limit.

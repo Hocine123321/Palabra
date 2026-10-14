@@ -55,6 +55,17 @@ final class ResilientAIClientTests: XCTestCase {
         XCTAssertEqual(base.callCount, 1, "no retries when switched off")
     }
 
+    func testFailingFastTriesOnceAndNeverWaitsOrAsks() async {
+        for error in [AIError.offline, .rateLimited, .serverError(500), .timeout] {
+            let (client, base, center, slept) = make([.failure(error), .failure(error), ok])
+            let result = await client.failingFast().listModels(apiKey: "main")
+            XCTAssertEqual(result.failureError, error)
+            XCTAssertEqual(base.callCount, 1, "\(error): one attempt, the caller has its own fallback")
+            XCTAssertEqual(slept.seconds, 0)
+            XCTAssertNil(center.pendingDecision)
+        }
+    }
+
     // MARK: automatic retry
 
     func testTransientFailureIsRetriedAutomaticallyAndSucceeds() async {

@@ -10,7 +10,7 @@ Features/Solve/
   Service/   MathSolver (protocol + StubMathSolver), CompositeMathSolver + GeminiMathSolver + GeminiLink,
              LocalMathEngine (+ LocalMathSolver), WolframSolver, WolframParser, SolveUsage
   Resources/Math/  nerdamer.bundle.js (Apache-2.0), solver.js (our dispatcher), nerdamer-LICENSE.txt
-  Capture/   TextRecognizer (Apple Vision on device), CameraPicker (UIImagePickerController wrapper)
+  Capture/   TextRecognizer (+ VisionTextRecognizer, on device), GeminiTextRecognizer + FallbackTextRecognizer, PhotoPreparer (downscale to 1600 px JPEG), CameraPicker (UIImagePickerController wrapper)
   Storage/   SolveEntry (SwiftData), SolveRepository (+ SwiftDataSolveRepository)
   Library/   SolveRootView, SolveHomeView, SolveResultView, SolveModel / SolveResultModel, WolframKeyField
   SolveTool.swift   @Observable bundle on AppEnvironment (`environment.solve`)
@@ -18,7 +18,7 @@ Features/Solve/
 
 ## Flow
 
-1. Photo (camera or library) -> `VisionTextRecognizer` (on device, free, offline) -> `MathInputNormalizer.normalize` -> the editable problem box. Vision is weak on math notation, so the person is told to check the text; the symbol row and the normalizer exist for that.
+1. Photo (camera or library) -> `FallbackTextRecognizer`: Gemini vision first (`GeminiTextRecognizer`: the photo is downscaled by `PhotoPreparer`, sent with a copy-only instruction and a `{found, text}` schema, answers in the notation `solver.js` understands), then on-device `VisionTextRecognizer` when there is no key, no connection, Gemini fails, or Gemini sees nothing -> `MathInputNormalizer.normalize` -> the editable problem box. The person is still told to check the text. The photo goes to Google only through the person's own key; the camera permission text and the Solve footer say so.
 2. Solve -> `SolveModel.solve()`: **saved answer first** (`SolveEntry`, keyed by `MathInputNormalizer.key`), then the chain: `LocalMathSolver` (nerdamer in JavaScriptCore, offline, no key), `WolframSolver` (only when an App ID is saved), `GeminiMathSolver` (needs the Gemini key). A repeat question costs no call.
 3. The result is saved and opened. Pod images are downloaded and stored as bytes: Wolfram's image URLs are signed and expire.
 4. "Show steps" is a **user-initiated extra call** (`podstate` from the pod's `states`). The richer pod replaces the old one and is saved. If Wolfram has no steps, the offer is cleared and "Open in Wolfram|Alpha" remains.
