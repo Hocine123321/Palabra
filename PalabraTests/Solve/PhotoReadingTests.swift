@@ -20,7 +20,7 @@ final class GeminiTextRecognizerTests: XCTestCase {
         link.attach { GeminiLink.Credentials(ai: ai, apiKey: "key", model: model, language: .english) }
     }
 
-    static func photo(width: Int = 3000, height: Int = 2000) -> Data {
+    nonisolated static func photo(width: Int = 3000, height: Int = 2000) -> Data {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: { let f = UIGraphicsImageRendererFormat(); f.scale = 1; return f }())
         return renderer.jpegData(withCompressionQuality: 0.9) { context in
             UIColor.white.setFill()
