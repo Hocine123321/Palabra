@@ -32,6 +32,7 @@ struct SolveHomeView: View {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Done") { problemFocused = false }
+                    .accessibilityIdentifier("keyboardDoneButton")
             }
         }
         .sensoryFeedback(.success, trigger: solvedCount)

@@ -2,6 +2,12 @@ import XCTest
 
 /// Solve tab with the stub solver and photo reader (no network, no camera).
 final class SolveUITests: XCTestCase {
+    /// The Solve button sits under the keyboard; the keyboard's Done button clears the way.
+    private func dismissKeyboard(_ app: XCUIApplication) {
+        let done = app.buttons["keyboardDoneButton"]
+        if done.waitForExistence(timeout: 3) { done.tap() }
+    }
+
     func testSolveShowsAnswerThenSteps() {
         let app = XCUIApplication()
         app.launchArguments = ["-UITestStub", "-UITestReset"]
@@ -12,6 +18,7 @@ final class SolveUITests: XCTestCase {
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         input.tap()
         input.typeText("x^2-4=0")
+        dismissKeyboard(app)
 
         let solve = app.buttons["solveButton"]
         XCTAssertTrue(solve.isEnabled)
@@ -38,6 +45,7 @@ final class SolveUITests: XCTestCase {
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         input.tap()
         input.typeText("fallo")
+        dismissKeyboard(app)
         app.buttons["solveButton"].tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "solveError").firstMatch.waitForExistence(timeout: 10))
     }
@@ -53,6 +61,7 @@ final class SolveUITests: XCTestCase {
         XCTAssertFalse(app.secureTextFields["wolframKeyField"].exists, "no setup card: the solver needs no key")
         input.tap()
         input.typeText("x^2-4=0")
+        dismissKeyboard(app)
         app.buttons["solveButton"].tap()
         XCTAssertTrue(app.navigationBars["Answer"].waitForExistence(timeout: 10))
     }

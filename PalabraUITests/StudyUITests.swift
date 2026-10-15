@@ -9,9 +9,9 @@ final class StudyUITests: XCTestCase {
         app.launch()
 
         app.tabBars.buttons["Study"].tap()
-        let reviewAll = app.buttons["reviewAllButton"]
+        // "Review All Due" is the today card (the old reviewAllButton no longer exists).
+        let reviewAll = app.buttons["todayCard"]
         XCTAssertTrue(reviewAll.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "todayCard").firstMatch.exists)
         reviewAll.tap()
 
         for _ in 0..<3 {

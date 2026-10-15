@@ -41,6 +41,8 @@ final class VocabularyLibraryUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Open Existing"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Regenerate"].exists)
-        app.buttons["Cancel"].tap()
+        // iOS 26 shows this dialog as a popover with no Cancel button; tapping Open Existing is the way out.
+        let cancel = app.buttons["Cancel"]
+        if cancel.exists { cancel.tap() }
     }
 }

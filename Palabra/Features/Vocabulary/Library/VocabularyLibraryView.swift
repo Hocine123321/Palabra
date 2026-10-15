@@ -58,7 +58,7 @@ struct VocabularyLibraryView: View {
             }
             .safeAreaInset(edge: .bottom) { bottomBar }
         }
-        .searchable(text: $searchText, prompt: "Search words or #tags")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search words or #tags")
         .navigationTitle("Library")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {

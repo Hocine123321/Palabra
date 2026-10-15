@@ -47,7 +47,8 @@ final class ChatUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.openVocabulary())
-        XCTAssertTrue(app.staticTexts["alpha"].firstMatch.waitForExistence(timeout: 20))
+        let alpha = app.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", "alpha")).firstMatch
+        XCTAssertTrue(alpha.waitForExistence(timeout: 20))
     }
 
     func testNotNowChangesNothing() {
