@@ -132,6 +132,18 @@ jobs:
           } > build/ui-summary.txt || true
           MSG=$(python3 -c "print(open('build/ui-summary.txt').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
           echo "::notice title=UI test summary::$MSG"
+          # Why a lookup failed: the elements the app really showed at that moment (first four failures).
+          python3 - <<'PY'
+          import re
+          lines = open('build/ui-clean.log', errors='replace').read().split('\n')
+          shown = 0
+          for i, line in enumerate(lines):
+              if ('No matches found' in line or 'Failed to' in line) and ': error:' in line and shown < 4:
+                  shown += 1
+                  chunk = '\n'.join(l[:200] for l in lines[i:i + 45])
+                  chunk = chunk.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print('::notice title=UI failure detail %d::%s' % (shown, chunk))
+          PY
       - name: Export UI screenshots
         if: always()
         continue-on-error: true
