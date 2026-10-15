@@ -117,7 +117,21 @@ jobs:
           xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -only-testing:PalabraUITests -resultBundlePath build/ui.xcresult \
-            | tail -n 80
+            | tee build/ui.log | tail -n 80
+      - name: UI test summary
+        if: always()
+        shell: bash
+        run: |
+          # The UI step is allowed to fail the build, so say plainly what happened (logs are not downloadable).
+          grep -v 'CoreData:' build/ui.log > build/ui-clean.log || true
+          {
+            echo "UI tests: passed cases: $(grep -cE "^Test Case .* passed" build/ui-clean.log)  failed cases: $(grep -cE "^Test Case .* failed" build/ui-clean.log)"
+            grep -E "Test Case .* failed|TEST FAILED|TEST EXECUTE FAILED|: error:|XCTAssert|Failing tests|crashed|Executed [0-9]+ tests" build/ui-clean.log | sed 's#/Users/runner/work/Palabra/Palabra/##' | cut -c1-300 | awk '!seen[$0]++' | head -40 || true
+            echo "--- last 25 log lines:"
+            tail -n 25 build/ui-clean.log | cut -c1-240 || true
+          } > build/ui-summary.txt || true
+          MSG=$(python3 -c "print(open('build/ui-summary.txt').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
+          echo "::notice title=UI test summary::$MSG"
       - name: Export UI screenshots
         if: always()
         continue-on-error: true
