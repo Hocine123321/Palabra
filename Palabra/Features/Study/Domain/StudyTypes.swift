@@ -21,6 +21,11 @@ struct DeckCounts: Equatable {
     var total = 0
     var due = 0
     var new = 0
+
+    /// Cards waiting for review across every deck (new cards are not "due"): the Study tab's badge.
+    static func totalDue(_ counts: [UUID: DeckCounts]) -> Int {
+        counts.values.reduce(0) { $0 + $1.due }
+    }
 }
 
 enum StudyRoute: Hashable {

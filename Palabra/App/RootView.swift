@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.scenePhase) private var scenePhase
+    @State private var dueCount = 0
 
     var body: some View {
         @Bindable var env = environment
@@ -33,6 +34,7 @@ struct RootView: View {
 
             StudyRootView(cardAccessory: { AnyView(VocabularyCardPronunciation(wordID: $0)) })
                 .tabItem { Label("Study", systemImage: "rectangle.stack") }
+                .badge(dueCount)
                 .tag(AppTab.study)
 
             SolveRootView()
@@ -55,14 +57,24 @@ struct RootView: View {
         .onAppear {
             environment.syncVocabularyCards()
             environment.syncReviewNeeds()
+            refreshDueBadge()
         }
+        // Reviewing happens on the Study tab; coming back to any tab refreshes the count.
+        .onChange(of: environment.router.tab) { _, _ in refreshDueBadge() }
         // Picks up anything queued offline: once on launch, and again every
         // time the app returns to the foreground (a drain already in
         // progress, or an empty queue, makes this a no-op).
         .task { environment.queueProcessor.drain(environment: environment) }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active { environment.queueProcessor.drain(environment: environment) }
+            if newPhase == .active {
+                environment.queueProcessor.drain(environment: environment)
+                refreshDueBadge()
+            }
         }
+    }
+
+    private func refreshDueBadge() {
+        dueCount = DeckCounts.totalDue(environment.cards.counts(now: Date()))
     }
 
     /// "Ask about this word": find or create the chat for the word (importing the word's old chat the first

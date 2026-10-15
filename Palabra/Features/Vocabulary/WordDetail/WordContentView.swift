@@ -26,6 +26,7 @@ struct WordContentView<Accessory: View>: View {
     let content: WordContent
     @ViewBuilder var accessory: () -> Accessory
     @State private var revealedExamples: Set<Int> = []
+    @State private var speaker = SentenceSpeaker()
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
@@ -35,7 +36,19 @@ struct WordContentView<Accessory: View>: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                     ForEach(Array(content.examples.enumerated()), id: \.offset) { index, example in
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            Chip(text: example.context)
+                            HStack {
+                                Chip(text: example.context)
+                                Spacer()
+                                Button { speaker.toggle(example.spanish) } label: {
+                                    Image(systemName: speaker.speaking == example.spanish ? "stop.circle.fill" : "speaker.wave.2.fill")
+                                        .font(.body)
+                                        .foregroundStyle(Theme.accentDeep)
+                                        .frame(width: 44, height: 32)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(speaker.speaking == example.spanish ? "Stop" : "Listen")
+                                .accessibilityIdentifier("speakExampleButton")
+                            }
                             Text(example.spanish)
                                 .foregroundStyle(Theme.ink)
                             if revealedExamples.contains(index) {
@@ -53,6 +66,7 @@ struct WordContentView<Accessory: View>: View {
                 }
             }
             .id(WordSection.examples)
+            .onDisappear { speaker.stop() }
 
             SectionCard(title: "Meaning & Usage", systemImage: "text.book.closed") {
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {

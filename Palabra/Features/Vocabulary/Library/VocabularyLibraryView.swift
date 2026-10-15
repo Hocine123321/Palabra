@@ -12,6 +12,7 @@ struct VocabularyLibraryView: View {
     @State private var inputText = ""
     @State private var activeFlow: AddWordFlow?
     @State private var savedCount = 0
+    @AppStorage("librarySort") private var sortRaw = LibrarySort.newest.rawValue
     @State private var duplicateCandidate: Word?
     @State private var pendingDelete: Word?
     @State private var selectedTag: String?
@@ -72,6 +73,11 @@ struct VocabularyLibraryView: View {
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
+                    Picker("Sort", selection: $sortRaw) {
+                        ForEach(LibrarySort.allCases) { option in
+                            Label(LocalizedStringKey(option.title), systemImage: option.systemImage).tag(option.rawValue)
+                        }
+                    }
                     Button {
                         showOrganizeSheet = true
                     } label: {
@@ -130,11 +136,13 @@ struct VocabularyLibraryView: View {
         environment.organizerSettings.groupIntoSections && words.contains { $0.category != nil }
     }
 
+    private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
+
     private var filteredWords: [Word] {
-        words.filter { word in
+        sort.apply(words.filter { word in
             LibrarySections.matches(word, query: searchText)
                 && (selectedTag.map { tag in word.tags.contains(tag) } ?? true)
-        }
+        })
     }
 
     @ViewBuilder

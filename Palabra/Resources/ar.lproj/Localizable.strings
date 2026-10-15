@@ -500,3 +500,8 @@
 "Expanded" = "موسَّع";
 "Photos are read by Gemini when a key is set, otherwise on your device." = "تُقرأ الصور بواسطة Gemini عند وجود مفتاح، وإلا فعلى جهازك.";
 "Edit Problem" = "تعديل المسألة";
+"Listen" = "استماع";
+"Sort" = "ترتيب";
+"Newest first" = "الأحدث أولاً";
+"Oldest first" = "الأقدم أولاً";
+"A to Z" = "أبجدياً (A–Z)";
