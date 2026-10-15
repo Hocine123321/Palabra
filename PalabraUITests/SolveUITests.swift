@@ -28,11 +28,12 @@ final class SolveUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["x = -2 or x = 2"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "answerCard").firstMatch.exists)
 
-        let steps = app.buttons["showStepsButton"]
+        // The hero card's own identifier ("answerCard") wins over the button's on iOS 26, so find it by its label.
+        let steps = app.buttons["Show steps"]
         XCTAssertTrue(steps.waitForExistence(timeout: 5))
         steps.tap()
         XCTAssertTrue(app.staticTexts["x^2 = 4, so x = ±2"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["showStepsButton"].exists, "steps are shown, the offer is gone")
+        XCTAssertFalse(app.buttons["Show steps"].exists, "steps are shown, the offer is gone")
     }
 
     func testFailureShowsErrorBanner() {
