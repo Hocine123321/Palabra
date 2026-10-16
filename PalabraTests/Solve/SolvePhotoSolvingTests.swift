@@ -45,7 +45,8 @@ final class GeminiPhotoSolveTests: XCTestCase {
     func testAMultiPartAnswerKeepsEveryPartAndIsSavedUnderTheCopiedProblem() async throws {
         attach()
         ai.imageResult = .success(solvedJSON)
-        let solved = try XCTUnwrap(await solver.solvePhoto(imageData: GeminiTextRecognizerTests.photo()).success)
+        let outcome = await solver.solvePhoto(imageData: GeminiTextRecognizerTests.photo())
+        let solved = try XCTUnwrap(outcome.success)
         XCTAssertEqual(solved.query, "Solve: (a) x^2 - 4 = 0 (b) 2x + 1 = 7")
         XCTAssertEqual(solved.source, .gemini)
         XCTAssertFalse(solved.isFromWolfram)
