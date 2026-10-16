@@ -19,6 +19,10 @@ final class AppEnvironment {
     let backgroundAI: AIClient
     /// Shared state for retries, key switching and "what should I do?" questions.
     let resilience = ResilienceCenter()
+    /// Which models are working, learned from every request and from the Test buttons.
+    let modelHealth: ModelHealthStore
+    /// Bumped whenever `modelHealth` changes, so model lists redraw their marks.
+    private(set) var modelHealthRevision = 0
     let repository: WordRepository
     /// Flashcard decks and review history (Study tool).
     let cards: CardRepository
@@ -78,6 +82,7 @@ final class AppEnvironment {
         settings: SettingsStore,
         wordQueue: WordQueueRepository,
         fallbackKeychain: KeychainStore = .fallback(),
+        modelHealth: ModelHealthStore? = nil,
         resilient: Bool = false,
         connectivity: ConnectivityWaiting? = nil,
         sleep: (@Sendable (TimeInterval) async -> Void)? = nil,
@@ -91,6 +96,8 @@ final class AppEnvironment {
         let policyBox = PolicyBox(settings.retryPolicy)
         self.policyBox = policyBox
         let center = resilience
+        let health = modelHealth ?? ModelHealthStore()
+        self.modelHealth = health
         let resolvedConnectivity = connectivity ?? NetworkMonitor()
         self.connectivity = resolvedConnectivity
         if resilient {
@@ -101,7 +108,14 @@ final class AppEnvironment {
                 fallbackKey: { fallbackStore.read() },
                 policy: { policyBox.value },
                 connectivity: resolvedConnectivity,
-                sleep: sleep ?? { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
+                sleep: sleep ?? { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) },
+                modelHealth: health,
+                backupModels: { failed in
+                    // The catalogue lives on the main actor; ask it for models that are not known to be failing.
+                    await MainActor.run {
+                        BackupModelPicker.candidates(failed: failed, models: catalogue.models, health: health, preferredID: policyBox.value.backupModelID)
+                    }
+                }
             )
             self.ai = wrapped
             self.backgroundAI = wrapped.quiet()
@@ -155,13 +169,31 @@ final class AppEnvironment {
         wireAIGateway()
         wireCapabilityHooks()
         wireSolve()
+        health.onChange { [weak self] in
+            Task { @MainActor in self?.modelHealthRevision += 1 }
+        }
+    }
+
+    // MARK: model health
+
+    /// What the app knows about a model right now. Reading it makes the caller redraw when that changes.
+    func modelStatus(_ id: String) -> ModelStatus {
+        _ = modelHealthRevision
+        return modelHealth.status(for: id)
+    }
+
+    /// Asks one model a tiny question and records whether it answered. One try on the main key.
+    @discardableResult
+    func testModel(_ model: AIModel) async -> Result<Void, AIError> {
+        guard let key = apiKey else { return .failure(.missingAPIKey) }
+        return await ModelProbe.test(model, apiKey: key, using: rawAI, health: modelHealth)
     }
 
     /// Gives the Solve tab's Gemini solver the current AI client, key, model and language. Read when a problem needs
     /// Gemini, so a key or model chosen later is picked up.
     private func wireSolve() {
         solve.attachAI { [weak self] in
-            guard let self, let apiKey = self.apiKey, let model = self.selectedModel else { return nil }
+            guard let self, let apiKey = self.apiKey, let model = self.solveModel else { return nil }
             return GeminiLink.Credentials(ai: self.ai, apiKey: apiKey, model: model, language: self.aiLanguage)
         }
     }
@@ -218,6 +250,12 @@ final class AppEnvironment {
     var selectedModel: AIModel? {
         guard let id = selectedModelID else { return nil }
         return catalogue.models.first { $0.id == id }
+    }
+
+    /// The model the Solve tab uses: its own choice when set and still listed, otherwise the main model.
+    var solveModel: AIModel? {
+        if let id = solve.settings.modelID, let own = catalogue.models.first(where: { $0.id == id }) { return own }
+        return selectedModel
     }
 
     var selectedTTSModel: AIModel? {
@@ -374,6 +412,7 @@ final class AppEnvironment {
             keychain: KeychainStore(),
             settings: SettingsStore(),
             wordQueue: SwiftDataWordQueueRepository(context: modelContext),
+            modelHealth: ModelHealthStore(defaults: .standard),
             resilient: true,
             cardRepository: SwiftDataCardRepository(context: modelContext),
             artifactRepository: SwiftDataArtifactRepository(context: modelContext),

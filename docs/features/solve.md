@@ -6,19 +6,29 @@ A tab where a math problem is typed or photographed and solved on the device, th
 
 ```
 Features/Solve/
-  Domain/    SolveModels (SolveResult / SolvePod / SolveSubpod / SolveError), MathInputNormalizer
+  Domain/    SolveModels (SolveResult / SolvePod / SolveSubpod / SolveError), MathInputNormalizer, SolveSettings (+ SolveSettingsStore)
   Service/   MathSolver (protocol + StubMathSolver), CompositeMathSolver + GeminiMathSolver + GeminiLink,
              LocalMathEngine (+ LocalMathSolver), WolframSolver, WolframParser, SolveUsage
   Resources/Math/  nerdamer.bundle.js (Apache-2.0), solver.js (our dispatcher), nerdamer-LICENSE.txt
   Capture/   TextRecognizer (+ VisionTextRecognizer, on device), GeminiTextRecognizer + FallbackTextRecognizer, PhotoPreparer (downscale to 1600 px JPEG), CameraPicker (UIImagePickerController wrapper)
   Storage/   SolveEntry (SwiftData), SolveRepository (+ SwiftDataSolveRepository)
-  Library/   SolveRootView, SolveHomeView, SolveResultView, SolveModel / SolveResultModel, WolframKeyField
+  Library/   SolveRootView, SolveHomeView, SolveResultView, SolveSettingsView, SolveModel / SolveResultModel, WolframKeyField
   SolveTool.swift   @Observable bundle on AppEnvironment (`environment.solve`)
 ```
 
+## Solve settings (`SolveSettingsView`, from the toolbar and Settings > Solve)
+
+`SolveTool.settings` (`SolveSettings`, persisted by `SolveSettingsStore`, read by the solver off the main thread):
+
+- `photoMode`: `sendToGemini` (default) sends the photo itself to Gemini, which copies the whole problem and solves it in one step (`GeminiMathSolver.solvePhoto`, a 2048 px JPEG, schema ordered `readable, problem, solvable, answer, steps` so the problem is copied before it is solved; multi-part answers and up to 20 steps; saved under the copied problem, which also fills the problem box). `readText` is the older flow (Gemini copies text, Vision behind it). `readOnDevice` never sends the photo anywhere.
+- When direct solving can't use Gemini (no key, offline, rate limited) `SolveModel.solvePhoto` reads the text on the device instead and says so; nothing is lost. A photo with no problem shows the "no text found" message.
+- `useOnDeviceEngine` off sends every typed problem to Gemini (`CompositeMathSolver.useLocal`).
+- `modelID` is a model for Solve only (nil follows the main model); `AppEnvironment.solveModel` resolves it. It goes through `environment.ai`, so retries and backup models apply.
+- The optional Wolfram App ID moved here from Settings.
+
 ## Flow
 
-1. Photo (camera or library) -> `FallbackTextRecognizer`: Gemini vision first (`GeminiTextRecognizer`: the photo is downscaled by `PhotoPreparer`, sent with a copy-only instruction and a `{found, text}` schema, answers in the notation `solver.js` understands), then on-device `VisionTextRecognizer` when there is no key, no connection, Gemini fails, or Gemini sees nothing -> `MathInputNormalizer.normalize` -> the editable problem box. The person is still told to check the text. The photo goes to Google only through the person's own key; the camera permission text and the Solve footer say so.
+1. Photo (camera or library): in the default `sendToGemini` mode it goes straight to `solvePhoto` (see Solve settings). In the other modes -> `FallbackTextRecognizer`: Gemini vision first (`GeminiTextRecognizer`: the photo is downscaled by `PhotoPreparer`, sent with a copy-only instruction and a `{found, text}` schema, answers in the notation `solver.js` understands), then on-device `VisionTextRecognizer` when there is no key, no connection, Gemini fails, or Gemini sees nothing -> `MathInputNormalizer.normalize` -> the editable problem box. The person is still told to check the text. The photo goes to Google only through the person's own key; the camera permission text and the Solve footer say so.
 2. Solve -> `SolveModel.solve()`: **saved answer first** (`SolveEntry`, keyed by `MathInputNormalizer.key`), then the chain: `LocalMathSolver` (nerdamer in JavaScriptCore, offline, no key), `WolframSolver` (only when an App ID is saved), `GeminiMathSolver` (needs the Gemini key). A repeat question costs no call.
 3. The result is saved and opened. Pod images are downloaded and stored as bytes: Wolfram's image URLs are signed and expire.
 4. "Show steps" is a **user-initiated extra call** (`podstate` from the pod's `states`). The richer pod replaces the old one and is saved. If Wolfram has no steps, the offer is cleared and "Open in Wolfram|Alpha" remains.
@@ -40,11 +50,11 @@ Features/Solve/
 
 ## Quota
 
-`SolveUsage` is a local tally (UserDefaults key `wolframUsage`, UTC month). It counts a call on success and on "no result", not on network failures or a refused key. It is an estimate; Wolfram keeps the real count. It is shown on the Solve screen and in Settings -> Math Solver.
+`SolveUsage` is a local tally (UserDefaults key `wolframUsage`, UTC month). It counts a call on success and on "no result", not on network failures or a refused key. It is an estimate; Wolfram keeps the real count. It is shown on the Solve screen and in Solve Settings.
 
 ## Tests
 
 - `MockMathSolver` / `MockTextRecognizer` (Support/) for model tests; `WolframSolverTests` use `MockURLProtocol` and assert the request URL (appid, input, podstate) is really sent.
-- `LocalMathSolverTests` run the real engine; `GeminiMathSolverTests` assert the exact prompt, system instruction and schema sent; `CompositeMathSolverTests` cover the order and error choice.
+- `SolvePhotoSolvingTests` assert the photo request (image bytes, copy-then-solve instruction, schema order), parsing, the text fallback and the settings. `LocalMathSolverTests` run the real engine; `GeminiMathSolverTests` assert the exact prompt, system instruction and schema sent; `CompositeMathSolverTests` cover the order and error choice.
 - UI tests run on `-UITestStub` (`StubMathSolver`, `StubTextRecognizer`); `-UITestNoSolveKey` starts without an App ID (solving still works). In the stub, "fallo" gives a rate-limit error and "zzz" gives no result.
 - The camera permission text (`NSCameraUsageDescription`) is in `project.yml` and is not localized.

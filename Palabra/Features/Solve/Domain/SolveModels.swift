@@ -138,6 +138,8 @@ enum SolveError: Error, Equatable {
     case noSteps
     case network
     case malformed
+    /// The photo has no readable problem in it (or could not be opened).
+    case unreadablePhoto
 
     /// A localization key (shown through `LocalizedStringKey`).
     var userMessage: String {
@@ -150,6 +152,7 @@ enum SolveError: Error, Equatable {
         case .noSteps: return "There are no steps available for this one."
         case .network: return "Couldn't reach the solver. Check your connection."
         case .malformed: return "The solver sent an answer the app couldn't read."
+        case .unreadablePhoto: return "No problem found in the photo. Get closer or add light."
         }
     }
 }

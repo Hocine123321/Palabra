@@ -45,6 +45,8 @@ final class ResilienceCenter {
         /// A fixed sentence, used as its own localization key.
         case plain(String)
         case modelSwitched(String)
+        /// Answering with another model for now because the chosen one is busy or out of quota.
+        case backupModel(String)
         case wordAdded(String)
     }
 

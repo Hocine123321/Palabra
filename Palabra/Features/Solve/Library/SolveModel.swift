@@ -5,7 +5,7 @@ import Observation
 @MainActor
 @Observable
 final class SolveModel {
-    enum Phase: Equatable { case idle, reading, solving }
+    enum Phase: Equatable { case idle, reading, solving, solvingPhoto }
 
     var input = ""
     private(set) var phase: Phase = .idle
@@ -31,7 +31,9 @@ final class SolveModel {
         photoMessage = nil
         error = nil
         defer { phase = .idle }
-        switch await tool.recognizer.recognize(imageData: imageData) {
+        // "Read on device" never sends the photo anywhere; the other modes try Gemini first.
+        let reader = tool.settings.photoMode == .readOnDevice ? tool.localRecognizer : tool.recognizer
+        switch await reader.recognize(imageData: imageData) {
         case .success(let text):
             let cleaned = MathInputNormalizer.normalize(text)
             if cleaned.isEmpty {
@@ -41,6 +43,43 @@ final class SolveModel {
             }
         case .failure(let failure):
             photoMessage = failure.userMessage
+        }
+    }
+
+    /// Solves straight from a photo (Gemini reads and solves in one step) and saves the answer under the problem it
+    /// copied out, which also fills the problem box so it can be edited and solved again.
+    /// Returns the saved entry's id. Returns nil with `error` set, or, when Gemini can't be used right now, after
+    /// reading the text on this device instead (the box is filled and `photoMessage` says so).
+    func solvePhoto(imageData: Data) async -> UUID? {
+        guard phase == .idle else { return nil }
+        phase = .solvingPhoto
+        photoMessage = nil
+        error = nil
+        let outcome = await tool.solver.solvePhoto(imageData: imageData)
+        phase = .idle
+        // The person pressed Cancel: nothing saved, nothing shown.
+        if Task.isCancelled { return nil }
+        switch outcome {
+        case .success(let result):
+            input = result.query
+            return tool.history.save(query: result.query, key: MathInputNormalizer.key(for: result.query), result: result, now: now()).id
+        case .failure(.missingKey), .failure(.network), .failure(.rateLimited):
+            await readTextInstead(imageData)
+            return nil
+        case .failure(.unreadablePhoto):
+            photoMessage = RecognitionError.nothingFound.userMessage
+            return nil
+        case .failure(let failure):
+            error = failure
+            return nil
+        }
+    }
+
+    /// Gemini isn't reachable, so the photo is read as text on the device and the person checks it before solving.
+    private func readTextInstead(_ imageData: Data) async {
+        await recognize(imageData: imageData)
+        if photoMessage == nil, !input.isEmpty {
+            photoMessage = "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve."
         }
     }
 

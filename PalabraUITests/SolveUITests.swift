@@ -66,4 +66,39 @@ final class SolveUITests: XCTestCase {
         app.buttons["solveButton"].tap()
         XCTAssertTrue(app.navigationBars["Answer"].waitForExistence(timeout: 10))
     }
+
+    func testSolveSettingsPageChangesHowPhotosAreHandled() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-UITestStub", "-UITestReset", "-UITestNoSolveKey"]
+        app.launch()
+
+        app.tabBars.buttons["Solve"].tap()
+        XCTAssertTrue(app.staticTexts["Photos go to Gemini, which reads and solves them in one step."].waitForExistence(timeout: 5), "photos go to Gemini by default")
+        let gear = app.buttons["solveSettingsButton"]
+        XCTAssertTrue(gear.waitForExistence(timeout: 5))
+        gear.tap()
+
+        XCTAssertTrue(app.navigationBars["Solve Settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.secureTextFields["wolframKeyField"].waitForExistence(timeout: 5), "the optional Wolfram App ID lives here now")
+        let onDevice = app.buttons["Read text on this device"].exists ? app.buttons["Read text on this device"] : app.staticTexts["Read text on this device"]
+        XCTAssertTrue(onDevice.waitForExistence(timeout: 5))
+        onDevice.tap()
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.staticTexts["Photos are read on your device and never leave it."].waitForExistence(timeout: 5))
+    }
+
+    func testModelPickerOffersTestingAndTheSolvePageHasItsOwnModel() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-UITestStub", "-UITestReset"]
+        app.launch()
+
+        app.tabBars.buttons["Solve"].tap()
+        app.buttons["solveSettingsButton"].tap()
+        let modelRow = app.buttons["solveModelRow"]
+        XCTAssertTrue(modelRow.waitForExistence(timeout: 5))
+        modelRow.tap()
+        XCTAssertTrue(app.buttons["automaticModelRow"].waitForExistence(timeout: 5), "can follow the main model")
+        XCTAssertTrue(app.buttons["testAllModelsButton"].exists)
+    }
 }

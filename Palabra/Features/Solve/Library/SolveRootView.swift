@@ -2,6 +2,7 @@ import SwiftUI
 
 enum SolveRoute: Hashable {
     case result(UUID)
+    case settings
 }
 
 /// The Solve tab: its own navigation stack.
@@ -14,6 +15,7 @@ struct SolveRootView: View {
                 .navigationDestination(for: SolveRoute.self) { route in
                     switch route {
                     case .result(let id): SolveResultView(entryID: id)
+                    case .settings: SolveSettingsView()
                     }
                 }
         }

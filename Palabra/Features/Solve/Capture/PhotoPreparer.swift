@@ -6,9 +6,11 @@ import UniformTypeIdentifiers
 /// and reads just as well. Applies the EXIF rotation, so the picture goes out upright.
 enum PhotoPreparer {
     static let maxPixelSize = 1600
+    /// A photo that is solved directly keeps more detail: small exponents and subscripts must stay legible.
+    static let solvePixelSize = 2048
     static let jpegQuality = 0.8
 
-    static func prepare(_ data: Data) -> AIImage? {
+    static func prepare(_ data: Data, maxPixelSize: Int = PhotoPreparer.maxPixelSize) -> AIImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,

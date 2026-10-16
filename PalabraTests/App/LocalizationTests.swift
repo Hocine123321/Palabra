@@ -98,7 +98,7 @@ final class LocalizationTests: XCTestCase {
             "Solve", "Problem", "Answer", "Answer not found", "It may have been deleted.", "Recent", "Did you mean",
             "Take Photo", "Choose Photo", "Reading your photo…", "Solving…", "Check the text a photo gave you before you solve it.",
             "Type or scan a problem, for example x^2 - 4 = 0", "Wolfram|Alpha App ID",
-            "Replace App ID", "Remove App ID", "Save App ID", "Get a free App ID", "Remove your App ID?", "Math Solver",
+            "Replace App ID", "Remove App ID", "Save App ID", "Get a free App ID", "Remove your App ID?",
             "About %lld of %lld free solves used this month", "Answers are saved, so opening one again costs nothing.",
             "Powered by Wolfram|Alpha", "Show steps", "Loading steps…", "Uses one more free call.", "Open in Wolfram|Alpha",
             "Copy", "Copied", "Share",
@@ -117,7 +117,7 @@ final class LocalizationTests: XCTestCase {
     /// Every message the Solve tab can show is looked up by its English text.
     func testArabicStringsCoverSolveMessages() throws {
         let table = try arabicTable()
-        let solveErrors: [SolveError] = [.emptyInput, .missingKey, .invalidKey, .rateLimited, .noResult(suggestions: []), .noSteps, .network, .malformed]
+        let solveErrors: [SolveError] = [.emptyInput, .missingKey, .invalidKey, .rateLimited, .noResult(suggestions: []), .noSteps, .network, .malformed, .unreadablePhoto]
         for error in solveErrors { XCTAssertFalse((table[error.userMessage] ?? "").isEmpty, "missing Arabic string: \(error.userMessage)") }
         for error in [RecognitionError.unreadable, .nothingFound] {
             XCTAssertFalse((table[error.userMessage] ?? "").isEmpty, "missing Arabic string: \(error.userMessage)")
@@ -136,6 +136,39 @@ final class LocalizationTests: XCTestCase {
         ]
         for key in storage { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
+    func testArabicStringsHaveModelHealthKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Working", "Busy right now", "Quota used up", "Unstable", "Not available", "Testing…", "Test This Model", "Test",
+            "Stop Testing", "Test All Models", "Only Working Models", "Switch Models Automatically", "Backup Model", "Automatic",
+            "Choose a Backup Model", "Switched to a backup model", "Using %@ for now because your usual model is busy.",
+            "Marks come from your recent requests and tests. A model with no mark hasn't been used lately.",
+            "When your model is busy, out of quota or removed, the app answers with another one that works and tells you. Automatic picks from the models marked Working first.",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
+    func testArabicStringsHaveSolveSettingsKeys() throws {
+        let table = try arabicTable()
+        var keys = [
+            "Solve Settings", "Photos", "Solve on this device first", "Gemini Model", "Solving", "Wolfram|Alpha (optional)",
+            "Choose a Solve Model", "Same as your main model", "Solving your photo…",
+            "Add your API key in Settings so Gemini can read and solve photos.",
+            "Photos go to Gemini, which reads and solves them in one step.", "Photos are read on your device and never leave it.",
+            "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve.",
+            "Optional. A Wolfram|Alpha App ID adds Wolfram's answers for typed problems your device can't solve.",
+            "The on-device engine is instant and works offline for standard algebra and calculus. Turn it off to send every typed problem to Gemini. The model is used for photos, harder problems and steps.",
+        ]
+        // Strings built from the photo modes are looked up by their English text too.
+        keys += [
+            "Send photo to Gemini", "Read text, then solve", "Read text on this device",
+            "Gemini looks at the photo itself, copies the whole problem and solves it in one step. Best for handwriting, several parts and diagrams. Needs your API key.",
+            "Gemini copies the problem as text first (this device does it if Gemini can't). You check the text, then tap Solve.",
+            "The photo never leaves this device. Reading is weaker on handwriting and maths notation, so check the text before you solve.",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
     func testArabicStringsHaveReliabilityKeys() throws {
         let table = try arabicTable()
         let keys = [

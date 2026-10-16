@@ -9,6 +9,9 @@ import SwiftData
 final class SolveTool {
     @ObservationIgnored let solver: MathSolver
     @ObservationIgnored let recognizer: TextRecognizer
+    /// Reads text without leaving the device, for the "read on device" photo mode.
+    @ObservationIgnored let localRecognizer: TextRecognizer
+    @ObservationIgnored private let settingsStore: SolveSettingsStore
     @ObservationIgnored let history: SolveRepository
     @ObservationIgnored private let usage: SolveUsage
     @ObservationIgnored private let keychain: KeychainStore
@@ -16,11 +19,26 @@ final class SolveTool {
     @ObservationIgnored private let geminiLink: GeminiLink?
 
     private(set) var hasKey: Bool
+    /// What the person tweaked on the Solve settings page. Saved as it changes.
+    var settings: SolveSettings { didSet { settingsStore.value = settings } }
     /// Calls made this month (a local estimate, see `SolveUsage`).
     private(set) var callsThisMonth: Int
 
-    init(solver: MathSolver, recognizer: TextRecognizer, history: SolveRepository, usage: SolveUsage = SolveUsage(), keychain: KeychainStore = .wolfram(), geminiLink: GeminiLink? = nil, now: Date = Date()) {
+    init(
+        solver: MathSolver,
+        recognizer: TextRecognizer,
+        localRecognizer: TextRecognizer? = nil,
+        history: SolveRepository,
+        usage: SolveUsage = SolveUsage(),
+        keychain: KeychainStore = .wolfram(),
+        geminiLink: GeminiLink? = nil,
+        settingsStore: SolveSettingsStore = SolveSettingsStore(defaults: UserDefaults(suiteName: "solve-settings-\(UUID().uuidString)") ?? .standard),
+        now: Date = Date()
+    ) {
         self.solver = solver
+        self.localRecognizer = localRecognizer ?? recognizer
+        self.settingsStore = settingsStore
+        settings = settingsStore.value
         self.geminiLink = geminiLink
         self.recognizer = recognizer
         self.history = history
@@ -34,9 +52,16 @@ final class SolveTool {
     /// fallback, and Gemini photo reading with on-device text reading behind it. Call `attachAI` once the app environment exists.
     static func live(context: ModelContext) -> SolveTool {
         let link = GeminiLink()
-        let solver = CompositeMathSolver(local: LocalMathSolver(), wolfram: WolframSolver(), gemini: GeminiMathSolver(link: link))
+        let store = SolveSettingsStore()
+        let solver = CompositeMathSolver(
+            local: LocalMathSolver(), wolfram: WolframSolver(), gemini: GeminiMathSolver(link: link),
+            useLocal: { store.value.useOnDeviceEngine }
+        )
         let recognizer = FallbackTextRecognizer(primary: GeminiTextRecognizer(link: link), fallback: VisionTextRecognizer())
-        return SolveTool(solver: solver, recognizer: recognizer, history: SwiftDataSolveRepository(context: context), geminiLink: link)
+        return SolveTool(
+            solver: solver, recognizer: recognizer, localRecognizer: VisionTextRecognizer(),
+            history: SwiftDataSolveRepository(context: context), geminiLink: link, settingsStore: store
+        )
     }
 
     /// Lets the Gemini solver use the app's AI client, API key, selected model and language. No-op on test tools.

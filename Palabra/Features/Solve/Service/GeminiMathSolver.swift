@@ -39,6 +39,10 @@ struct GeminiMathSolver: MathSolver {
     static let maxStepLength = 400
     static let maxSteps = 12
     static let maxQueryLength = MathInputNormalizer.maxLength
+    /// A problem solved from a photo can have many parts, so its limits are wider.
+    static let maxPhotoProblemLength = 1_500
+    static let maxPhotoAnswerLength = 1_200
+    static let maxPhotoSteps = 20
 
     let link: GeminiLink
 
@@ -60,6 +64,25 @@ struct GeminiMathSolver: MathSolver {
         switch result {
         case .failure(let error): return .failure(Self.solveError(for: error))
         case .success(let text): return Self.parseSolution(text, query: query)
+        }
+    }
+
+    /// Sends the photo itself with the instruction to copy the whole problem and then solve every part.
+    func solvePhoto(imageData: Data) async -> Result<SolveResult, SolveError> {
+        guard let credentials = await link.credentials() else { return .failure(.missingKey) }
+        guard let image = PhotoPreparer.prepare(imageData, maxPixelSize: PhotoPreparer.solvePixelSize) else { return .failure(.unreadablePhoto) }
+        let result = await credentials.ai.generateJSON(
+            prompt: Self.photoPrompt,
+            image: image,
+            systemInstruction: Self.photoInstruction(language: credentials.language),
+            schema: Self.photoSchema,
+            apiKey: credentials.apiKey,
+            model: credentials.model,
+            temperature: 0
+        )
+        switch result {
+        case .failure(let error): return .failure(Self.solveError(for: error))
+        case .success(let text): return Self.parsePhotoSolution(text)
         }
     }
 
@@ -106,6 +129,35 @@ struct GeminiMathSolver: MathSolver {
         """
     }
 
+    static let photoPrompt = "Copy the problem in this photo, then solve it."
+
+    static func photoInstruction(language: SupportedLanguage) -> String {
+        """
+        You are a careful maths and science solver for a student. The photo shows a problem.
+        First copy the whole problem into "problem", exactly as written: every part, number, symbol and sub-question such as (a), (b), (c), plus any table, given data or labels the question depends on. Never shorten it, skip a line or merge parts. Write [?] for a single character you cannot make out.
+        Then solve every part. "answer" holds the final answer of each part on its own line, labelled "(a) ..." when the problem has parts.
+        "steps" are short lines, one idea each, covering all parts.
+        Write plain text only: no LaTeX, no markdown. Use ^ for powers, sqrt(), pi, and a/b for fractions.
+        Use school conventions: log is base 10, ln is natural, angles are in radians unless the problem says degrees. Check the answer by substituting it back.
+        If the photo shows several unrelated problems, solve the one that is circled or underlined, otherwise the first. Ignore page numbers, margins and other people's working.
+        If there is no problem in the photo, set "readable" to false. If you can read the problem but cannot reach an answer you trust, set "solvable" to false; never guess.
+        \(languageLine(language))
+        """
+    }
+
+    static let photoSchema: [String: Any] = [
+        "type": "OBJECT",
+        "propertyOrdering": ["readable", "problem", "solvable", "answer", "steps"],
+        "properties": [
+            "readable": ["type": "BOOLEAN"],
+            "problem": ["type": "STRING"],
+            "solvable": ["type": "BOOLEAN"],
+            "answer": ["type": "STRING"],
+            "steps": ["type": "ARRAY", "items": ["type": "STRING"]],
+        ],
+        "required": ["readable", "problem", "solvable", "answer", "steps"],
+    ]
+
     private static func languageLine(_ language: SupportedLanguage) -> String {
         language == .arabic
             ? "Write the steps in Arabic, but keep all mathematical notation in plain ASCII as above."
@@ -144,6 +196,14 @@ struct GeminiMathSolver: MathSolver {
         let steps: [String]?
     }
 
+    private struct PhotoSolution: Decodable {
+        let readable: Bool?
+        let problem: String?
+        let solvable: Bool?
+        let answer: String?
+        let steps: [String]?
+    }
+
     private struct StepsPayload: Decodable {
         let steps: [String]
     }
@@ -163,6 +223,23 @@ struct GeminiMathSolver: MathSolver {
         return .success(SolveResult(query: query, interpretation: interpretation.isEmpty ? nil : interpretation, pods: pods, source: .gemini))
     }
 
+    /// The reply to `solvePhoto`: the copied problem becomes the saved question, so the answer can be checked against it.
+    static func parsePhotoSolution(_ text: String) -> Result<SolveResult, SolveError> {
+        guard let data = text.data(using: .utf8), let solution = try? JSONDecoder().decode(PhotoSolution.self, from: data) else {
+            return .failure(.malformed)
+        }
+        let problem = cap(solution.problem ?? "", maxPhotoProblemLength)
+        if solution.readable == false || problem.isEmpty { return .failure(.unreadablePhoto) }
+        let answer = cap(solution.answer ?? "", maxPhotoAnswerLength)
+        guard solution.solvable != false, !answer.isEmpty else { return .failure(.noResult(suggestions: [])) }
+        let steps = cleanSteps(solution.steps ?? [], limit: maxPhotoSteps)
+        let pods = [
+            SolvePod(id: "Input", title: "Input", subpods: [SolveSubpod(plaintext: problem)]),
+            pod(id: "Result", answer: answer, steps: steps),
+        ]
+        return .success(SolveResult(query: problem, interpretation: problem, pods: pods, source: .gemini))
+    }
+
     static func parseSteps(_ text: String) -> [String]? {
         guard let data = text.data(using: .utf8), let payload = try? JSONDecoder().decode(StepsPayload.self, from: data) else { return nil }
         return cleanSteps(payload.steps)
@@ -178,13 +255,13 @@ struct GeminiMathSolver: MathSolver {
         return SolvePod(id: id, title: "Result", primary: true, subpods: subpods, hasSteps: !steps.isEmpty)
     }
 
-    private static func cleanSteps(_ raw: [String]) -> [String] {
+    private static func cleanSteps(_ raw: [String], limit: Int = maxSteps) -> [String] {
         let cleaned = raw
             .map { cap($0, maxStepLength) }
             // The model sometimes numbers its own lines; we number them ourselves.
             .map { $0.replacingOccurrences(of: "^\\s*(?:step\\s*)?[0-9]{1,2}\\s*[.):-]\\s*", with: "", options: [.regularExpression, .caseInsensitive]) }
             .filter { !$0.isEmpty }
-        return Array(cleaned.prefix(maxSteps))
+        return Array(cleaned.prefix(limit))
     }
 
     private static func cap(_ value: String, _ limit: Int) -> String {
@@ -210,9 +287,15 @@ struct CompositeMathSolver: MathSolver {
     /// Optional second opinion; only asked when `appID` is not empty.
     let wolfram: MathSolver?
     let gemini: MathSolver
+    /// Read for every problem, so the setting applies at once. Off skips the on-device engine.
+    var useLocal: @Sendable () -> Bool = { true }
+
+    func solvePhoto(imageData: Data) async -> Result<SolveResult, SolveError> {
+        await gemini.solvePhoto(imageData: imageData)
+    }
 
     func solve(query: String, appID: String) async -> Result<SolveResult, SolveError> {
-        if case .success(let result) = await local.solve(query: query, appID: appID) { return .success(result) }
+        if useLocal(), case .success(let result) = await local.solve(query: query, appID: appID) { return .success(result) }
 
         var wolframFailure: SolveError?
         if let wolfram, !appID.isEmpty {

@@ -28,6 +28,13 @@ struct SolveHomeView: View {
         }
         .navigationTitle("Solve")
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { path.append(.settings) } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Solve Settings")
+                .accessibilityIdentifier("solveSettingsButton")
+            }
             // A multi-line box has no Return-to-finish, so the keyboard gets a Done.
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -45,7 +52,7 @@ struct SolveHomeView: View {
             CameraPicker(
                 onPhoto: { data in
                     showCamera = false
-                    Task { await model?.recognize(imageData: data) }
+                    handlePhoto(data)
                 },
                 onCancel: { showCamera = false }
             )
@@ -55,10 +62,27 @@ struct SolveHomeView: View {
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self) {
-                    await model?.recognize(imageData: data)
+                    handlePhoto(data)
                 }
                 photoItem = nil
             }
+        }
+    }
+
+    /// A new photo: solved at once by Gemini, or read into the problem box, depending on the Solve settings.
+    private func handlePhoto(_ data: Data) {
+        guard let model else { return }
+        if environment.solve.settings.photoMode == .sendToGemini {
+            solveTask = Task {
+                if let id = await model.solvePhoto(imageData: data) {
+                    solvedCount += 1
+                    path.append(.result(id))
+                    reloadRecents()
+                }
+                solveTask = nil
+            }
+        } else {
+            Task { await model.recognize(imageData: data) }
         }
     }
 
@@ -105,10 +129,10 @@ struct SolveHomeView: View {
         }
         .disabled(model.phase != .idle)
         .overlay {
-            if model.phase == .reading {
+            if model.phase == .reading || model.phase == .solvingPhoto {
                 HStack(spacing: Theme.Spacing.sm) {
                     ProgressView()
-                    Text("Reading your photo\u{2026}").font(.subheadline).foregroundStyle(Theme.ink)
+                    Text(model.phase == .solvingPhoto ? LocalizedStringKey("Solving your photo\u{2026}") : LocalizedStringKey("Reading your photo\u{2026}")).font(.subheadline).foregroundStyle(Theme.ink)
                 }
                 .padding(.horizontal, Theme.Spacing.md)
                 .padding(.vertical, Theme.Spacing.sm + 4)
@@ -223,7 +247,7 @@ struct SolveHomeView: View {
     /// Gemini can take a while; a way out beats a spinner.
     @ViewBuilder
     private func cancelButton(_ model: SolveModel) -> some View {
-        if model.phase == .solving {
+        if model.phase == .solving || model.phase == .solvingPhoto {
             Button("Cancel") { solveTask?.cancel() }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.accentDeep)
@@ -306,7 +330,11 @@ struct SolveHomeView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             Text("Solves on your device first. Gemini writes the steps and handles harder problems.")
             Text("Answers are saved, so opening one again costs nothing.")
-            Text("Photos are read by Gemini when a key is set, otherwise on your device.")
+            switch tool.settings.photoMode {
+            case .sendToGemini: Text("Photos go to Gemini, which reads and solves them in one step.")
+            case .readText: Text("Photos are read by Gemini when a key is set, otherwise on your device.")
+            case .readOnDevice: Text("Photos are read on your device and never leave it.")
+            }
             // Wolfram|Alpha is an optional extra: its usage and credit only show once an App ID is saved.
             if tool.hasKey {
                 Text("About \(tool.callsThisMonth) of \(SolveUsage.freeMonthlyCalls) free solves used this month")

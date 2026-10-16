@@ -35,6 +35,7 @@ struct ResilienceOverlay: View {
         switch message {
         case .plain(let text): return Text(LocalizedStringKey(text))
         case .modelSwitched(let name): return Text("Your model was removed, so I switched to \(name).")
+        case .backupModel(let name): return Text("Using \(name) for now because your usual model is busy.")
         case .wordAdded(let word): return Text("Added \"\(word)\" now that you're back online.")
         }
     }

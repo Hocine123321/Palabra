@@ -7,6 +7,9 @@ final class MockMathSolver: MathSolver, @unchecked Sendable {
     private var _solveCalls: [(query: String, appID: String)] = []
     private var _stepsCalls: [(query: String, podID: String, stepsInput: String)] = []
     var solveResults: [Result<SolveResult, SolveError>] = []
+    var photoResults: [Result<SolveResult, SolveError>] = []
+    private var _photoCalls = 0
+    var photoCalls: Int { lock.lock(); defer { lock.unlock() }; return _photoCalls }
     var stepsResults: [Result<SolvePod, SolveError>] = []
 
     var solveCalls: [(query: String, appID: String)] { lock.lock(); defer { lock.unlock() }; return _solveCalls }
@@ -16,6 +19,12 @@ final class MockMathSolver: MathSolver, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         _solveCalls.append((query, appID))
         return solveResults.isEmpty ? .failure(.malformed) : solveResults.removeFirst()
+    }
+
+    func solvePhoto(imageData: Data) async -> Result<SolveResult, SolveError> {
+        lock.lock(); defer { lock.unlock() }
+        _photoCalls += 1
+        return photoResults.isEmpty ? .failure(.malformed) : photoResults.removeFirst()
     }
 
     func steps(query: String, podID: String, stepsInput: String, appID: String) async -> Result<SolvePod, SolveError> {

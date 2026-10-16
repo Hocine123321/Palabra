@@ -150,17 +150,16 @@ struct SettingsView: View {
             }
             .themedSection()
 
-            Section {
-                WolframKeyField()
-                if environment.solve.hasKey {
-                    Text("About \(environment.solve.callsThisMonth) of \(SolveUsage.freeMonthlyCalls) free solves used this month")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.inkSecondary)
+            Section("Solve") {
+                NavigationLink {
+                    SolveSettingsView()
+                } label: {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "function", tint: Theme.tileTints[3 % Theme.tileTints.count], size: 30)
+                        Text("Solve Settings")
+                    }
                 }
-            } header: {
-                Text("Math Solver")
-            } footer: {
-                Text("Optional. Palabra solves on your device and with Gemini. A Wolfram|Alpha App ID adds Wolfram's answers for problems your device can't solve.")
+                .accessibilityIdentifier("solveSettingsLink")
             }
             .themedSection()
 
@@ -211,7 +210,8 @@ struct SettingsView: View {
             ModelPickerView(
                 title: "Choose a Model",
                 catalogue: environment.catalogue,
-                selection: Binding(get: { environment.selectedModelID }, set: { environment.selectedModelID = $0 })
+                selection: Binding(get: { environment.selectedModelID }, set: { environment.selectedModelID = $0 }),
+                canTest: true
             )
         }
         .sheet(isPresented: $showTTSModelPicker) {

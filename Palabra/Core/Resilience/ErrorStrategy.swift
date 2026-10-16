@@ -15,6 +15,8 @@ enum ErrorStrategy {
         case waitForNetwork
         /// Abandon this key and use the fallback key, if there is one.
         case switchKey
+        /// Same key, a different model: this model is busy, out of quota or gone, and another one can answer.
+        case switchModel
         /// Ask the user (nothing more can be done automatically).
         case askUser
         /// Stop and explain. Trying again cannot help (e.g. a blocked prompt).
@@ -61,11 +63,13 @@ enum ErrorStrategy {
     /// - Parameters:
     ///   - serverHint: a `retryDelay` the server asked for, if any.
     ///   - hasFallback: another key is available and not itself known to be failing.
+    ///   - hasBackupModel: another model is available that is not known to be failing.
     static func next(
         after error: AIError,
         failedAttempts: Int,
         policy: RetryPolicy,
         hasFallback: Bool,
+        hasBackupModel: Bool = false,
         serverHint: TimeInterval? = nil
     ) -> Action {
         switch error {
@@ -74,20 +78,28 @@ enum ErrorStrategy {
         case .blocked, .missingAPIKey, .noModelSelected:
             return .giveUp
         case .modelUnavailable:
-            return .askUser
-        case .invalidAPIKey, .permissionDenied, .quotaExhausted:
+            return hasBackupModel ? .switchModel : .askUser
+        case .quotaExhausted:
+            // Quotas are usually per model, so another model fixes it without touching the backup key.
+            if hasBackupModel { return .switchModel }
+            return hasFallback ? .switchKey : .askUser
+        case .invalidAPIKey, .permissionDenied:
             // Waiting never fixes these; only a different key can.
             return hasFallback ? .switchKey : .askUser
         default:
             break
         }
+        // A rate limit gets one patient retry, then another model answers instead of more waiting.
+        if error == .rateLimited, hasBackupModel, failedAttempts >= 1 { return .switchModel }
         if failedAttempts < maxAttempts(for: error, policy: policy) {
             let base = policy.delay(forAttempt: failedAttempts)
             // Honor the server's own hint, but never wait unreasonably long automatically.
             let wait = min(max(base, serverHint ?? 0), policy.maxAutomaticWait)
             return .retry(after: wait)
         }
-        // Out of automatic attempts on this key. A different key can help when the
+        // Out of automatic attempts. Another model comes first: it is free and keeps the backup key unused.
+        if hasBackupModel, blame(error) != .request { return .switchModel }
+        // A different key can help when the
         // trouble is tied to the key (rate limit) or, for an outage or timeouts,
         // may simply be routed better. Anything else needs the user.
         return canBenefitFromOtherKey(error) && hasFallback ? .switchKey : .askUser
@@ -116,6 +128,10 @@ struct RetryPolicy: Equatable, Codable, Sendable {
     var patientMultiplier: Double = 4
     /// Master switch: when off, every failure goes straight to the user, as before.
     var autoRetryEnabled: Bool = true
+    /// When the chosen model is busy, over quota or gone, answer with another one instead of failing.
+    var switchModelEnabled: Bool = true
+    /// The model to prefer when switching; nil lets the app choose from the ones that work.
+    var backupModelID: String?
 
     static let `default` = RetryPolicy()
 
@@ -141,5 +157,7 @@ struct RetryPolicy: Equatable, Codable, Sendable {
         maxAutomaticWait = min(max(try c.decodeIfPresent(TimeInterval.self, forKey: .maxAutomaticWait) ?? d.maxAutomaticWait, 1), 120)
         patientMultiplier = min(max(try c.decodeIfPresent(Double.self, forKey: .patientMultiplier) ?? d.patientMultiplier, 1), 20)
         autoRetryEnabled = try c.decodeIfPresent(Bool.self, forKey: .autoRetryEnabled) ?? d.autoRetryEnabled
+        switchModelEnabled = try c.decodeIfPresent(Bool.self, forKey: .switchModelEnabled) ?? d.switchModelEnabled
+        backupModelID = try c.decodeIfPresent(String.self, forKey: .backupModelID)
     }
 }

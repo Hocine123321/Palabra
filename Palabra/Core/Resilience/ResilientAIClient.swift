@@ -23,6 +23,12 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
     private let interactive: Bool
     /// One try, no waiting, no questions: for callers that have their own fallback (photo reading falls back to on-device OCR).
     private let singleAttempt: Bool
+    /// What the app has learned about each model; fed by every request this client makes.
+    private let modelHealth: ModelHealthStore?
+    /// Other models to try, best first, when `model` fails. Nil disables switching.
+    private let backupModels: (@Sendable (AIModel) async -> [AIModel])?
+    /// At most this many models are tried for one request.
+    static let maxModelSwitches = 3
 
     init(
         base: AIClient,
@@ -33,7 +39,9 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
         sleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) },
         now: @escaping @Sendable () -> Date = { Date() },
         interactive: Bool = true,
-        singleAttempt: Bool = false
+        singleAttempt: Bool = false,
+        modelHealth: ModelHealthStore? = nil,
+        backupModels: (@Sendable (AIModel) async -> [AIModel])? = nil
     ) {
         self.base = base
         self.center = center
@@ -44,57 +52,81 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
         self.now = now
         self.interactive = interactive
         self.singleAttempt = singleAttempt
+        self.modelHealth = modelHealth
+        self.backupModels = backupModels
     }
 
     /// A variant that tries once and returns the error, so the caller can use its own fallback at once.
     func failingFast() -> ResilientAIClient {
         ResilientAIClient(base: base, center: center, fallbackKey: fallbackKey, policy: policyProvider,
-                          connectivity: connectivity, sleep: sleep, now: now, interactive: false, singleAttempt: true)
+                          connectivity: connectivity, sleep: sleep, now: now, interactive: false, singleAttempt: true,
+                          modelHealth: modelHealth, backupModels: backupModels)
     }
 
     /// A variant for background tasks: same retries and key switching, but it never asks.
     func quiet() -> ResilientAIClient {
         ResilientAIClient(base: base, center: center, fallbackKey: fallbackKey, policy: policyProvider,
-                          connectivity: connectivity, sleep: sleep, now: now, interactive: false, singleAttempt: singleAttempt)
+                          connectivity: connectivity, sleep: sleep, now: now, interactive: false, singleAttempt: singleAttempt,
+                          modelHealth: modelHealth, backupModels: backupModels)
     }
 
     // MARK: AIClient
 
     func listModels(apiKey: String) async -> Result<[AIModel], AIError> {
-        await run("Loading models", primary: apiKey) { key in await self.base.listModels(apiKey: key) }
+        await runCore("Loading models", primary: apiKey, model: nil, switchable: false) { key, _ in await self.base.listModels(apiKey: key) }
     }
 
     func generateWord(_ input: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<WordContent, AIError> {
-        await run("Generating \"\(input)\"", primary: apiKey) { key in await self.base.generateWord(input, apiKey: key, model: model, language: language) }
+        await run("Generating \"\(input)\"", primary: apiKey, model: model) { key, model in await self.base.generateWord(input, apiKey: key, model: model, language: language) }
     }
 
     func sendChat(apiKey: String, model: AIModel, word: WordContent, history: [ChatMessage], newMessage: String, language: SupportedLanguage) async -> Result<String, AIError> {
-        await run("Chat reply", primary: apiKey) { key in await self.base.sendChat(apiKey: key, model: model, word: word, history: history, newMessage: newMessage, language: language) }
+        await run("Chat reply", primary: apiKey, model: model) { key, model in await self.base.sendChat(apiKey: key, model: model, word: word, history: history, newMessage: newMessage, language: language) }
     }
 
     func synthesizeSpeech(_ text: String, apiKey: String, model: AIModel) async -> Result<Data, AIError> {
-        await run("Pronunciation", primary: apiKey) { key in await self.base.synthesizeSpeech(text, apiKey: key, model: model) }
+        // Pronunciation models are a different kind of model: never swapped for a text model.
+        await runCore("Pronunciation", primary: apiKey, model: model, switchable: false) { key, used in await self.base.synthesizeSpeech(text, apiKey: key, model: used ?? model) }
     }
 
     func generateJSON(prompt: String, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
-        await run("AI request", primary: apiKey) { key in await self.base.generateJSON(prompt: prompt, systemInstruction: systemInstruction, schema: schema, apiKey: key, model: model, temperature: temperature) }
+        await run("AI request", primary: apiKey, model: model) { key, model in await self.base.generateJSON(prompt: prompt, systemInstruction: systemInstruction, schema: schema, apiKey: key, model: model, temperature: temperature) }
     }
 
     func generateJSON(prompt: String, image: AIImage, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
-        await run("Reading a photo", primary: apiKey) { key in await self.base.generateJSON(prompt: prompt, image: image, systemInstruction: systemInstruction, schema: schema, apiKey: key, model: model, temperature: temperature) }
+        await run("Reading a photo", primary: apiKey, model: model) { key, model in await self.base.generateJSON(prompt: prompt, image: image, systemInstruction: systemInstruction, schema: schema, apiKey: key, model: model, temperature: temperature) }
     }
 
     func organizeWords(_ words: [OrganizerWordInput], existingCategories: [String], settings: OrganizerSettings, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<OrganizerBatchResult, AIError> {
-        await run("Organizing words", primary: apiKey) { key in await self.base.organizeWords(words, existingCategories: existingCategories, settings: settings, apiKey: key, model: model, language: language) }
+        await run("Organizing words", primary: apiKey, model: model) { key, model in await self.base.organizeWords(words, existingCategories: existingCategories, settings: settings, apiKey: key, model: model, language: language) }
     }
 
     // MARK: the loop
 
+    /// A request that names a model, and may be answered by another one when that model fails.
+    private func run<T: Sendable>(_ what: String, primary: String, model: AIModel, _ operation: @escaping @Sendable (String, AIModel) async -> Result<T, AIError>) async -> Result<T, AIError> {
+        await runCore(what, primary: primary, model: model, switchable: true) { key, used in await operation(key, used ?? model) }
+    }
+
     /// Runs `operation`, reacting to each failure according to `ErrorStrategy`.
-    private func run<T: Sendable>(_ what: String, primary: String, _ operation: @escaping @Sendable (String) async -> Result<T, AIError>) async -> Result<T, AIError> {
+    /// `operation` gets the key and the model to use; the model is nil for requests that name none.
+    private func runCore<T: Sendable>(_ what: String, primary: String, model requested: AIModel?, switchable: Bool, _ operation: @escaping @Sendable (String, AIModel?) async -> Result<T, AIError>) async -> Result<T, AIError> {
         let policy = await policyProvider()
-        // Feature off: behave exactly like the plain client.
-        guard policy.autoRetryEnabled, !singleAttempt else { return await operation(primary) }
+        // Feature off, or a caller with its own fallback: one try, but the model's health is still learned.
+        guard policy.autoRetryEnabled, !singleAttempt else {
+            let result = await operation(primary, requested)
+            learn(requested, result)
+            return result
+        }
+        let mayChangeModel = switchable && policy.switchModelEnabled && requested != nil && backupModels != nil
+        var currentModel = requested
+        var triedModels: Set<String> = []
+        // Known to be limited right now: start with a model that works instead of failing first.
+        if mayChangeModel, let requested, let health = modelHealth, !health.status(for: requested.id, now: now()).isUsable,
+           let better = await backupModels?(requested).first {
+            currentModel = better
+            await center.post(.backupModel(better.displayName), warning: false)
+        }
 
         var patientRound = 0
         let requestID = UUID()
@@ -120,7 +152,8 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
 
             var failedAttempts = 0
             attemptLoop: while true {
-                let result = await operation(key)
+                let result = await operation(key, currentModel)
+                learn(currentModel, result)
                 switch result {
                 case .success:
                     await center.updateHealth { $0.recordSuccess(slot) }
@@ -129,12 +162,26 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                     return result
                 case .failure(let error):
                     lastError = error
-                    await center.updateHealth { _ = $0.recordFailure(slot, error: error, now: self.now()) }
                     let usable = slot == .primary && hasFallback
                     // Honor the wait Google asked for, when it told us one.
                     let hint = (base as? RetryHintProviding)?.takeRetryHint()
-                    let action = ErrorStrategy.next(after: error, failedAttempts: failedAttempts, policy: policy, hasFallback: usable, serverHint: hint)
+                    var backup: AIModel?
+                    if mayChangeModel, let used = currentModel, triedModels.count < Self.maxModelSwitches, let list = await backupModels?(used) {
+                        backup = list.first { !triedModels.contains($0.id) }
+                    }
+                    let action = ErrorStrategy.next(after: error, failedAttempts: failedAttempts, policy: policy, hasFallback: usable, hasBackupModel: backup != nil, serverHint: hint)
+                    // A model that is at fault is not the key's fault: only bench the key when the key is what is failing.
+                    if action != .switchModel { await center.updateHealth { _ = $0.recordFailure(slot, error: error, now: self.now()) } }
                     switch action {
+                    case .switchModel:
+                        guard let backup, let used = currentModel else { continue attemptLoop }
+                        triedModels.insert(used.id)
+                        currentModel = backup
+                        failedAttempts = 0
+                        await center.setRetrying(nil, request: requestID)
+                        await center.record(what: what, error: error, outcome: "Switched to a backup model")
+                        await center.post(.backupModel(backup.displayName), warning: false)
+                        continue attemptLoop
                     case .giveUp:
                         await finish(what, error, "Not retryable", request: requestID)
                         return .failure(error)
@@ -161,6 +208,9 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                         await center.setRetrying(nil, request: requestID)
                         await center.record(what: what, error: error, outcome: "Switched to backup key")
                         await center.post("Your main key failed, so the backup key is being used.", warning: true)
+                        // The other key starts over with the model that was asked for.
+                        currentModel = requested
+                        triedModels = []
                         break attemptLoop   // re-enter outer loop; health now benches the failed key
                     case .askUser:
                         await center.setRetrying(nil, request: requestID)
@@ -182,6 +232,15 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                     }
                 }
             }
+        }
+    }
+
+    /// Tells the model health store what a request showed about its model.
+    private func learn<T>(_ model: AIModel?, _ result: Result<T, AIError>) {
+        guard let model, let modelHealth else { return }
+        switch result {
+        case .success: modelHealth.recordSuccess(model.id, now: now())
+        case .failure(let error): modelHealth.recordFailure(model.id, error: error, now: now())
         }
     }
 

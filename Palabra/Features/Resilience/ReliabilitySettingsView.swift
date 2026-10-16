@@ -8,11 +8,13 @@ struct ReliabilitySettingsView: View {
     @State private var isVerifying = false
     @State private var keyError: String?
     @State private var showRemoveConfirm = false
+    @State private var showBackupModelPicker = false
 
     var body: some View {
         @Bindable var env = environment
         Form {
             fallbackSection
+            backupModelSection
             Section {
                 Toggle("Retry Automatically", isOn: $env.retryPolicy.autoRetryEnabled)
                 if environment.retryPolicy.autoRetryEnabled {
@@ -31,10 +33,52 @@ struct ReliabilitySettingsView: View {
         .glassScreen()
         .navigationTitle("Reliability")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showBackupModelPicker) {
+            ModelPickerView(
+                title: "Choose a Backup Model",
+                catalogue: environment.catalogue,
+                selection: $env.retryPolicy.backupModelID,
+                canTest: true,
+                automaticTitle: "Automatic"
+            )
+        }
         .confirmationDialog("Remove the backup key?", isPresented: $showRemoveConfirm) {
             Button("Remove", role: .destructive) { environment.removeFallbackKey() }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    // MARK: backup model
+
+    @ViewBuilder
+    private var backupModelSection: some View {
+        @Bindable var env = environment
+        Section {
+            Toggle("Switch Models Automatically", isOn: $env.retryPolicy.switchModelEnabled)
+                .accessibilityIdentifier("switchModelsToggle")
+            if environment.retryPolicy.switchModelEnabled {
+                Button {
+                    showBackupModelPicker = true
+                } label: {
+                    HStack {
+                        Text("Backup Model").foregroundStyle(Theme.ink)
+                        Spacer()
+                        if let id = environment.retryPolicy.backupModelID {
+                            Text(environment.catalogue.models.first { $0.id == id }?.displayName ?? id)
+                                .foregroundStyle(Theme.inkSecondary)
+                        } else {
+                            Text("Automatic").foregroundStyle(Theme.inkSecondary)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("backupModelRow")
+            }
+        } header: {
+            Text("Backup Model")
+        } footer: {
+            Text("When your model is busy, out of quota or removed, the app answers with another one that works and tells you. Automatic picks from the models marked Working first.")
+        }
+        .themedSection()
     }
 
     // MARK: backup key
