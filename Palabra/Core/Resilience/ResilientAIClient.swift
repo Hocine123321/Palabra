@@ -119,11 +119,13 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
             return result
         }
         let mayChangeModel = switchable && policy.switchModelEnabled && requested != nil && backupModels != nil
+        var startModel = requested
         var currentModel = requested
         var triedModels: Set<String> = []
         // Known to be limited right now: start with a model that works instead of failing first.
         if mayChangeModel, let requested, let health = modelHealth, !health.status(for: requested.id, now: now()).isUsable,
            let better = await backupModels?(requested).first {
+            startModel = better
             currentModel = better
             await center.post(.backupModel(better.displayName), warning: false)
         }
@@ -208,8 +210,8 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                         await center.setRetrying(nil, request: requestID)
                         await center.record(what: what, error: error, outcome: "Switched to backup key")
                         await center.post("Your main key failed, so the backup key is being used.", warning: true)
-                        // The other key starts over with the model that was asked for.
-                        currentModel = requested
+                        // The other key starts over with the model this request began with.
+                        currentModel = startModel
                         triedModels = []
                         break attemptLoop   // re-enter outer loop; health now benches the failed key
                     case .askUser:

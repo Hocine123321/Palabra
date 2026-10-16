@@ -35,11 +35,7 @@ struct SettingsView: View {
                         IconTile(systemImage: "cpu", tint: Theme.tileTints[0], size: 30)
                         Text("Model")
                         Spacer()
-                        if let name = environment.selectedModel?.displayName {
-                            Text(name).foregroundStyle(Theme.inkSecondary)
-                        } else {
-                            Text("Not selected").foregroundStyle(Theme.inkSecondary)
-                        }
+                        ModelValueLabel(id: environment.selectedModel?.id, placeholder: "Not selected")
                         if environment.selectedModelID != nil, environment.selectedModel == nil {
                             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.error)
                         }
@@ -155,7 +151,7 @@ struct SettingsView: View {
                     SolveSettingsView()
                 } label: {
                     HStack(spacing: Theme.Spacing.sm + 4) {
-                        IconTile(systemImage: "function", tint: Theme.tileTints[3 % Theme.tileTints.count], size: 30)
+                        IconTile(systemImage: "function", tint: Theme.tileTints[3], size: 30)
                         Text("Solve Settings")
                     }
                 }

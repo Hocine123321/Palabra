@@ -65,7 +65,7 @@ struct SolveSettingsView: View {
                     HStack {
                         Text("Gemini Model").foregroundStyle(Theme.ink)
                         Spacer()
-                        Text(modelName(tool.settings.modelID)).foregroundStyle(Theme.inkSecondary)
+                        ModelValueLabel(id: tool.settings.modelID, placeholder: "Same as your main model")
                     }
                 }
                 .accessibilityIdentifier("solveModelRow")
@@ -102,11 +102,5 @@ struct SolveSettingsView: View {
                 automaticTitle: "Same as your main model"
             )
         }
-    }
-
-    /// The chosen model's name, or what "no choice" means.
-    private func modelName(_ id: String?) -> LocalizedStringKey {
-        guard let id else { return "Same as your main model" }
-        return LocalizedStringKey(environment.catalogue.models.first { $0.id == id }?.displayName ?? id)
     }
 }

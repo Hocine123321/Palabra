@@ -7,6 +7,8 @@ final class ModelScriptedAIClient: AIClient, @unchecked Sendable {
     private var calls: [(model: String, key: String)] = []
     /// What each model answers (by model id). Models not listed answer "ok".
     var results: [String: Result<String, AIError>] = [:]
+    /// Keys that always fail, whatever the model.
+    var failingKeys: [String: AIError] = [:]
     var speechResult: Result<Data, AIError> = .success(Data([1]))
 
     var models: [String] { lock.lock(); defer { lock.unlock() }; return calls.map(\.model) }
@@ -15,6 +17,7 @@ final class ModelScriptedAIClient: AIClient, @unchecked Sendable {
     private func record(_ model: AIModel, _ key: String) -> Result<String, AIError> {
         lock.lock(); defer { lock.unlock() }
         calls.append((model.id, key))
+        if let error = failingKeys[key] { return .failure(error) }
         return results[model.id] ?? .success("ok")
     }
 

@@ -163,9 +163,29 @@ final class SolveModelPhotoTests: XCTestCase {
             let id = await model.solvePhoto(imageData: Data([1]))
             XCTAssertNil(id)
             XCTAssertEqual(model.input, "gemini text", "\(failure): the photo isn't wasted")
-            XCTAssertEqual(model.photoMessage, "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve.")
+            XCTAssertEqual(model.photoNotice, "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve.")
+            XCTAssertNil(model.photoMessage, "a hint, not an error")
             XCTAssertNil(model.error)
         }
+    }
+
+    func testWithoutAKeyThePhotoIsReadHereAndGeminiIsNeverAsked() async {
+        let link = GeminiLink() // nothing attached: no key or model
+        tool = SolveTool(
+            solver: solver,
+            recognizer: MockTextRecognizer(result: .success("device text")),
+            history: SwiftDataSolveRepository.inMemory(),
+            usage: SolveUsage(defaults: UserDefaults(suiteName: "solve-tests-\(UUID().uuidString)")!),
+            keychain: KeychainStore(account: "wolfram-app-id-tests-\(UUID().uuidString)"),
+            geminiLink: link,
+            now: now
+        )
+        let model = model()
+        let id = await model.solvePhoto(imageData: Data([1]))
+        XCTAssertNil(id)
+        XCTAssertEqual(solver.photoCalls, 0)
+        XCTAssertEqual(model.input, "device text")
+        XCTAssertEqual(model.photoNotice, "No Gemini key or model is set, so the text was read on this device. Check it, then tap Solve.")
     }
 
     func testAPhotoWithNoProblemSaysSo() async {

@@ -16,7 +16,14 @@ struct PalabraApp: App {
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
             : ModelConfiguration(schema: schema)
-        let container = try! ModelContainer(for: schema, configurations: [configuration])
+        let container: ModelContainer
+        do {
+            container = try ModelContainer(for: schema, configurations: [configuration])
+        } catch {
+            // A store that can't be opened must not crash the app on every launch. Run on a temporary in-memory
+            // store instead; the files on disk are left untouched.
+            container = try! ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        }
         self.container = container
 
         if arguments.contains("-UITestReset") {

@@ -101,6 +101,11 @@ struct SolveHomeView: View {
                         .font(.subheadline)
                         .foregroundStyle(Theme.error)
                 }
+                if let notice = model.photoNotice {
+                    Label(LocalizedStringKey(notice), systemImage: "info.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.accentDeep)
+                }
                 if let error = model.error { errorView(error, model) }
                 if !recents.isEmpty { recentsSection }
                 usageFooter(tool)

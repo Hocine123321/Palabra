@@ -63,12 +63,7 @@ struct ReliabilitySettingsView: View {
                     HStack {
                         Text("Backup Model").foregroundStyle(Theme.ink)
                         Spacer()
-                        if let id = environment.retryPolicy.backupModelID {
-                            Text(environment.catalogue.models.first { $0.id == id }?.displayName ?? id)
-                                .foregroundStyle(Theme.inkSecondary)
-                        } else {
-                            Text("Automatic").foregroundStyle(Theme.inkSecondary)
-                        }
+                        ModelValueLabel(id: environment.retryPolicy.backupModelID, placeholder: "Automatic")
                     }
                 }
                 .accessibilityIdentifier("backupModelRow")

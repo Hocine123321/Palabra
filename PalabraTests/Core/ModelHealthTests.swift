@@ -64,6 +64,31 @@ final class ModelHealthTests: XCTestCase {
         XCTAssertEqual(later.status(for: "models/a", now: t0.addingTimeInterval(8 * 24 * 3600)), .unknown)
     }
 
+    func testAProblemThatRanItsCourseDoesNotTurnIntoWorking() {
+        let store = ModelHealthStore()
+        store.recordSuccess("models/a", now: t0)
+        store.recordFailure("models/a", error: .quotaExhausted, now: t0.addingTimeInterval(600))
+        XCTAssertEqual(store.status(for: "models/a", now: t0.addingTimeInterval(700)), .quotaUsed)
+        XCTAssertEqual(store.status(for: "models/a", now: t0.addingTimeInterval(600 + 3601)), .unknown, "only a fresh success marks it working again")
+    }
+
+    func testRepeatedSuccessesAreNotSavedOrBroadcastEveryTime() {
+        let store = ModelHealthStore()
+        let count = Counter()
+        store.onChange { count.bump() }
+        store.recordSuccess("models/a", now: t0)
+        store.recordSuccess("models/a", now: t0.addingTimeInterval(5))
+        XCTAssertEqual(count.value, 1)
+        store.recordSuccess("models/a", now: t0.addingTimeInterval(60))
+        XCTAssertEqual(count.value, 2)
+    }
+
+    func testStableModelsComeBeforePreviewOnes() {
+        let all = ["flash-preview", "flash"].map(model)
+        let ids = BackupModelPicker.candidates(failed: model("x"), models: all, health: ModelHealthStore(), preferredID: nil, now: t0).map(\.id)
+        XCTAssertEqual(ids, ["models/flash", "models/flash-preview"])
+    }
+
     func testChangeHandlerFiresOnlyWhenSomethingChanged() {
         let store = ModelHealthStore()
         let count = Counter()
@@ -258,6 +283,16 @@ final class ModelHealthTests: XCTestCase {
         let result = await ask(r)
         if case .failure(.quotaExhausted) = result {} else { XCTFail("gives up in the end") }
         XCTAssertEqual(r.ai.models.count, 1 + ResilientAIClient.maxModelSwitches)
+    }
+
+    func testABackupKeyStartsWithTheModelThatWasChosenBeforeTheRequestWasSent() async {
+        let r = rig(fallbackKey: "backup")
+        r.health.recordFailure("models/a", error: .quotaExhausted, now: Date())
+        r.ai.failingKeys["main"] = .invalidAPIKey
+        let result = await ask(r)
+        XCTAssertNotNil(try? result.get())
+        XCTAssertEqual(r.ai.keys, ["main", "backup"])
+        XCTAssertEqual(r.ai.models, ["models/b", "models/b"], "the limited model isn't tried on the second key either")
     }
 
     func testPronunciationIsNeverAnsweredByATextModel() async {

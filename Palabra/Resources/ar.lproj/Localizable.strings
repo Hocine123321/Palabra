@@ -544,3 +544,5 @@
 "Photos are read on your device and never leave it." = "تُقرأ الصور على جهازك ولا تغادره أبداً.";
 "No problem found in the photo. Get closer or add light." = "لم يُعثر على مسألة في الصورة. اقترب أو أضف إضاءة.";
 "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve." = "تعذر الوصول إلى Gemini، فقُرئ النص على هذا الجهاز. راجعه ثم اضغط حلّ.";
+"Working models only" = "النماذج العاملة فقط";
+"No Gemini key or model is set, so the text was read on this device. Check it, then tap Solve." = "لم يتم تعيين مفتاح أو نموذج Gemini، فقُرئ النص على هذا الجهاز. راجعه ثم اضغط حلّ.";

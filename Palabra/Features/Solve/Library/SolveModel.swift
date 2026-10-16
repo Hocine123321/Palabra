@@ -12,6 +12,8 @@ final class SolveModel {
     private(set) var error: SolveError?
     /// Why a photo could not be read (a localization key).
     private(set) var photoMessage: String?
+    /// A hint about a photo that was handled differently than asked (a localization key). Not an error.
+    private(set) var photoNotice: String?
 
     private let tool: SolveTool
     private let now: () -> Date
@@ -29,6 +31,7 @@ final class SolveModel {
         guard phase == .idle else { return }
         phase = .reading
         photoMessage = nil
+        photoNotice = nil
         error = nil
         defer { phase = .idle }
         // "Read on device" never sends the photo anywhere; the other modes try Gemini first.
@@ -54,7 +57,14 @@ final class SolveModel {
         guard phase == .idle else { return nil }
         phase = .solvingPhoto
         photoMessage = nil
+        photoNotice = nil
         error = nil
+        // Without a key or model there is nothing to send the photo to: say so and read the text here.
+        guard await tool.geminiReady() else {
+            phase = .idle
+            await readTextInstead(imageData, reason: "No Gemini key or model is set, so the text was read on this device. Check it, then tap Solve.")
+            return nil
+        }
         let outcome = await tool.solver.solvePhoto(imageData: imageData)
         phase = .idle
         // The person pressed Cancel: nothing saved, nothing shown.
@@ -64,7 +74,7 @@ final class SolveModel {
             input = result.query
             return tool.history.save(query: result.query, key: MathInputNormalizer.key(for: result.query), result: result, now: now()).id
         case .failure(.missingKey), .failure(.network), .failure(.rateLimited):
-            await readTextInstead(imageData)
+            await readTextInstead(imageData, reason: "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve.")
             return nil
         case .failure(.unreadablePhoto):
             photoMessage = RecognitionError.nothingFound.userMessage
@@ -75,12 +85,10 @@ final class SolveModel {
         }
     }
 
-    /// Gemini isn't reachable, so the photo is read as text on the device and the person checks it before solving.
-    private func readTextInstead(_ imageData: Data) async {
+    /// Gemini can't be used, so the photo is read as text on the device and the person checks it before solving.
+    private func readTextInstead(_ imageData: Data, reason: String) async {
         await recognize(imageData: imageData)
-        if photoMessage == nil, !input.isEmpty {
-            photoMessage = "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve."
-        }
+        if photoMessage == nil, !input.isEmpty { photoNotice = reason }
     }
 
     /// Solves the problem. Returns the saved entry's id, or nil with `error` set.
@@ -88,6 +96,7 @@ final class SolveModel {
     func solve() async -> UUID? {
         guard phase == .idle else { return nil }
         photoMessage = nil
+        photoNotice = nil
         let query = normalizedInput
         guard !query.isEmpty else { error = .emptyInput; return nil }
         let key = MathInputNormalizer.key(for: query)

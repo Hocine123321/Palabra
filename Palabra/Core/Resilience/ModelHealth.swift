@@ -47,11 +47,17 @@ struct ModelHealth: Codable, Equatable, Sendable {
             case .serverTrouble: return .unstable
             }
         }
+        // A problem that has run its course says "try again", not "works": only a fresh success marks a model working.
+        if problem != nil { return .unknown }
         if let lastSuccess, now.timeIntervalSince(lastSuccess) < Self.workingLifetime { return .working }
         return .unknown
     }
 
+    /// A success this soon after the last one changes nothing worth saving or redrawing.
+    static let successRefresh: TimeInterval = 30
+
     mutating func recordSuccess(at now: Date) {
+        if problem == nil, let lastSuccess, now.timeIntervalSince(lastSuccess) < Self.successRefresh, now >= lastSuccess { return }
         lastSuccess = now
         problem = nil
         problemAt = nil
@@ -113,12 +119,6 @@ final class ModelHealthStore: @unchecked Sendable {
         return entries[id]?.status(at: now) ?? .unknown
     }
 
-    func lastSuccess(for id: String) -> Date? {
-        lock.lock()
-        defer { lock.unlock() }
-        return entries[id]?.lastSuccess
-    }
-
     func recordSuccess(_ id: String, now: Date = Date()) {
         mutate { $0[id, default: ModelHealth()].recordSuccess(at: now) }
     }
@@ -151,7 +151,7 @@ final class ModelHealthStore: @unchecked Sendable {
 enum BackupModelPicker {
     /// Models to try next, best first. Never the failed one, never one already known to be limited or missing.
     /// Order: the model the person chose as their backup, then models that answered recently, then the rest
-    /// (fast "flash" models before "lite" ones before the heavier kind, which free keys often can't use).
+    /// (fast "flash" models before "lite" ones before the heavier kind, which free keys often can't use; stable before preview).
     static func candidates(
         failed: AIModel,
         models: [AIModel],
@@ -164,11 +164,17 @@ enum BackupModelPicker {
         }
         func rank(_ item: (offset: Int, element: AIModel)) -> [Int] {
             let model = item.element
-            if let preferredID, model.id == preferredID { return [0, 0, item.offset] }
-            if health.status(for: model.id, now: now) == .working { return [1, 0, item.offset] }
-            return [2, tier(of: model), item.offset]
+            if let preferredID, model.id == preferredID { return [0, 0, 0, item.offset] }
+            if health.status(for: model.id, now: now) == .working { return [1, 0, 0, item.offset] }
+            return [2, tier(of: model), isExperimental(model) ? 1 : 0, item.offset]
         }
         return pool.sorted { rank($0).lexicographicallyPrecedes(rank($1)) }.map(\.element)
+    }
+
+    /// Preview and experimental builds come after stable ones of the same kind.
+    private static func isExperimental(_ model: AIModel) -> Bool {
+        let id = model.id.lowercased()
+        return id.contains("preview") || id.contains("exp")
     }
 
     private static func tier(of model: AIModel) -> Int {

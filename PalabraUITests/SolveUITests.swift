@@ -99,6 +99,9 @@ final class SolveUITests: XCTestCase {
         XCTAssertTrue(modelRow.waitForExistence(timeout: 5))
         modelRow.tap()
         XCTAssertTrue(app.buttons["automaticModelRow"].waitForExistence(timeout: 5), "can follow the main model")
-        XCTAssertTrue(app.buttons["testAllModelsButton"].exists)
+        let menu = app.buttons["modelListMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        XCTAssertTrue(app.buttons["Test All Models"].waitForExistence(timeout: 5), "the … menu offers testing")
     }
 }

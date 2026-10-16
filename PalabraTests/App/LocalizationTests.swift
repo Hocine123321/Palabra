@@ -140,7 +140,7 @@ final class LocalizationTests: XCTestCase {
         let table = try arabicTable()
         let keys = [
             "Working", "Busy right now", "Quota used up", "Unstable", "Not available", "Testing…", "Test This Model", "Test",
-            "Stop Testing", "Test All Models", "Only Working Models", "Switch Models Automatically", "Backup Model", "Automatic",
+            "Stop Testing", "Test All Models", "Only Working Models", "Working models only", "Switch Models Automatically", "Backup Model", "Automatic",
             "Choose a Backup Model", "Switched to a backup model", "Using %@ for now because your usual model is busy.",
             "Marks come from your recent requests and tests. A model with no mark hasn't been used lately.",
             "When your model is busy, out of quota or removed, the app answers with another one that works and tells you. Automatic picks from the models marked Working first.",
@@ -156,6 +156,7 @@ final class LocalizationTests: XCTestCase {
             "Add your API key in Settings so Gemini can read and solve photos.",
             "Photos go to Gemini, which reads and solves them in one step.", "Photos are read on your device and never leave it.",
             "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve.",
+            "No Gemini key or model is set, so the text was read on this device. Check it, then tap Solve.",
             "Optional. A Wolfram|Alpha App ID adds Wolfram's answers for typed problems your device can't solve.",
             "The on-device engine is instant and works offline for standard algebra and calculus. Turn it off to send every typed problem to Gemini. The model is used for photos, harder problems and steps.",
         ]

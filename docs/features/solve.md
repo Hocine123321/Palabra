@@ -21,7 +21,7 @@ Features/Solve/
 `SolveTool.settings` (`SolveSettings`, persisted by `SolveSettingsStore`, read by the solver off the main thread):
 
 - `photoMode`: `sendToGemini` (default) sends the photo itself to Gemini, which copies the whole problem and solves it in one step (`GeminiMathSolver.solvePhoto`, a 2048 px JPEG, schema ordered `readable, problem, solvable, answer, steps` so the problem is copied before it is solved; multi-part answers and up to 20 steps; saved under the copied problem, which also fills the problem box). `readText` is the older flow (Gemini copies text, Vision behind it). `readOnDevice` never sends the photo anywhere.
-- When direct solving can't use Gemini (no key, offline, rate limited) `SolveModel.solvePhoto` reads the text on the device instead and says so; nothing is lost. A photo with no problem shows the "no text found" message.
+- When direct solving can't use Gemini (no key or model: checked first by `SolveTool.geminiReady`; or offline / rate limited) `SolveModel.solvePhoto` reads the text on the device instead and says so through `photoNotice` (a hint, shown in the accent colour; `photoMessage` is for errors); nothing is lost. A photo with no problem shows the "no text found" message.
 - `useOnDeviceEngine` off sends every typed problem to Gemini (`CompositeMathSolver.useLocal`).
 - `modelID` is a model for Solve only (nil follows the main model); `AppEnvironment.solveModel` resolves it. It goes through `environment.ai`, so retries and backup models apply.
 - The optional Wolfram App ID moved here from Settings.

@@ -64,6 +64,12 @@ final class SolveTool {
         )
     }
 
+    /// False when Gemini can't be used at all (no API key or no model). Test tools have no link and say true.
+    func geminiReady() async -> Bool {
+        guard let geminiLink else { return true }
+        return await geminiLink.credentials() != nil
+    }
+
     /// Lets the Gemini solver use the app's AI client, API key, selected model and language. No-op on test tools.
     func attachAI(_ provider: @escaping GeminiLink.Provider) {
         geminiLink?.attach(provider)

@@ -22,7 +22,8 @@ struct ModelPickerView: View {
 
     /// The models to list. "Working" keeps the ones that answered recently, and always the current choice.
     private var visibleModels: [AIModel] {
-        guard onlyWorking else { return catalogue.models }
+        // The filter switches itself off when nothing is marked working, so the list can't end up empty.
+        guard onlyWorking, hasWorkingModels else { return catalogue.models }
         return catalogue.models.filter { environment.modelStatus($0.id) == .working || $0.id == selection }
     }
 
@@ -34,22 +35,22 @@ struct ModelPickerView: View {
         NavigationStack {
             List {
                 Section {
+                if let automaticTitle {
+                    Button {
+                        selection = nil
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(automaticTitle).foregroundStyle(Theme.ink)
+                            Spacer()
+                            if selection == nil { Image(systemName: "checkmark").foregroundStyle(Theme.accentDeep) }
+                        }
+                    }
+                    .accessibilityIdentifier("automaticModelRow")
+                }
                 if catalogue.models.isEmpty {
                     emptyOrLoadingContent
                 } else {
-                    if let automaticTitle {
-                        Button {
-                            selection = nil
-                            dismiss()
-                        } label: {
-                            HStack {
-                                Text(automaticTitle).foregroundStyle(Theme.ink)
-                                Spacer()
-                                if selection == nil { Image(systemName: "checkmark").foregroundStyle(Theme.accentDeep) }
-                            }
-                        }
-                        .accessibilityIdentifier("automaticModelRow")
-                    }
                     ForEach(visibleModels) { model in
                         row(model)
                     }
@@ -63,6 +64,8 @@ struct ModelPickerView: View {
                         .font(.footnote)
                         .foregroundStyle(Theme.error)
                 }
+                } header: {
+                    if onlyWorking, hasWorkingModels { Text("Working models only") }
                 } footer: {
                     if !catalogue.models.isEmpty {
                         Text("Marks come from your recent requests and tests. A model with no mark hasn't been used lately.")
@@ -75,16 +78,8 @@ struct ModelPickerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-                if canTest, !catalogue.models.isEmpty {
-                    ToolbarItem(placement: .primaryAction) { testAllButton }
-                }
-                if hasWorkingModels {
-                    ToolbarItem(placement: .primaryAction) {
-                        Toggle(isOn: $onlyWorking) {
-                            Label("Only Working Models", systemImage: "checkmark.seal")
-                        }
-                        .accessibilityIdentifier("onlyWorkingToggle")
-                    }
+                if (canTest && !catalogue.models.isEmpty) || hasWorkingModels {
+                    ToolbarItem(placement: .primaryAction) { listMenu }
                 }
             }
             .onDisappear { testAllTask?.cancel() }
@@ -146,6 +141,23 @@ struct ModelPickerView: View {
         }
     }
 
+    /// The "…" menu, as on the other screens: test every model, or list only the ones that work.
+    private var listMenu: some View {
+        Menu {
+            if canTest, !catalogue.models.isEmpty { testAllButton }
+            if hasWorkingModels {
+                Toggle(isOn: $onlyWorking) {
+                    Label("Only Working Models", systemImage: "checkmark.seal")
+                }
+                .accessibilityIdentifier("onlyWorkingToggle")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .accessibilityLabel("More options")
+        .accessibilityIdentifier("modelListMenu")
+    }
+
     private var testAllButton: some View {
         Button {
             if testAllTask != nil {
@@ -205,5 +217,25 @@ struct ModelPickerView: View {
     private func refresh() async {
         guard let apiKey = environment.apiKey else { return }
         await catalogue.refresh(apiKey: apiKey, using: environment.ai)
+    }
+}
+
+/// A model's name with its health mark underneath, for rows that show the model chosen for something.
+struct ModelValueLabel: View {
+    @Environment(AppEnvironment.self) private var environment
+    let id: String?
+    var placeholder: LocalizedStringKey
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            if let id {
+                Text(environment.catalogue.models.first { $0.id == id }?.displayName ?? id)
+                    .foregroundStyle(Theme.inkSecondary)
+                ModelPickerView.badge(environment.modelStatus(id))
+            } else {
+                Text(placeholder).foregroundStyle(Theme.inkSecondary)
+            }
+        }
+        .multilineTextAlignment(.trailing)
     }
 }
