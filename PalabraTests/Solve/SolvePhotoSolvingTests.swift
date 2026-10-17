@@ -70,11 +70,17 @@ final class GeminiPhotoSolveTests: XCTestCase {
         XCTAssertEqual(result.failure, .unreadablePhoto)
     }
 
-    func testAReadableProblemWithoutATrustedAnswerIsNoResult() async {
+    func testAReadableProblemWithoutAnAnswerKeepsTheCopyForChecking() async {
         attach()
         ai.imageResult = .success(#"{"readable": true, "problem": "hard thing", "solvable": false, "answer": "", "steps": []}"#)
         let result = await solver.solvePhoto(imageData: GeminiTextRecognizerTests.photo())
-        XCTAssertEqual(result.failure, .noResult(suggestions: []))
+        XCTAssertEqual(result.failure, .unsolvedPhoto(problem: "hard thing"))
+    }
+
+    func testThePhotoInstructionAsksForABestAnswerInsteadOfARefusal() {
+        let text = GeminiMathSolver.photoInstruction(language: .english)
+        XCTAssertTrue(text.contains("Always give your best answer"))
+        XCTAssertFalse(text.contains("never guess"), "a cautious model would refuse most photos")
     }
 
     func testGarbageReplyIsMalformed() async {
@@ -194,6 +200,27 @@ final class SolveModelPhotoTests: XCTestCase {
         let id = await model.solvePhoto(imageData: Data([1]))
         XCTAssertNil(id)
         XCTAssertEqual(model.photoMessage, RecognitionError.nothingFound.userMessage)
+    }
+
+    func testAnUnsolvedPhotoFillsTheBoxAndTriesTheNormalChain() async throws {
+        solver.photoResults = [.failure(.unsolvedPhoto(problem: "2 + 2"))]
+        solver.solveResults = [.success(.sample(query: "2 + 2"))]
+        let model = model()
+        let id = await model.solvePhoto(imageData: Data([1]))
+        XCTAssertNotNil(id)
+        XCTAssertEqual(model.input, "2 + 2")
+        XCTAssertEqual(solver.solveCalls.map(\.query), ["2 + 2"], "the copied problem was solved as typed text")
+        XCTAssertNil(model.error)
+    }
+
+    func testAnUnsolvedPhotoThatStaysUnsolvedShowsTheCopyNotAVagueError() async {
+        solver.photoResults = [.failure(.unsolvedPhoto(problem: "hard thing"))]
+        solver.solveResults = [.failure(.noResult(suggestions: []))]
+        let model = model()
+        let id = await model.solvePhoto(imageData: Data([1]))
+        XCTAssertNil(id)
+        XCTAssertEqual(model.input, "hard thing")
+        XCTAssertEqual(model.error, .unsolvedPhoto(problem: "hard thing"))
     }
 
     func testOtherFailuresAreShownAsErrors() async {

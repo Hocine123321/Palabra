@@ -116,8 +116,8 @@ struct GeminiMathSolver: MathSolver {
         Use school conventions: log is base 10, ln is natural, angles are in radians unless the problem says degrees.
         "interpretation" restates the problem in one line. "answer" is the final answer only; give several answers separated by " or ".
         "steps" are 3 to \(maxSteps) short lines, one idea each. \(languageLine(language))
-        If the input is not a math problem, or is too ambiguous to solve, set "solvable" to false and leave the other fields empty.
-        Never guess: if you cannot reach an answer you trust, set "solvable" to false.
+        If the input is not a math problem, set "solvable" to false and leave the other fields empty.
+        Otherwise always give your best answer: a student can check it, a refusal helps nobody. If the wording is ambiguous, pick the most likely reading and say which one you took in "interpretation".
         """
     }
 
@@ -139,8 +139,9 @@ struct GeminiMathSolver: MathSolver {
         "steps" are short lines, one idea each, covering all parts.
         Write plain text only: no LaTeX, no markdown. Use ^ for powers, sqrt(), pi, and a/b for fractions.
         Use school conventions: log is base 10, ln is natural, angles are in radians unless the problem says degrees. Check the answer by substituting it back.
+        Always give your best answer when the problem is readable: a student can check it, a refusal helps nobody. If one part is too hard, solve the others and say which part you could not do inside "answer".
         If the photo shows several unrelated problems, solve the one that is circled or underlined, otherwise the first. Ignore page numbers, margins and other people's working.
-        If there is no problem in the photo, set "readable" to false. If you can read the problem but cannot reach an answer you trust, set "solvable" to false; never guess.
+        Set "readable" to false only when there is no problem in the photo. Set "solvable" to false only when what is written is not a solvable maths or science problem at all.
         \(languageLine(language))
         """
     }
@@ -231,7 +232,7 @@ struct GeminiMathSolver: MathSolver {
         let problem = cap(solution.problem ?? "", maxPhotoProblemLength)
         if solution.readable == false || problem.isEmpty { return .failure(.unreadablePhoto) }
         let answer = cap(solution.answer ?? "", maxPhotoAnswerLength)
-        guard solution.solvable != false, !answer.isEmpty else { return .failure(.noResult(suggestions: [])) }
+        guard solution.solvable != false, !answer.isEmpty else { return .failure(.unsolvedPhoto(problem: problem)) }
         let steps = cleanSteps(solution.steps ?? [], limit: maxPhotoSteps)
         let pods = [
             SolvePod(id: "Input", title: "Input", subpods: [SolveSubpod(plaintext: problem)]),

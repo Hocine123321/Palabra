@@ -79,6 +79,13 @@ final class SolveModel {
         case .failure(.unreadablePhoto):
             photoMessage = RecognitionError.nothingFound.userMessage
             return nil
+        case .failure(.unsolvedPhoto(let problem)):
+            // Gemini read it but gave no answer: put the copy where it can be checked, and let the normal chain
+            // (the on-device engine, then Gemini on the typed text) have a go before giving up.
+            input = problem
+            let id = await solve()
+            if id == nil, !Task.isCancelled, case .noResult? = error { error = .unsolvedPhoto(problem: problem) }
+            return id
         case .failure(let failure):
             error = failure
             return nil

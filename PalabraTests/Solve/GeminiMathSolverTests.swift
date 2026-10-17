@@ -55,6 +55,12 @@ final class GeminiMathSolverTests: XCTestCase {
         XCTAssertTrue(ai.generateJSONCalls.first?.systemInstruction.contains("Write the steps in Arabic") ?? false)
     }
 
+    func testTheTypedInstructionAsksForABestAnswerInsteadOfARefusal() {
+        let text = GeminiMathSolver.solveInstruction(language: .english)
+        XCTAssertTrue(text.contains("always give your best answer"))
+        XCTAssertFalse(text.contains("Never guess"))
+    }
+
     func testNotSolvableIsNoResult() async {
         attach()
         ai.generateJSONResult = .success("{\"solvable\": false, \"interpretation\": \"\", \"answer\": \"\", \"steps\": []}")

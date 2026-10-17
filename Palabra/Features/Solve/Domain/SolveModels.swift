@@ -140,6 +140,8 @@ enum SolveError: Error, Equatable {
     case malformed
     /// The photo has no readable problem in it (or could not be opened).
     case unreadablePhoto
+    /// Gemini copied the problem from the photo but would not give an answer. The copy is kept so it can be checked.
+    case unsolvedPhoto(problem: String)
 
     /// A localization key (shown through `LocalizedStringKey`).
     var userMessage: String {
@@ -153,6 +155,7 @@ enum SolveError: Error, Equatable {
         case .network: return "Couldn't reach the solver. Check your connection."
         case .malformed: return "The solver sent an answer the app couldn't read."
         case .unreadablePhoto: return "No problem found in the photo. Get closer or add light."
+        case .unsolvedPhoto: return "Gemini read the problem but couldn't solve it. It's in the box: check it, then tap Solve."
         }
     }
 }
