@@ -11,6 +11,10 @@ struct ImportResult: Equatable {
 @MainActor
 protocol WordRepository {
     func find(key: String) -> Word?
+    /// One word by id. Prefer this over `allWords().first { ... }`, which loads every word (and its audio).
+    func word(id: UUID) -> Word?
+    /// How many words are saved, counted in the store without loading them.
+    func wordCount() -> Int
     @discardableResult
     func insert(spanish: String, key: String, searchKey: String, content: WordContent, rawJSON: Data) -> Word
     func replaceContent(id: UUID, content: WordContent, rawJSON: Data)
@@ -41,11 +45,15 @@ final class SwiftDataWordRepository: WordRepository {
         return try? context.fetch(descriptor).first
     }
 
+    func word(id: UUID) -> Word? { fetchByID(id) }
+
+    func wordCount() -> Int { (try? context.fetchCount(FetchDescriptor<Word>())) ?? 0 }
+
     @discardableResult
     func insert(spanish: String, key: String, searchKey: String, content: WordContent, rawJSON: Data) -> Word {
         let word = Word(spanish: spanish, key: key, searchKey: searchKey, content: content, rawJSON: rawJSON)
         context.insert(word)
-        try? context.save()
+        Persistence.save(context)
         return word
     }
 
@@ -58,26 +66,26 @@ final class SwiftDataWordRepository: WordRepository {
         // pronunciation would be for the wrong word — clear it and let the
         // caller re-trigger synthesis for the new content.
         word.pronunciationAudio = nil
-        try? context.save()
+        Persistence.save(context)
     }
 
     func updateChat(id: UUID, messages: [ChatMessage]) {
         guard let word = fetchByID(id) else { return }
         word.chat = messages
-        try? context.save()
+        Persistence.save(context)
     }
 
     func updatePronunciation(id: UUID, audio: Data?) {
         guard let word = fetchByID(id) else { return }
         word.pronunciationAudio = audio
-        try? context.save()
+        Persistence.save(context)
     }
 
     func updatePlacement(id: UUID, category: String?, tags: [String]) {
         guard let word = fetchByID(id) else { return }
         word.category = category
         word.tags = tags
-        try? context.save()
+        Persistence.save(context)
     }
 
     func updatePlacements(_ placements: [UUID: WordPlacement]) {
@@ -86,7 +94,7 @@ final class SwiftDataWordRepository: WordRepository {
             word.category = placement.category
             word.tags = placement.tags
         }
-        try? context.save()
+        Persistence.save(context)
     }
 
     func clearAllPlacements() {
@@ -94,18 +102,18 @@ final class SwiftDataWordRepository: WordRepository {
             word.category = nil
             word.tags = []
         }
-        try? context.save()
+        Persistence.save(context)
     }
 
     func delete(id: UUID) {
         guard let word = fetchByID(id) else { return }
         context.delete(word)
-        try? context.save()
+        Persistence.save(context)
     }
 
     func deleteAll() {
         for word in allWords() { context.delete(word) }
-        try? context.save()
+        Persistence.save(context)
     }
 
     func allWords() -> [Word] {
@@ -137,7 +145,11 @@ final class SwiftDataWordRepository: WordRepository {
             context.insert(word)
             imported += 1
         }
-        try? context.save()
+        // Never report words as imported when they are not on disk.
+        guard Persistence.save(context) else {
+            context.rollback()
+            throw VocabularyLibraryExporter.ExportError.saveFailed
+        }
         return ImportResult(imported: imported, skipped: skipped)
     }
 

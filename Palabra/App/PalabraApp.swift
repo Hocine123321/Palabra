@@ -56,7 +56,7 @@ struct PalabraApp: App {
             for need in (try? context.fetch(FetchDescriptor<ReviewNeed>())) ?? [] { context.delete(need) }
             for conversation in (try? context.fetch(FetchDescriptor<ChatConversation>())) ?? [] { context.delete(conversation) }
             for entry in (try? context.fetch(FetchDescriptor<SolveEntry>())) ?? [] { context.delete(entry) }
-            try? context.save()
+            Persistence.save(context)
         }
 
         if isUITest {

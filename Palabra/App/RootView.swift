@@ -84,7 +84,7 @@ struct RootView: View {
         if let existing = environment.chat.conversation(forWordID: wordID) {
             id = existing.id
         } else {
-            let legacy = environment.repository.allWords().first { $0.id == wordID }?.chat ?? []
+            let legacy = environment.repository.word(id: wordID)?.chat ?? []
             let turns = legacy.filter { $0.status == .sent && !$0.text.isEmpty }.map {
                 ChatTurn(role: $0.role == .user ? .user : .assistant, text: $0.text, createdAt: $0.createdAt)
             }

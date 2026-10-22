@@ -80,7 +80,7 @@ final class SwiftDataReviewRepository: ReviewRepository {
             }
             applied += 1
         }
-        try? context.save()
+        Persistence.save(context)
         return applied
     }
 
@@ -109,7 +109,7 @@ final class SwiftDataReviewRepository: ReviewRepository {
         need.status = .cleared
         need.clearedAt = now
         need.updatedAt = now
-        try? context.save()
+        Persistence.save(context)
     }
 
     func deleteOrphans(validWordIDs: Set<UUID>) {
@@ -119,6 +119,6 @@ final class SwiftDataReviewRepository: ReviewRepository {
             context.delete(need)
             changed = true
         }
-        if changed { try? context.save() }
+        if changed { Persistence.save(context) }
     }
 }

@@ -59,7 +59,22 @@ final class LocalMathEngine: @unchecked Sendable {
         self.timeout = timeout
     }
 
+    /// Inputs that make the engine spin for minutes (huge factorials, huge exponents). A run cannot be killed once
+    /// started, only abandoned, so these are refused up front and left to the Gemini fallback.
+    static func isTooHeavy(_ query: String) -> Bool {
+        func exceeds(_ pattern: String, _ limit: Double) -> Bool {
+            var from = query.startIndex
+            while let range = query.range(of: pattern, options: .regularExpression, range: from..<query.endIndex) {
+                if let value = Double(query[range].filter(\.isNumber)), value >= limit { return true }
+                from = range.upperBound
+            }
+            return false
+        }
+        return exceeds("[0-9]+(?=\\s*!)", 500) || exceeds("(?<=\\^)\\s*\\(?\\s*[0-9]+", 1_000)
+    }
+
     func solve(_ query: String) async -> Outcome {
+        if Self.isTooHeavy(query) { return .unsupported }
         let current = currentLane()
         return await withCheckedContinuation { continuation in
             let once = Once(continuation)

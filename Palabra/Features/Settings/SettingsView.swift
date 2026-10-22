@@ -223,7 +223,7 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog(
-            "Delete all \(environment.repository.allWords().count) words? This can't be undone.",
+            "Delete all \(environment.repository.wordCount()) words? This can't be undone.",
             isPresented: $showDeleteAllConfirm
         ) {
             Button("Delete All", role: .destructive) { environment.repository.deleteAll() }

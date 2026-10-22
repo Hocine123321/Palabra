@@ -190,6 +190,29 @@ final class GeminiClientTests: XCTestCase {
         XCTAssertEqual(Set(models.map(\.id)), ["models/gemini-2.5-flash", "models/gemini-2.5-pro"])
     }
 
+    func testListModelsStopsWhenTheServerRepeatsAPageToken() async {
+        let calls = Box(0)
+        MockURLProtocol.handler = { _ in
+            calls.value += 1
+            let json: [String: Any] = [
+                "models": [["name": "models/gemini-2.5-flash", "displayName": "Gemini 2.5 Flash", "supportedGenerationMethods": ["generateContent"]]],
+                "nextPageToken": "same"
+            ]
+            return (200, try! JSONSerialization.data(withJSONObject: json))
+        }
+        let result = await client.listModels(apiKey: "key")
+        guard case .success = result else { return XCTFail("expected success, got \(result)") }
+        XCTAssertLessThanOrEqual(calls.value, 3, "a repeated token must not loop")
+    }
+
+    func testAnUnencodableRequestFailsInsteadOfSendingAnEmptyBody() async {
+        let sent = Box(false)
+        MockURLProtocol.handler = { _ in sent.value = true; return (200, Data()) }
+        let result = await client.generateJSON(prompt: "x", systemInstruction: "y", schema: ["bad": Double.nan], apiKey: "key", model: model, temperature: 0)
+        guard case .failure = result else { return XCTFail("expected a failure, got \(result)") }
+        XCTAssertFalse(sent.value, "nothing may be sent when the body cannot be built")
+    }
+
     // MARK: - sendChat
 
     func testSendChatReturnsAssistantText() async {

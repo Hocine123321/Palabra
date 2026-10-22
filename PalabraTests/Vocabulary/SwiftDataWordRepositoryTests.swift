@@ -76,6 +76,15 @@ final class SwiftDataWordRepositoryTests: XCTestCase {
         XCTAssertEqual(freshRepository.allWords().count, 1)
     }
 
+    func testWordByIdAndWordCountDoNotNeedTheWholeLibrary() {
+        XCTAssertEqual(repository.wordCount(), 0)
+        let a = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
+        repository.insert(spanish: "comer", key: "comer", searchKey: "comer", content: sampleContent(word: "comer"), rawJSON: Data())
+        XCTAssertEqual(repository.wordCount(), 2)
+        XCTAssertEqual(repository.word(id: a.id)?.key, "hablar")
+        XCTAssertNil(repository.word(id: UUID()))
+    }
+
     func testImportSkipsEntriesWithABlankHeadword() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let items = [

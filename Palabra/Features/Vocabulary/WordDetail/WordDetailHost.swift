@@ -25,7 +25,7 @@ struct WordDetailHost: View {
             }
         }
         .onAppear {
-            word = environment.repository.allWords().first { $0.id == wordID }
+            word = environment.repository.word(id: wordID)
             didLoad = true
         }
     }

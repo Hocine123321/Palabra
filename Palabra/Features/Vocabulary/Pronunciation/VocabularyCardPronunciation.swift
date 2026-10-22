@@ -7,7 +7,7 @@ struct VocabularyCardPronunciation: View {
     @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
-        if let word = environment.repository.allWords().first(where: { $0.id == wordID }) {
+        if let word = environment.repository.word(id: wordID) {
             PronunciationButton(word: word)
         }
     }

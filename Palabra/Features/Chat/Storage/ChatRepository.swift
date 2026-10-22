@@ -54,7 +54,7 @@ final class SwiftDataChatRepository: ChatRepository {
     func create(title: String, wordID: UUID?, turns: [ChatTurn], now: Date) -> ChatConversation {
         let conversation = ChatConversation(title: Self.cleanTitle(title), wordID: wordID, turns: Self.trimmed(turns), now: now)
         context.insert(conversation)
-        try? context.save()
+        Persistence.save(context)
         return conversation
     }
 
@@ -63,13 +63,13 @@ final class SwiftDataChatRepository: ChatRepository {
         conversation.turns = Self.trimmed(turns)
         if let title { conversation.title = Self.cleanTitle(title) }
         conversation.updatedAt = now
-        try? context.save()
+        Persistence.save(context)
     }
 
     func delete(id: UUID) {
         guard let conversation = conversation(id: id) else { return }
         context.delete(conversation)
-        try? context.save()
+        Persistence.save(context)
     }
 
     private static func cleanTitle(_ raw: String) -> String {

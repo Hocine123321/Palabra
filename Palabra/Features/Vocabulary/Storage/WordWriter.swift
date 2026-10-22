@@ -27,7 +27,7 @@ enum WordWriter {
         // from the stored one: find the word by id there, by key for a new word.
         let saved: Word?
         if case .regenerate(let existingID, _) = mode {
-            saved = environment.repository.allWords().first { $0.id == existingID }
+            saved = environment.repository.word(id: existingID)
         } else {
             saved = environment.repository.find(key: key)
         }

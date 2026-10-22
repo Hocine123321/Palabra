@@ -24,6 +24,7 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
     func listModels(apiKey: String) async -> Result<[AIModel], AIError> {
         var all: [AIModel] = []
         var pageToken: String?
+        var seenTokens = Set<String>()
         repeat {
             var comps = URLComponents(url: baseURL.appendingPathComponent("models"), resolvingAgainstBaseURL: false)!
             var items = [URLQueryItem(name: "pageSize", value: "1000")]
@@ -46,6 +47,8 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
                             inputTokenLimit: $0.inputTokenLimit, outputTokenLimit: $0.outputTokenLimit)
                 })
                 pageToken = page.nextPageToken
+                // A repeated token (or an absurd page count) would loop forever.
+                if let token = pageToken, !seenTokens.insert(token).inserted || seenTokens.count > 50 { pageToken = nil }
             }
         } while pageToken != nil
         return .success(all)
@@ -110,7 +113,8 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
         request.timeoutInterval = 30
         request.setValue(apiKey.trimmed, forHTTPHeaderField: "x-goog-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        guard let bodyData = Self.encode(body) else { return .failure(.unknown(nil, "The request could not be built.")) }
+        request.httpBody = bodyData
 
         switch await perform(request) {
         case .failure(let error): return .failure(error)
@@ -185,11 +189,19 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
         request.timeoutInterval = timeout
         request.setValue(apiKey.trimmed, forHTTPHeaderField: "x-goog-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        guard let bodyData = Self.encode(body) else { return .failure(.unknown(nil, "The request could not be built.")) }
+        request.httpBody = bodyData
         switch await perform(request) {
         case .failure(let error): return .failure(error)
         case .success(let data): return extractText(from: data)
         }
+    }
+
+    /// `JSONSerialization.data` raises an uncatchable Objective-C exception for an invalid object (for example a NaN
+    /// temperature), so check first, and never send a request with a silently missing body.
+    private static func encode(_ body: [String: Any]) -> Data? {
+        guard JSONSerialization.isValidJSONObject(body) else { return nil }
+        return try? JSONSerialization.data(withJSONObject: body)
     }
 
     private func perform(_ request: URLRequest) async -> Result<Data, AIError> {
@@ -209,7 +221,7 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
 
     private func mapURLError(_ error: URLError) -> AIError {
         switch error.code {
-        case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
+        case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .internationalRoamingOff, .callIsActive:
             return .offline
         case .timedOut:
             return .timeout

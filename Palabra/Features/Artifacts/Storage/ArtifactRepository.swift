@@ -78,7 +78,7 @@ final class SwiftDataArtifactRepository: ArtifactRepository {
         let artifact = Artifact(title: title, kind: kind, now: now)
         context.insert(artifact)
         context.insert(ArtifactVersion(artifactID: artifact.id, number: 1, payload: payload, requested: requested, prompt: prompt, createdAt: now))
-        try? context.save()
+        Persistence.save(context)
         return .success(artifact)
     }
 
@@ -91,12 +91,12 @@ final class SwiftDataArtifactRepository: ArtifactRepository {
         artifact.currentVersion = number
         artifact.updatedAt = now
         // Save first so the prune fetch certainly sees the new version.
-        try? context.save()
+        Persistence.save(context)
         // Newest first; everything past `maxVersions` is pruned.
         for old in versions(artifactID: artifactID).dropFirst(ArtifactLimits.maxVersions) {
             context.delete(old)
         }
-        try? context.save()
+        Persistence.save(context)
         return .success(version)
     }
 
@@ -116,14 +116,14 @@ final class SwiftDataArtifactRepository: ArtifactRepository {
     func setGranted(artifactID: UUID, names: [String]) {
         guard let artifact = artifact(id: artifactID) else { return }
         artifact.grantedNames = Array(Set(names)).sorted()
-        try? context.save()
+        Persistence.save(context)
     }
 
     func delete(id: UUID) {
         for version in versions(artifactID: id) { context.delete(version) }
         for entry in stateEntries(artifactID: id) { context.delete(entry) }
         if let artifact = artifact(id: id) { context.delete(artifact) }
-        try? context.save()
+        Persistence.save(context)
     }
 
     func stateValue(artifactID: UUID, key: String) -> Data? {
@@ -143,14 +143,14 @@ final class SwiftDataArtifactRepository: ArtifactRepository {
         } else {
             context.insert(ArtifactStateEntry(artifactID: artifactID, key: key, valueData: value))
         }
-        try? context.save()
+        Persistence.save(context)
         return .success(())
     }
 
     func removeStateValue(artifactID: UUID, key: String) {
         guard let entry = stateEntries(artifactID: artifactID).first(where: { $0.key == key }) else { return }
         context.delete(entry)
-        try? context.save()
+        Persistence.save(context)
     }
 
     private func stateEntries(artifactID: UUID) -> [ArtifactStateEntry] {

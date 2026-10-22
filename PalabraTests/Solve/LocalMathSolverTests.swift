@@ -19,6 +19,22 @@ final class LocalMathSolverTests: XCTestCase {
         return false
     }
 
+    func testHeavyInputsAreRefusedUpFront() {
+        for query in ["100000!", "x^100000", "2^(5000)", "99999 !"] {
+            XCTAssertTrue(LocalMathEngine.isTooHeavy(query), query)
+        }
+        for query in ["5!", "x^2 - 4 = 0", "2^10", "x != 3", "499!", "x^999"] {
+            XCTAssertFalse(LocalMathEngine.isTooHeavy(query), query)
+        }
+    }
+
+    func testAHeavyProblemIsUnsupportedAtOnceInsteadOfTyingUpTheEngine() async {
+        let started = Date()
+        let unsupported = await isUnsupported("100000!")
+        XCTAssertTrue(unsupported)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2)
+    }
+
     func testQuadraticListsBothRoots() async {
         let result = await answer("x^2 - 4 = 0")
         XCTAssertEqual(result?.answerText, "x = -2 or x = 2")

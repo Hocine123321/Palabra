@@ -118,7 +118,7 @@ final class SwiftDataCardRepository: CardRepository {
             guard !front.isEmpty, !back.isEmpty else { continue }
             context.insert(Card(deckID: deck.id, front: front, back: back, createdAt: now))
         }
-        try? context.save()
+        Persistence.save(context)
         return deck
     }
 
@@ -135,7 +135,7 @@ final class SwiftDataCardRepository: CardRepository {
             context.insert(Card(deckID: id, front: front, back: back, createdAt: now))
             added += 1
         }
-        if added > 0 { try? context.save() }
+        if added > 0 { Persistence.save(context) }
         return added
     }
 
@@ -145,7 +145,7 @@ final class SwiftDataCardRepository: CardRepository {
         guard let card = try? context.fetch(descriptor).first,
               decks().first(where: { $0.id == card.deckID })?.kind == .user else { return false }
         delete(cards: [card])
-        try? context.save()
+        Persistence.save(context)
         return true
     }
 
@@ -159,7 +159,7 @@ final class SwiftDataCardRepository: CardRepository {
         guard let deck = try? context.fetch(descriptor).first else { return }
         delete(cards: cards(inDeck: id))
         context.delete(deck)
-        try? context.save()
+        Persistence.save(context)
     }
 
     @discardableResult
@@ -170,7 +170,7 @@ final class SwiftDataCardRepository: CardRepository {
         let updated = scheduler.next(previous, grade: grade, now: now)
         card.srs = updated
         context.insert(ReviewLog(cardID: cardID, grade: grade, reviewedAt: now, prevInterval: previous.interval, newInterval: updated.interval))
-        try? context.save()
+        Persistence.save(context)
         return updated
     }
 
@@ -206,7 +206,7 @@ final class SwiftDataCardRepository: CardRepository {
             }
         }
         delete(cards: stale)
-        try? context.save()
+        Persistence.save(context)
     }
 
     // MARK: - Helpers

@@ -45,7 +45,7 @@ final class SwiftDataWordQueueRepository: WordQueueRepository {
     func enqueue(inputWord: String, mode: AddWordFlow.Mode, language: SupportedLanguage) -> WordQueueItem {
         let item = WordQueueItem(inputWord: inputWord, mode: mode, language: language)
         context.insert(item)
-        try? context.save()
+        Persistence.save(context)
         return item
     }
 
@@ -61,7 +61,7 @@ final class SwiftDataWordQueueRepository: WordQueueRepository {
     func markProcessing(id: UUID) {
         guard let item = fetchByID(id) else { return }
         item.status = .processing
-        try? context.save()
+        Persistence.save(context)
     }
 
     func markPending(id: UUID, attempts: Int, lastError: String?) {
@@ -69,27 +69,27 @@ final class SwiftDataWordQueueRepository: WordQueueRepository {
         item.status = .pending
         item.attempts = attempts
         item.lastErrorMessage = lastError
-        try? context.save()
+        Persistence.save(context)
     }
 
     func markFailed(id: UUID, lastError: String) {
         guard let item = fetchByID(id) else { return }
         item.status = .failed
         item.lastErrorMessage = lastError
-        try? context.save()
+        Persistence.save(context)
     }
 
     func remove(id: UUID) {
         guard let item = fetchByID(id) else { return }
         context.delete(item)
-        try? context.save()
+        Persistence.save(context)
     }
 
     func resetStuckProcessing() {
         for item in allItems() where item.status == .processing {
             item.status = .pending
         }
-        try? context.save()
+        Persistence.save(context)
     }
 
     private func fetchByID(_ id: UUID) -> WordQueueItem? {

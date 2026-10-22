@@ -63,25 +63,25 @@ final class SwiftDataSolveRepository: SolveRepository {
             context.insert(entry)
         }
         trim()
-        try? context.save()
+        Persistence.save(context)
         return entry
     }
 
     func update(id: UUID, result: SolveResult, now: Date) {
         guard let entry = entry(id: id), let data = try? JSONEncoder().encode(result) else { return }
         entry.resultData = data
-        try? context.save()
+        Persistence.save(context)
     }
 
     func delete(id: UUID) {
         guard let entry = entry(id: id) else { return }
         context.delete(entry)
-        try? context.save()
+        Persistence.save(context)
     }
 
     func deleteAll() {
         for entry in (try? context.fetch(FetchDescriptor<SolveEntry>())) ?? [] { context.delete(entry) }
-        try? context.save()
+        Persistence.save(context)
     }
 
     private func trim() {

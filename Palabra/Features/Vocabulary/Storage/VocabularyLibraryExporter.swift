@@ -21,6 +21,8 @@ enum VocabularyLibraryExporter {
     enum ExportError: Error, Equatable {
         case unsupportedVersion(Int)
         case malformed
+        /// The words were read but could not be written to the store.
+        case saveFailed
     }
 
     static let currentVersion = 1
