@@ -94,6 +94,32 @@ final class ContentValidatorTests: XCTestCase {
         }
     }
 
+    func testRunawayTextIsClippedNotRejected() {
+        var content = validContent()
+        let huge = String(repeating: "x", count: 5_000)
+        content.examples[0].spanish = huge
+        content.examples[1].translation = huge
+        content.meaning.explanation = huge
+        content.meaning.translations = (0..<40).map { "translation \($0)" }
+        content.usage.explanation = huge
+        content.similarWords[0].difference = huge
+        guard case .success(let cleaned) = ContentValidator.validate(content) else { return XCTFail("should still validate") }
+        XCTAssertEqual(cleaned.examples[0].spanish.count, ContentValidator.maxParagraphLength)
+        XCTAssertEqual(cleaned.examples[1].translation.count, ContentValidator.maxParagraphLength)
+        XCTAssertEqual(cleaned.meaning.explanation.count, ContentValidator.maxParagraphLength)
+        XCTAssertEqual(cleaned.meaning.translations.count, ContentValidator.maxTranslations)
+        XCTAssertEqual(cleaned.usage.explanation.count, ContentValidator.maxParagraphLength)
+        XCTAssertEqual(cleaned.similarWords[0].difference.count, ContentValidator.maxDifferenceLength)
+    }
+
+    func testNormalLengthTextIsLeftAlone() {
+        let content = validContent()
+        guard case .success(let cleaned) = ContentValidator.validate(content) else { return XCTFail("should validate") }
+        XCTAssertEqual(cleaned.examples[0].spanish, "Hablo español en clase.")
+        XCTAssertEqual(cleaned.meaning.translations, ["to speak", "to talk"])
+        XCTAssertEqual(cleaned.similarWords[0].difference, "More formal, implies a two-way conversation.")
+    }
+
     func testDuplicateFormLabelsAreKept() {
         var content = validContent()
         content.forms.groups = [

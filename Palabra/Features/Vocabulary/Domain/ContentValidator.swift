@@ -10,6 +10,16 @@ enum ContentValidator {
     static let maxFormsPerGroup = 12
     static let maxFormLength = 60
     static let maxNoteLength = 90
+    /// Upper bounds for the rest of the displayed text, so one runaway reply cannot stretch a screen or bloat the store.
+    /// Generous on purpose: normal replies are far below them and are never altered.
+    static let maxContextLength = 300
+    static let maxParagraphLength = 1_500
+    static let maxTranslations = 10
+    static let maxTranslationLength = 120
+    static let maxRegisterLength = 120
+    static let maxPartOfSpeechLength = 60
+    static let maxSimilarWordLength = 60
+    static let maxDifferenceLength = 500
 
     private static func clip(_ s: String, to limit: Int) -> String {
         s.count <= limit ? s : String(s.prefix(limit - 1)) + "…"
@@ -22,7 +32,11 @@ enum ContentValidator {
         if word.isEmpty || word.count > 60 { failed.append("word") }
 
         let examples = raw.examples.map {
-            WordContent.Example(context: $0.context.trimmed, spanish: $0.spanish.trimmed, english: $0.english.trimmed)
+            WordContent.Example(
+                context: clip($0.context.trimmed, to: maxContextLength),
+                spanish: clip($0.spanish.trimmed, to: maxParagraphLength),
+                english: clip($0.english.trimmed, to: maxParagraphLength)
+            )
         }
         if examples.count != 3 {
             failed.append("examples.count")
@@ -35,19 +49,19 @@ enum ContentValidator {
             }
         }
 
-        let translations = raw.meaning.translations.map(\.trimmed).filter { !$0.isEmpty }
-        let meaningExplanation = raw.meaning.explanation.trimmed
+        let translations = Array(raw.meaning.translations.map { clip($0.trimmed, to: maxTranslationLength) }.filter { !$0.isEmpty }.prefix(maxTranslations))
+        let meaningExplanation = clip(raw.meaning.explanation.trimmed, to: maxParagraphLength)
         if translations.isEmpty { failed.append("meaning.translations") }
         if meaningExplanation.isEmpty { failed.append("meaning.explanation") }
 
-        let usageExplanation = raw.usage.explanation.trimmed
-        let register = raw.usage.register.trimmed
+        let usageExplanation = clip(raw.usage.explanation.trimmed, to: maxParagraphLength)
+        let register = clip(raw.usage.register.trimmed, to: maxRegisterLength)
         if usageExplanation.isEmpty { failed.append("usage.explanation") }
         if register.isEmpty { failed.append("usage.register") }
-        let nuance = raw.usage.nuance?.trimmed
+        let nuance = raw.usage.nuance.map { clip($0.trimmed, to: maxParagraphLength) }
         let cleanNuance = (nuance?.isEmpty ?? true) ? nil : nuance
 
-        let partOfSpeech = raw.forms.partOfSpeech.trimmed
+        let partOfSpeech = clip(raw.forms.partOfSpeech.trimmed, to: maxPartOfSpeechLength)
         if partOfSpeech.isEmpty { failed.append("forms.partOfSpeech") }
 
         var groups: [WordContent.Forms.FormGroup] = []
@@ -64,7 +78,7 @@ enum ContentValidator {
         if groups.isEmpty { failed.append("forms.groups") }
 
         var similar = raw.similarWords
-            .map { WordContent.SimilarWord(word: $0.word.trimmed, difference: $0.difference.trimmed) }
+            .map { WordContent.SimilarWord(word: clip($0.word.trimmed, to: maxSimilarWordLength), difference: clip($0.difference.trimmed, to: maxDifferenceLength)) }
             .filter { !$0.word.isEmpty && !$0.difference.isEmpty }
         if similar.isEmpty { failed.append("similarWords") }
         if similar.count > 8 { similar = Array(similar.prefix(8)) }

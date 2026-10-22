@@ -29,6 +29,9 @@ enum Theme {
     /// Text on a cutout tint. Tints are light enough in both appearances for dark ink.
     static let onTint = Color(hex: 0x1F1D1A)
 
+    /// Warm paper that stays light in dark mode, for content drawn for a light page (Wolfram's images).
+    static let paper = Color(hex: 0xFCFBF8)
+
     /// Muted cutout palette: Claude Orange first, then sage, sky, sand, apricot, stone.
     static let tileTints: [Color] = [
         accent,

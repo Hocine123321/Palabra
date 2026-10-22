@@ -10,6 +10,8 @@ A native iPhone (SwiftUI + SwiftData, iOS 17) **study app** powered by the user'
 - **Study tab (new):** a second top-level tab next to Spanish (`RootView` is a `TabView` with Spanish, Study, Solve and Settings tabs). It holds flashcards with spaced repetition: decks, a review screen, and AI card generation from pasted notes. Library words are mirrored into a system "Vocabulary" deck. See "Study (flashcards)" below. Quiz Gen and photo/PDF input are planned follow-ups; further tools go in their own folder under `Features/` (see "Adding a feature").
 - **Naming:** the app is called **Palabra** and keeps that name. It is the product name, not a claim that the app is Spanish-only: the Xcode target/module, the `Palabra/` folder, the display name and the bundle id all stay `Palabra`. Do not propose or start a rename.
 
+Known weaknesses and follow-ups from the last code review are in `docs/REVIEW.md`; check it before starting related work and update it when an item is fixed.
+
 ## Layout
 
 ```
@@ -140,7 +142,7 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 ## Resilience (retries, backup key, per-error reactions)
 
 - Every screen calls `environment.ai`, which in the live app is a `ResilientAIClient` decorating `GeminiClient`. Do not add retry loops in screens; add a case to `ErrorStrategy` instead.
-- `ErrorStrategy.next` is pure and decides the reaction per error: offline waits for the network (not counted as an attempt), transient errors retry with doubling waits, quota/invalid/denied keys switch to the backup key immediately (waiting never helps), blocked/setup errors stop, everything else asks the person.
+- `ErrorStrategy.next` is pure and decides the reaction per error: offline waits for the network (not counted as an attempt; but when `connectivity.isConnected` is already true, `ResilientAIClient` treats it as a transient failure with backoff, then asks, so it can never spin), transient errors retry with doubling waits, quota/invalid/denied keys switch to the backup key immediately (waiting never helps), blocked/setup errors stop, everything else asks the person.
 - When automatic tries run out the person picks Try Again, Retry with Longer Waits, or Stop (`ResilienceCenter.ask`, shown by `ResilienceOverlay`). Background work (`environment.backgroundAI`) never asks; its failures appear under Settings > Reliability > Recent Problems.
 - The backup key lives in its own Keychain account (`api-key-fallback`). `KeyHealth` benches a failing key (rate limit 1 min, quota 1 h, rejected 24 h) and prefers the main key again as soon as it recovers.
 - Tests use `AppEnvironment(... resilient: false)` by default, so retries never slow them. Resilience is tested with `ScriptedAIClient` and an injected `sleep`.

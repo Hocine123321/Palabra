@@ -33,7 +33,14 @@ struct KeychainStore {
     func save(_ value: String) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = trimmed.data(using: .utf8) else { return false }
-        delete()
+        // Update in place first: delete-then-add would lose the existing key if the add failed.
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        let updated = SecItemUpdate(baseQuery() as CFDictionary, attributes as CFDictionary)
+        if updated == errSecSuccess { return true }
+        if updated != errSecItemNotFound { delete() } // something unusable is stored: replace it
         var query = baseQuery()
         query[kSecValueData as String] = data
         query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly

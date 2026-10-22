@@ -126,7 +126,8 @@ final class SwiftDataWordRepository: WordRepository {
         var skipped = 0
         for item in envelope.words {
             let key = WordKey.identity(item.content.word)
-            guard find(key: key) == nil else {
+            // A hand-edited or damaged file can carry a blank headword; it would become an unreachable, unnamed word.
+            guard !key.isEmpty, find(key: key) == nil else {
                 skipped += 1
                 continue
             }

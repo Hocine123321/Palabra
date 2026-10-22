@@ -6,9 +6,21 @@ import SwiftData
 struct PalabraApp: App {
     let container: ModelContainer
     let environment: AppEnvironment
+    /// True when the library on disk could not be opened and the app runs on a temporary in-memory one.
+    @State private var showStoreProblem: Bool
+
+    /// The UI-test launch arguments only exist in Debug builds. `-UITestReset` wipes the library and `-UITestStub`
+    /// replaces the AI and overwrites the saved API key, so a build that people install must ignore them.
+    private static let launchArguments: [String] = {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments
+        #else
+        return []
+        #endif
+    }()
 
     init() {
-        let arguments = ProcessInfo.processInfo.arguments
+        let arguments = Self.launchArguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
         let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self, ReviewNeed.self, ChatConversation.self, SolveEntry.self])
@@ -17,14 +29,18 @@ struct PalabraApp: App {
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
             : ModelConfiguration(schema: schema)
         let container: ModelContainer
+        var storeFailed = false
         do {
             container = try ModelContainer(for: schema, configurations: [configuration])
         } catch {
             // A store that can't be opened must not crash the app on every launch. Run on a temporary in-memory
-            // store instead; the files on disk are left untouched.
+            // store instead; the files on disk are left untouched. The person is told (see `body`), because
+            // anything saved from now on is lost when the app closes.
+            storeFailed = true
             container = try! ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
         }
         self.container = container
+        _showStoreProblem = State(initialValue: storeFailed)
 
         if arguments.contains("-UITestReset") {
             let context = ModelContext(container)
@@ -123,6 +139,11 @@ struct PalabraApp: App {
             RootView()
                 .environment(environment)
                 .modelContainer(container)
+                .alert("Your library couldn't be opened", isPresented: $showStoreProblem) {
+                    Button("Close", role: .cancel) {}
+                } message: {
+                    Text("Palabra is using a temporary library, so anything you add will be lost when the app closes. Close the app and open it again. If this keeps happening, don't delete the app: your saved words are still on this device.")
+                }
         }
     }
 }

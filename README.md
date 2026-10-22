@@ -6,7 +6,13 @@ A native iPhone study app powered by Google AI. It is growing from a Spanish-voc
 
 **Library organization:** the AI can group your words into sections and tag them; search by word, meaning, section or `#tag`. See `docs/features/library-organization.md`.
 
-**Planned:** a second page of AI study tools.
+**Study:** flashcards with spaced repetition. Decks, a review screen, AI card generation from pasted notes; library words are mirrored into a "Vocabulary" deck.
+
+**Solve:** typed or photographed math problems, solved on the device first, then by Wolfram|Alpha (your own App ID, optional), then by Gemini.
+
+**Artifacts and Chat:** AI-built tables, charts, checklists and small apps that run in a locked-down web view, and an assistant that can read and (with your approval) change your library, decks and review list.
+
+**Reliability:** automatic retries, a backup key and backup models, and an offline queue for words added without a connection.
 
 ## Build and install (no Mac required)
 
@@ -32,11 +38,18 @@ Some sideload tools rewrite the bundle id; if it changes, the on-device library 
 Palabra/App                  app entry, dependency container, navigation router
 Palabra/Core                 shared by every feature: AI client, audio, model catalogue, design system, storage
 Palabra/Features/Vocabulary  the Spanish word library (domain, storage, AI prompts, pronunciation, screens)
+Palabra/Features/Study       flashcards and spaced repetition
+Palabra/Features/Solve       math solver (on-device, Wolfram|Alpha, Gemini)
+Palabra/Features/Artifacts   AI-built tables, charts and small apps
+Palabra/Features/Chat        the assistant
+Palabra/Features/Review      Need Review list
+Palabra/Features/Resilience  retry, backup key and model settings
 Palabra/Features/Settings    app-wide settings and model picker
 Palabra/Features/Onboarding  first-run screen
 PalabraTests                 unit tests (folders mirror Palabra/)
 PalabraUITests               UI tests (stubbed AI)
 docs/features                notes on shipped features
+docs/REVIEW.md               code review: open weaknesses and what was fixed
 project.yml                  XcodeGen project definition
 ~~~
 

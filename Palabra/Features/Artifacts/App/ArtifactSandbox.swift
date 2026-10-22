@@ -6,8 +6,9 @@ import WebKit
 enum ArtifactSandbox {
     static let bridgeName = "palabra"
 
-    /// Inserted into the document before it is loaded.
-    static let csp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:"
+    /// Inserted into the document before it is loaded. `form-action` and `base-uri` do not fall back to
+    /// `default-src`, so they are denied explicitly.
+    static let csp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'"
 
     /// Blocks every network load. WebKit content rules have no alternation or groups, hence two rules.
     static let blockRulesJSON = """
@@ -15,16 +16,39 @@ enum ArtifactSandbox {
     """
 
     /// Prepends the CSP `<meta>` inside `<head>` (or `<html>`), after any doctype so the page stays in standards mode.
+    /// A `<head>` that only appears inside an HTML comment is skipped: the policy would be inserted into the comment and never apply.
     static func documentWithCSP(_ html: String) -> String {
         let meta = "<meta http-equiv=\"Content-Security-Policy\" content=\"\(csp)\">"
+        let comments = commentRanges(in: html)
         for pattern in ["<head(\\s[^>]*)?>", "<html(\\s[^>]*)?>"] {
-            if let range = html.range(of: pattern, options: [.regularExpression, .caseInsensitive]) {
+            var from = html.startIndex
+            while let range = html.range(of: pattern, options: [.regularExpression, .caseInsensitive], range: from..<html.endIndex) {
+                if comments.contains(where: { $0.contains(range.lowerBound) }) {
+                    from = range.upperBound
+                    continue
+                }
                 var result = html
                 result.insert(contentsOf: meta, at: range.upperBound)
                 return result
             }
         }
         return meta + html
+    }
+
+    /// The `<!-- ... -->` spans of a document (an unclosed comment runs to the end).
+    private static func commentRanges(in html: String) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var cursor = html.startIndex
+        while let open = html.range(of: "<!--", range: cursor..<html.endIndex) {
+            if let close = html.range(of: "-->", range: open.upperBound..<html.endIndex) {
+                ranges.append(open.lowerBound..<close.upperBound)
+                cursor = close.upperBound
+            } else {
+                ranges.append(open.lowerBound..<html.endIndex)
+                break
+            }
+        }
+        return ranges
     }
 
     /// Injected at document start. Defines `window.palabra`; the page's only way out of the sandbox.

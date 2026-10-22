@@ -67,28 +67,45 @@ final class SwiftDataCardRepository: CardRepository {
         return (try? context.fetch(descriptor)) ?? []
     }
 
+    /// Counted in the store (three small count queries per deck) instead of loading every card: this runs on
+    /// launch, on every tab change and on every Study screen, so it must stay cheap for a large library.
     func counts(now: Date) -> [UUID: DeckCounts] {
+        let newRaw = SRSPhase.new.rawValue
         var result: [UUID: DeckCounts] = [:]
-        for card in allCards() {
-            var c = result[card.deckID] ?? DeckCounts()
-            c.total += 1
-            if card.phase == .new {
-                c.new += 1
-            } else if card.due <= now {
-                c.due += 1
-            }
-            result[card.deckID] = c
+        for deck in decks() {
+            let id = deck.id
+            let total = count(FetchDescriptor<Card>(predicate: #Predicate { $0.deckID == id }))
+            guard total > 0 else { continue }
+            let new = count(FetchDescriptor<Card>(predicate: #Predicate { $0.deckID == id && $0.phaseRaw == newRaw }))
+            let due = count(FetchDescriptor<Card>(predicate: #Predicate { $0.deckID == id && $0.phaseRaw != newRaw && $0.due <= now }))
+            result[id] = DeckCounts(total: total, due: due, new: new)
         }
         return result
     }
 
     func studyQueue(deckID: UUID?, now: Date, newLimit: Int) -> [Card] {
-        let pool = allCards().filter { deckID == nil || $0.deckID == deckID }
-        let due = pool.filter { $0.phase != .new && $0.due <= now }.sorted { $0.due < $1.due }
+        let newRaw = SRSPhase.new.rawValue
+        let dueDescriptor: FetchDescriptor<Card>
+        if let deckID {
+            dueDescriptor = FetchDescriptor<Card>(predicate: #Predicate { $0.deckID == deckID && $0.phaseRaw != newRaw && $0.due <= now }, sortBy: [SortDescriptor(\.due)])
+        } else {
+            dueDescriptor = FetchDescriptor<Card>(predicate: #Predicate { $0.phaseRaw != newRaw && $0.due <= now }, sortBy: [SortDescriptor(\.due)])
+        }
+        let due = (try? context.fetch(dueDescriptor)) ?? []
+
         let startOfDay = Calendar.current.startOfDay(for: now)
         let remaining = max(0, newLimit - newCardsStudied(since: startOfDay))
-        let fresh = pool.filter { $0.phase == .new }.sorted { $0.createdAt < $1.createdAt }.prefix(remaining)
-        return due + Array(fresh)
+        // A fetch limit of 0 means "no limit" to the store, so never ask for it.
+        guard remaining > 0 else { return due }
+        var freshDescriptor: FetchDescriptor<Card>
+        if let deckID {
+            freshDescriptor = FetchDescriptor<Card>(predicate: #Predicate { $0.deckID == deckID && $0.phaseRaw == newRaw }, sortBy: [SortDescriptor(\.createdAt)])
+        } else {
+            freshDescriptor = FetchDescriptor<Card>(predicate: #Predicate { $0.phaseRaw == newRaw }, sortBy: [SortDescriptor(\.createdAt)])
+        }
+        freshDescriptor.fetchLimit = remaining
+        let fresh = (try? context.fetch(freshDescriptor)) ?? []
+        return due + fresh
     }
 
     @discardableResult
@@ -194,24 +211,36 @@ final class SwiftDataCardRepository: CardRepository {
 
     // MARK: - Helpers
 
-    private func allCards() -> [Card] {
-        (try? context.fetch(FetchDescriptor<Card>())) ?? []
+    private func count<T: PersistentModel>(_ descriptor: FetchDescriptor<T>) -> Int {
+        (try? context.fetchCount(descriptor)) ?? 0
     }
 
-    /// Cards whose first-ever review happened on or after `start`.
+    /// Cards whose first-ever review happened on or after `start`. Only today's logs are loaded, plus the older
+    /// logs of the cards reviewed today (to tell a first review from a repeat).
     private func newCardsStudied(since start: Date) -> Int {
-        let logs = (try? context.fetch(FetchDescriptor<ReviewLog>())) ?? []
-        let before = Set(logs.filter { $0.reviewedAt < start }.map(\.cardID))
-        let today = Set(logs.filter { $0.reviewedAt >= start }.map(\.cardID))
-        return today.subtracting(before).count
+        let today = (try? context.fetch(FetchDescriptor<ReviewLog>(predicate: #Predicate { $0.reviewedAt >= start }))) ?? []
+        let todayIDs = Array(Set(today.map(\.cardID)))
+        guard !todayIDs.isEmpty else { return 0 }
+        var seenBefore = Set<UUID>()
+        for chunk in Self.chunks(todayIDs) {
+            let older = (try? context.fetch(FetchDescriptor<ReviewLog>(predicate: #Predicate { $0.reviewedAt < start && chunk.contains($0.cardID) }))) ?? []
+            seenBefore.formUnion(older.map(\.cardID))
+        }
+        return Set(todayIDs).subtracting(seenBefore).count
     }
 
     private func delete(cards: [Card]) {
         guard !cards.isEmpty else { return }
-        let ids = Set(cards.map(\.id))
-        for log in (try? context.fetch(FetchDescriptor<ReviewLog>())) ?? [] where ids.contains(log.cardID) {
-            context.delete(log)
+        for chunk in Self.chunks(cards.map(\.id)) {
+            for log in (try? context.fetch(FetchDescriptor<ReviewLog>(predicate: #Predicate { chunk.contains($0.cardID) }))) ?? [] {
+                context.delete(log)
+            }
         }
         for card in cards { context.delete(card) }
+    }
+
+    /// Keeps an `IN (...)` list well under SQLite's variable limit.
+    private static func chunks(_ ids: [UUID], size: Int = 200) -> [[UUID]] {
+        stride(from: 0, to: ids.count, by: size).map { Array(ids[$0..<min($0 + size, ids.count)]) }
     }
 }

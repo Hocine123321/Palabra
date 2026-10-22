@@ -188,6 +188,34 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                         await finish(what, error, "Not retryable", request: requestID)
                         return .failure(error)
                     case .waitForNetwork:
+                        // The phone says it is online, yet the request failed as "offline" (DNS failure, captive portal,
+                        // a blocked host, a dead VPN). Waiting for "the network" would return at once and spin forever,
+                        // so treat it like any transient failure: back off, then ask. Only a genuinely lost connection
+                        // waits for connectivity without using up an attempt.
+                        if connectivity.isConnected {
+                            if failedAttempts < policy.maxAutomaticAttempts {
+                                let wait = policy.delay(forAttempt: failedAttempts)
+                                failedAttempts += 1
+                                await countdown(wait, request: requestID, error: error, attempt: failedAttempts, of: policy.maxAutomaticAttempts, usingFallback: slot == .fallback)
+                                if Task.isCancelled { await center.setRetrying(nil, request: requestID); return .failure(error) }
+                                continue attemptLoop
+                            }
+                            await center.setRetrying(nil, request: requestID)
+                            switch await askOrGiveUp(error: error, attempts: failedAttempts, what: what, canSwitchKey: false) {
+                            case .stop:
+                                await finish(what, error, "Stopped", request: requestID)
+                                return .failure(error)
+                            case .retryNow:
+                                failedAttempts = 0
+                                continue attemptLoop
+                            case .retryPatiently:
+                                patientRound += 1
+                                let wait = policy.patientDelay(forAttempt: patientRound - 1)
+                                await countdown(wait, request: requestID, error: error, attempt: patientRound, of: patientRound, usingFallback: slot == .fallback)
+                                failedAttempts = 0
+                                continue attemptLoop
+                            }
+                        }
                         await center.setOffline(true)
                         await center.setRetrying(nil, request: requestID)
                         let back = await connectivity.waitForConnection(timeout: 45)

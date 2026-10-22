@@ -10,7 +10,8 @@ final class ResilientAIClientTests: XCTestCase {
         fallback: String? = nil,
         policy: RetryPolicy = RetryPolicy(),
         interactive: Bool = true,
-        online: Bool = true
+        online: Bool = true,
+        pathLooksConnected: Bool = false
     ) -> (ResilientAIClient, ScriptedAIClient, ResilienceCenter, SleepRecorder) {
         let base = ScriptedAIClient(script)
         let center = ResilienceCenter()
@@ -20,7 +21,7 @@ final class ResilientAIClientTests: XCTestCase {
             center: center,
             fallbackKey: { fallback },
             policy: { policy },
-            connectivity: InstantConnectivity(comesBack: online),
+            connectivity: InstantConnectivity(comesBack: online, isConnected: pathLooksConnected),
             sleep: { slept.add($0) },
             interactive: interactive
         )
@@ -84,6 +85,22 @@ final class ResilientAIClientTests: XCTestCase {
         XCTAssertNotNil(try? result.get(), "five offline failures did not exhaust the three tries")
         XCTAssertEqual(base.callCount, 6)
         XCTAssertEqual(slept.seconds, 0, "no backoff sleep while offline; it waits for connectivity instead")
+    }
+
+    func testOfflineWhilePathLooksConnectedBacksOffThenGivesUpInsteadOfSpinning() async {
+        // DNS failure / captive portal: the network path is "satisfied", so waiting for connectivity would return at once.
+        let (client, base, _, slept) = make(Array(repeating: .failure(.offline), count: 20), interactive: false, pathLooksConnected: true)
+        let result = await client.listModels(apiKey: "main")
+        XCTAssertEqual(result.failureError, .offline)
+        XCTAssertEqual(base.callCount, 4, "1 first try + 3 automatic retries, then it stopped")
+        XCTAssertEqual(slept.seconds, 2 + 4 + 8, "it backs off like any transient failure")
+    }
+
+    func testOfflineWhilePathLooksConnectedCanStillRecover() async {
+        let (client, base, _, _) = make([.failure(.offline), .failure(.offline), ok], pathLooksConnected: true)
+        let result = await client.listModels(apiKey: "main")
+        XCTAssertNotNil(try? result.get())
+        XCTAssertEqual(base.callCount, 3)
     }
 
     // MARK: asking the person

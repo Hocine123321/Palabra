@@ -129,7 +129,7 @@ struct SolveResultView: View {
                     .scaledToFit()
                     .frame(maxWidth: image.size.width / 2, alignment: .leading)
                     .padding(Theme.Spacing.sm)
-                    .background(Self.paper, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+                    .background(Theme.paper, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
                     .accessibilityLabel(Text(verbatim: sub.plaintext))
             } else if !sub.plaintext.isEmpty {
                 Text(verbatim: sub.plaintext)
@@ -139,9 +139,6 @@ struct SolveResultView: View {
             }
         }
     }
-
-    /// Warm paper for Wolfram's images (the light value of `Theme.surface`, kept light in dark mode).
-    private static let paper = Color(hex: 0xFCFBF8)
 
     private func stepsButton(_ pod: SolvePod, _ model: SolveResultModel, hero: Bool) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {

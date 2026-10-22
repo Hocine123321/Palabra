@@ -76,6 +76,17 @@ final class SwiftDataWordRepositoryTests: XCTestCase {
         XCTAssertEqual(freshRepository.allWords().count, 1)
     }
 
+    func testImportSkipsEntriesWithABlankHeadword() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let items = [
+            VocabularyLibraryExporter.Item(content: sampleContent(word: "   "), raw: Data(), createdAt: now, updatedAt: now, chat: []),
+            VocabularyLibraryExporter.Item(content: sampleContent(word: "hablar"), raw: Data(), createdAt: now, updatedAt: now, chat: [])
+        ]
+        let result = try repository.importData(VocabularyLibraryExporter.encode(items: items))
+        XCTAssertEqual(result, ImportResult(imported: 1, skipped: 1))
+        XCTAssertEqual(repository.allWords().map(\.key), ["hablar"])
+    }
+
     func testUpdatePronunciationStoresAndClearsAudio() {
         let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
         XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio)

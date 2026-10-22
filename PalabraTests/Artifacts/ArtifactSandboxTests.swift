@@ -5,7 +5,12 @@ import WebKit
 @MainActor
 final class ArtifactSandboxTests: XCTestCase {
     func testCSPIsExact() {
-        XCTAssertEqual(ArtifactSandbox.csp, "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:")
+        XCTAssertEqual(ArtifactSandbox.csp, "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'")
+    }
+
+    func testCSPDeniesTheDirectivesThatDoNotFallBackToDefaultSrc() {
+        XCTAssertTrue(ArtifactSandbox.csp.contains("form-action 'none'"))
+        XCTAssertTrue(ArtifactSandbox.csp.contains("base-uri 'none'"))
     }
 
     func testBlockRulesAreValidJSONCoveringEveryNetworkScheme() throws {
@@ -40,6 +45,17 @@ final class ArtifactSandboxTests: XCTestCase {
     func testHeaderTagIsNotMistakenForHead() {
         let result = ArtifactSandbox.documentWithCSP("<html><body><header>x</header></body></html>")
         XCTAssertTrue(result.hasPrefix("<html><meta http-equiv"))
+    }
+
+    func testAHeadTagInsideACommentIsSkipped() {
+        let html = "<!DOCTYPE html><!-- <head> --><html><head><title>t</title></head><body></body></html>"
+        let result = ArtifactSandbox.documentWithCSP(html)
+        XCTAssertTrue(result.hasPrefix("<!DOCTYPE html><!-- <head> --><html><head><meta http-equiv=\"Content-Security-Policy\""), "the policy must land in the real head, not inside the comment")
+    }
+
+    func testAnUnclosedCommentStillGetsThePolicyInFront() {
+        let result = ArtifactSandbox.documentWithCSP("<!-- <head> never closed")
+        XCTAssertTrue(result.hasPrefix("<meta http-equiv=\"Content-Security-Policy\""))
     }
 
     func testCSPIsPrependedToAFragment() {

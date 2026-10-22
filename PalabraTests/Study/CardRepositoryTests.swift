@@ -164,6 +164,26 @@ final class CardRepositoryTests: XCTestCase {
         XCTAssertFalse(queue.contains { $0.id == first })
     }
 
+    func testRepeatReviewOfAnOlderCardDoesNotSpendTodaysNewLimit() {
+        let deck = repository.createDeck(name: "Bio", drafts: drafts(3), now: now)
+        let first = repository.cards(inDeck: deck.id)[0].id
+        repository.record(cardID: first, grade: .good, now: now.addingTimeInterval(-3 * 86_400)) // introduced days ago
+        repository.record(cardID: first, grade: .good, now: now) // reviewed again today: not a new card
+        let queue = repository.studyQueue(deckID: nil, now: now, newLimit: 2)
+        XCTAssertEqual(queue.count, 2, "both limit slots are still free for new cards")
+    }
+
+    func testDeletingADeckWithManyReviewedCardsRemovesEveryLog() {
+        let deck = repository.createDeck(name: "Big", drafts: drafts(450), now: now)
+        for card in repository.cards(inDeck: deck.id) {
+            repository.record(cardID: card.id, grade: .good, now: now)
+        }
+        XCTAssertEqual(logs().count, 450)
+        repository.deleteDeck(id: deck.id)
+        XCTAssertTrue(logs().isEmpty, "logs of more than one chunk of cards are all removed")
+        XCTAssertTrue(repository.cards(inDeck: deck.id).isEmpty)
+    }
+
     func testReviewedCardReturnsWhenDue() {
         let deck = repository.createDeck(name: "Bio", drafts: drafts(1), now: now)
         let id = repository.cards(inDeck: deck.id)[0].id

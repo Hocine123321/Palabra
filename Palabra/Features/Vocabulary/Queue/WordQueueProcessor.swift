@@ -20,6 +20,8 @@ import Observation
 final class WordQueueProcessor {
     private(set) var isDraining = false
     private var task: Task<Void, Never>?
+    /// Identifies the current drain, so a cancelled one that finishes late cannot clear the state of the next one.
+    private var runID = 0
 
     /// How long one pass waits for the network before re-checking the
     /// queue; kept short so a relaunch/foreground pass is noticed quickly.
@@ -47,21 +49,30 @@ final class WordQueueProcessor {
 
     func drain(environment: AppEnvironment) {
         guard task == nil else { return }
+        runID += 1
+        let id = runID
         task = Task { [weak self] in
-            await self?.run(environment: environment)
-            self?.task = nil
+            await self?.run(environment: environment, id: id)
+            self?.finish(id)
         }
     }
 
     func cancel() {
         task?.cancel()
         task = nil
+        runID += 1
         isDraining = false
     }
 
-    private func run(environment: AppEnvironment) async {
+    /// Clears the bookkeeping only if no newer drain has started since `id` began.
+    private func finish(_ id: Int) {
+        guard runID == id else { return }
+        task = nil
+    }
+
+    private func run(environment: AppEnvironment, id: Int) async {
         isDraining = true
-        defer { isDraining = false }
+        defer { if runID == id { isDraining = false } }
         // Nothing can genuinely still be in flight at the start of a fresh drain
         // (see the protocol doc) — recover anything orphaned by a previous launch.
         environment.wordQueue.resetStuckProcessing()
