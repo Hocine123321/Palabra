@@ -76,6 +76,12 @@ final class SwiftDataWordRepositoryTests: XCTestCase {
         XCTAssertEqual(freshRepository.allWords().count, 1)
     }
 
+    func testFlushIsTrueWhenNothingIsPendingAndAfterAWrite() {
+        XCTAssertTrue(repository.flush())
+        repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
+        XCTAssertTrue(repository.flush())
+    }
+
     func testWordByIdAndWordCountDoNotNeedTheWholeLibrary() {
         XCTAssertEqual(repository.wordCount(), 0)
         let a = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())

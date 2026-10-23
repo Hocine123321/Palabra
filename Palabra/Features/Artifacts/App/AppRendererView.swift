@@ -43,7 +43,7 @@ private struct AppWebView: UIViewRepresentable {
     let language: SupportedLanguage
     let rules: WKContentRuleList
 
-    func makeCoordinator() -> Coordinator { Coordinator(log: log) }
+    func makeCoordinator() -> Coordinator { Coordinator(log: log, document: ArtifactSandbox.documentWithCSP(html)) }
 
     func makeUIView(context: Context) -> WKWebView {
         let log = self.log
@@ -68,7 +68,7 @@ private struct AppWebView: UIViewRepresentable {
         webView.scrollView.backgroundColor = .clear
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
-        webView.loadHTMLString(ArtifactSandbox.documentWithCSP(html), baseURL: nil)
+        webView.loadHTMLString(context.coordinator.document, baseURL: nil)
         return webView
     }
 
@@ -82,9 +82,15 @@ private struct AppWebView: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         private var gate = NavigationGate()
+        private var recovery = CrashRecovery()
         private let log: ArtifactErrorLog
+        /// The document with its policy, kept so a crashed page can be loaded again.
+        let document: String
 
-        init(log: ArtifactErrorLog) { self.log = log }
+        init(log: ArtifactErrorLog, document: String) {
+            self.log = log
+            self.document = document
+        }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
             gate.allowOnce() ? .allow : .cancel
@@ -96,7 +102,13 @@ private struct AppWebView: UIViewRepresentable {
         }
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-            log.append("The page stopped unexpectedly.")
+            guard recovery.shouldReload() else {
+                log.append("The page stopped unexpectedly.")
+                return
+            }
+            log.append("The page stopped unexpectedly and was loaded again.")
+            gate.reset()
+            webView.loadHTMLString(document, baseURL: nil)
         }
     }
 }

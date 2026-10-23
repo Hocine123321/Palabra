@@ -121,6 +121,19 @@ enum ArtifactSandbox {
     }
 }
 
+/// Decides whether a page whose web-content process was killed (memory pressure) is loaded again. A page that keeps
+/// crashing is left alone after `maxReloads`, instead of looping.
+struct CrashRecovery {
+    static let maxReloads = 2
+    private(set) var reloads = 0
+
+    mutating func shouldReload() -> Bool {
+        guard reloads < Self.maxReloads else { return false }
+        reloads += 1
+        return true
+    }
+}
+
 /// Allows exactly one navigation: the initial load of the artifact's own document.
 /// Links, forms, redirects and scripted navigation afterwards are all cancelled.
 struct NavigationGate {
@@ -131,4 +144,7 @@ struct NavigationGate {
         used = true
         return true
     }
+
+    /// Re-arms the gate for the one navigation of a reload after a crash.
+    mutating func reset() { used = false }
 }

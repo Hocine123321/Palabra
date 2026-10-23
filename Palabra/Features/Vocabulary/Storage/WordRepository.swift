@@ -36,6 +36,8 @@ protocol WordRepository {
     func updatePlacements(_ placements: [UUID: WordPlacement])
     /// Removes every word's section and tags (words themselves are untouched).
     func clearAllPlacements()
+    /// Writes anything still unsaved (a save that failed earlier is tried again). False means the changes are not on disk.
+    func flush() -> Bool
     func delete(id: UUID)
     func deleteAll()
     func allWords() -> [Word]
@@ -57,6 +59,8 @@ final class SwiftDataWordRepository: WordRepository {
     }
 
     func word(id: UUID) -> Word? { fetchByID(id) }
+
+    func flush() -> Bool { !context.hasChanges || Persistence.save(context) }
 
     func wordCount() -> Int { (try? context.fetchCount(FetchDescriptor<Word>())) ?? 0 }
 

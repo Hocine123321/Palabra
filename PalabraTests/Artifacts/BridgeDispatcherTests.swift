@@ -131,6 +131,19 @@ final class BridgeDispatcherTests: XCTestCase {
         XCTAssertEqual(code, "timeout")
     }
 
+    func testASlowWriteReportsItsRealOutcomeNotATimeout() async {
+        let ran = Counter()
+        let write = Capability(name: "words.add", kind: .write, summary: "s", returnsSummary: "r", dryRunValue: .null, handler: { _, _ in
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            ran.add("done")
+            return .success(.string("added"))
+        })
+        let d = dispatcher([write], granted: ["words.add"], timeout: { _ in 0.05 })
+        let reply = await d.handle(body: body("words.add"), byteCount: 20, isMainFrame: true)
+        XCTAssertEqual(reply, .ok(.string("added")), "the page must not be told a finished write timed out")
+        XCTAssertEqual(ran.count, 1)
+    }
+
     func testAIGenerateGetsTheLongerTimeout() {
         let d = BridgeDispatcher(registry: CapabilityRegistry([]), session: session, granted: { [] })
         XCTAssertEqual(d.timeout("ai.generate"), BridgeLimits.aiTimeout)

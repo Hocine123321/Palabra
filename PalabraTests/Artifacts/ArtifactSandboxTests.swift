@@ -62,6 +62,22 @@ final class ArtifactSandboxTests: XCTestCase {
         XCTAssertTrue(ArtifactSandbox.documentWithCSP("<p>x</p>").hasPrefix("<meta http-equiv"))
     }
 
+    func testACrashedPageIsReloadedAtMostTwice() {
+        var recovery = CrashRecovery()
+        XCTAssertTrue(recovery.shouldReload())
+        XCTAssertTrue(recovery.shouldReload())
+        XCTAssertFalse(recovery.shouldReload(), "a page that keeps crashing is not reloaded forever")
+    }
+
+    func testTheGateCanBeReArmedForOneReload() {
+        var gate = NavigationGate()
+        XCTAssertTrue(gate.allowOnce())
+        XCTAssertFalse(gate.allowOnce())
+        gate.reset()
+        XCTAssertTrue(gate.allowOnce())
+        XCTAssertFalse(gate.allowOnce())
+    }
+
     // MARK: shim
 
     private func shim(granted: [String] = ["library.words"], theme: [String: String] = ["ink": "#000000"], locale: String = "en", dir: String = "ltr") -> String {

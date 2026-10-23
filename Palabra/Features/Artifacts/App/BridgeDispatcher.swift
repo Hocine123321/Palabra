@@ -58,7 +58,14 @@ struct BridgeDispatcher: Sendable {
         let registry = self.registry
         let session = self.session
         let grant = granted()
-        let outcome = await race(seconds: timeout(name)) { await registry.call(name: name, args: args, session: session, granted: grant) }
+        // A write is never raced against the clock: a late "timeout" reply for a change that still went through would
+        // tell the page it failed. Writes are local database work, so they finish; reads and AI calls can be abandoned.
+        let outcome: Result<JSONValue, CapabilityError>?
+        if registry.capability(named: name)?.kind == .write {
+            outcome = await registry.call(name: name, args: args, session: session, granted: grant)
+        } else {
+            outcome = await race(seconds: timeout(name)) { await registry.call(name: name, args: args, session: session, granted: grant) }
+        }
         switch outcome {
         case nil:
             return fail("timeout", "The call took too long.", name: name)

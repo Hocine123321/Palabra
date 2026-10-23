@@ -7,6 +7,7 @@ struct WordPreviewSheet: View {
     let flow: AddWordFlow
     @Environment(\.dismiss) private var dismiss
     var onSaved: (Word) -> Void
+    @State private var saveFailed = false
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,11 @@ struct WordPreviewSheet: View {
                                     .foregroundStyle(Theme.inkSecondary)
                             }
                             WordContentView(content: content)
+                            if saveFailed {
+                                Text("Couldn't save this word. Try again.")
+                                    .font(.footnote)
+                                    .foregroundStyle(Theme.error)
+                            }
                         }
                         .padding(Theme.Spacing.md)
                     }
@@ -72,6 +78,8 @@ struct WordPreviewSheet: View {
                             if let saved = flow.save() {
                                 onSaved(saved)
                                 dismiss()
+                            } else {
+                                saveFailed = true
                             }
                         }
                         .fontWeight(.semibold)

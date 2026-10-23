@@ -4,7 +4,7 @@ import Foundation
 /// it came from an interactive `AddWordFlow.save()` or from
 /// `WordQueueProcessor` finishing a queued request while the person was
 /// doing something else: insert-or-replace, then kick off pronunciation and
-/// organization for the saved word.
+/// organization for the saved word. Returns `nil` when nothing was written.
 enum WordWriter {
     @discardableResult
     @MainActor
@@ -23,6 +23,8 @@ enum WordWriter {
         case .regenerate(let existingID, _):
             environment.repository.replaceContent(id: existingID, content: content, rawJSON: rawData)
         }
+        // Never report a word as saved (or drop a queued request) when the write did not reach the disk.
+        guard environment.repository.flush() else { return nil }
         // On regenerate the headword may have been corrected, so the new key can differ
         // from the stored one: find the word by id there, by key for a new word.
         let saved: Word?

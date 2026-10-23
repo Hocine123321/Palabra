@@ -47,6 +47,8 @@ final class WordQueueProcessor {
         self.sleep = sleep
     }
 
+    static let saveFailedMessage = "The word couldn't be saved to your library."
+
     func drain(environment: AppEnvironment) {
         guard task == nil else { return }
         runID += 1
@@ -105,11 +107,19 @@ final class WordQueueProcessor {
         if Task.isCancelled { return }
         switch result {
         case .success(let content):
-            let saved = WordWriter.commit(content: content, mode: item.mode, environment: environment)
-            environment.wordQueue.remove(id: item.id)
-            if let saved {
-                environment.resilience.post(.wordAdded(saved.spanish))
+            guard let saved = WordWriter.commit(content: content, mode: item.mode, environment: environment) else {
+                // Not on disk: keep the request, so the word is not lost. A few outer attempts, then it shows as failed.
+                let attempts = item.attempts + 1
+                if attempts < maxAttempts {
+                    environment.wordQueue.markPending(id: item.id, attempts: attempts, lastError: Self.saveFailedMessage)
+                    await sleep(retryDelay)
+                } else {
+                    environment.wordQueue.markFailed(id: item.id, lastError: Self.saveFailedMessage)
+                }
+                return
             }
+            environment.wordQueue.remove(id: item.id)
+            environment.resilience.post(.wordAdded(saved.spanish))
         case .failure(let error):
             if error == .offline {
                 // Doesn't count as a failed attempt — the outer loop waits for the network.

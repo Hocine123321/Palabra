@@ -150,7 +150,10 @@ final class SwiftDataCardRepository: CardRepository {
     }
 
     func reviewStats(now: Date) -> StudyStats {
-        let logs = (try? context.fetch(FetchDescriptor<ReviewLog>())) ?? []
+        // Only the dates are needed for the streak; a partial fetch skips the other columns.
+        var descriptor = FetchDescriptor<ReviewLog>()
+        descriptor.propertiesToFetch = [\.reviewedAt]
+        let logs = (try? context.fetch(descriptor)) ?? []
         return StudyStatsCalculator.stats(reviewDates: logs.map(\.reviewedAt), now: now)
     }
 

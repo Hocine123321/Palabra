@@ -12,13 +12,15 @@ struct WordDetailView: View {
     @State private var showDeleteConfirm = false
 
     var body: some View {
-        ScrollViewReader { proxy in
+        // Decoded once per render (it is JSON behind a computed property), then used by the page and the share text.
+        let content = word.content
+        return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                     banner
                     jumpBar(proxy: proxy)
                     PronunciationNotice(word: word)
-                    WordContentView(content: word.content) {
+                    WordContentView(content: content) {
                         PronunciationButton(word: word)
                     }
                 }
@@ -32,7 +34,7 @@ struct WordDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    ShareLink(item: WordShareText.make(word.content)) {
+                    ShareLink(item: WordShareText.make(content)) {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                     Button("Regenerate", systemImage: "arrow.clockwise") { showRegenerate = true }

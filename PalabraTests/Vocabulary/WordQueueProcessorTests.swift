@@ -36,11 +36,11 @@ final class WordQueueProcessorTests: XCTestCase {
         )
     }
 
-    private func makeEnvironment(connectivity: ConnectivityWaiting = InstantConnectivity()) -> (AppEnvironment, MockAIClient) {
+    private func makeEnvironment(connectivity: ConnectivityWaiting = InstantConnectivity(), repository: WordRepository? = nil) -> (AppEnvironment, MockAIClient) {
         let client = MockAIClient()
         let env = AppEnvironment(
             ai: client,
-            repository: SwiftDataWordRepository(context: ModelContext(container)),
+            repository: repository ?? SwiftDataWordRepository(context: ModelContext(container)),
             catalogue: ModelCatalogue(cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply, cacheDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             keychain: keychain,
@@ -112,6 +112,40 @@ final class WordQueueProcessorTests: XCTestCase {
         env.wordQueue.enqueue(inputWord: "hablar", mode: .new, language: .english)
 
         let processor = WordQueueProcessor(sleep: { _ in })
+        processor.drain(environment: env)
+        await waitUntilDone(processor)
+
+        XCTAssertTrue(env.wordQueue.allItems().isEmpty)
+        XCTAssertEqual(env.repository.allWords().map(\.spanish), ["hablar"])
+    }
+
+    func testAQueuedWordIsKeptWhenTheStoreRefusesTheWrite() async {
+        let unsavable = UnsavableWordRepository(SwiftDataWordRepository(context: ModelContext(container)))
+        let (env, client) = makeEnvironment(repository: unsavable)
+        await selectModel(env, client)
+        client.generateWordResult = .success(content(word: "hablar"))
+        let item = env.wordQueue.enqueue(inputWord: "hablar", mode: .new, language: .english)
+
+        let processor = WordQueueProcessor(maxAttempts: 2, sleep: { _ in })
+        processor.drain(environment: env)
+        await waitUntilDone(processor)
+
+        let kept = env.wordQueue.allItems().first { $0.id == item.id }
+        XCTAssertEqual(kept?.status, .failed, "the request is not dropped: the word is not on disk")
+        XCTAssertEqual(kept?.lastErrorMessage, WordQueueProcessor.saveFailedMessage)
+    }
+
+    func testAQueuedWordSavesOnceTheStoreWorksAgain() async {
+        let unsavable = UnsavableWordRepository(SwiftDataWordRepository(context: ModelContext(container)))
+        let (env, client) = makeEnvironment(repository: unsavable)
+        await selectModel(env, client)
+        client.generateWordResult = .success(content(word: "hablar"))
+        env.wordQueue.enqueue(inputWord: "hablar", mode: .new, language: .english)
+        let first = Box(true)
+        // The first write is refused, the retry goes through.
+        let processor = WordQueueProcessor(maxAttempts: 3, sleep: { _ in
+            await MainActor.run { if first.value { first.value = false; unsavable.canSave = true } }
+        })
         processor.drain(environment: env)
         await waitUntilDone(processor)
 
