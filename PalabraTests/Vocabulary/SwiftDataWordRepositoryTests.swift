@@ -85,6 +85,18 @@ final class SwiftDataWordRepositoryTests: XCTestCase {
         XCTAssertNil(repository.word(id: UUID()))
     }
 
+    func testWordSummariesCarryTheLightFieldsNewestFirst() {
+        let first = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
+        first.createdAt = Date(timeIntervalSince1970: 1_000)
+        let second = repository.insert(spanish: "comer", key: "comer", searchKey: "comer", content: sampleContent(word: "comer"), rawJSON: Data())
+        second.createdAt = Date(timeIntervalSince1970: 2_000)
+        repository.updatePlacement(id: first.id, category: "Verbs", tags: [])
+        let summaries = repository.wordSummaries()
+        XCTAssertEqual(summaries.map(\.spanish), ["comer", "hablar"])
+        XCTAssertEqual(summaries.last, WordSummary(id: first.id, spanish: "hablar", translation: "to speak", category: "Verbs"))
+        XCTAssertNil(summaries.first?.category)
+    }
+
     func testImportSkipsEntriesWithABlankHeadword() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let items = [

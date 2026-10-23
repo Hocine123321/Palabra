@@ -268,7 +268,20 @@ final class AppEnvironment {
         let ok = keychain.save(value)
         hasAPIKey = keychain.read() != nil
         resilience.updateHealth { $0.reset(.primary) }
+        if ok { retryQueuedWordsWaitingForAKey() }
         return ok
+    }
+
+    /// Words queued while there was no key were marked failed ("add a key"); now there is one, so they should not
+    /// sit there until the person finds the Retry button.
+    private func retryQueuedWordsWaitingForAKey() {
+        let waiting = AIError.missingAPIKey.userMessage
+        var requeued = false
+        for item in wordQueue.allItems() where item.status == .failed && item.lastErrorMessage == waiting {
+            wordQueue.markPending(id: item.id, attempts: 0, lastError: nil)
+            requeued = true
+        }
+        if requeued { queueProcessor.drain(environment: self) }
     }
 
     func removeAPIKey() {
@@ -342,7 +355,7 @@ final class AppEnvironment {
         let input = OrganizerWordInput(word: word.spanish, translation: word.translation, partOfSpeech: word.partOfSpeech)
         let prefs = organizerSettings
         let language = aiLanguage
-        let existing = Array(Set(repository.allWords().compactMap(\.category))).sorted()
+        let existing = Array(Set(repository.wordSummaries().compactMap(\.category))).sorted()
         Task { [backgroundAI, repository] in
             // A failure here is logged by the resilient client itself ("Recent Problems").
             guard case .success(let result) = await backgroundAI.organizeWords([input], existingCategories: existing, settings: prefs, apiKey: apiKey, model: model, language: language),
@@ -358,7 +371,7 @@ final class AppEnvironment {
     /// headword -> translation). Idempotent and cheap; call on launch and whenever the
     /// Study tab appears. This is the only place that knows both `Word` and Study.
     func syncVocabularyCards() {
-        let entries = repository.allWords().compactMap { word -> VocabularyCardEntry? in
+        let entries = repository.wordSummaries().compactMap { word -> VocabularyCardEntry? in
             let front = word.spanish.trimmingCharacters(in: .whitespacesAndNewlines)
             let back = word.translation.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !front.isEmpty, !back.isEmpty else { return nil }
@@ -400,7 +413,7 @@ final class AppEnvironment {
 
     /// Drops review needs whose word was deleted. Runs wherever `syncVocabularyCards` runs.
     func syncReviewNeeds() {
-        review.deleteOrphans(validWordIDs: Set(repository.allWords().map(\.id)))
+        review.deleteOrphans(validWordIDs: Set(repository.wordSummaries().map(\.id)))
     }
 
     static func live(modelContext: ModelContext) -> AppEnvironment {

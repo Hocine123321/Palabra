@@ -1,6 +1,15 @@
 import Foundation
 import SwiftData
 
+/// The few fields the library-wide jobs need (card sync, orphan cleanup, section names), so they do not load every
+/// word with its audio, raw JSON and chat.
+struct WordSummary: Equatable, Sendable {
+    let id: UUID
+    let spanish: String
+    let translation: String
+    let category: String?
+}
+
 struct ImportResult: Equatable {
     var imported: Int
     var skipped: Int
@@ -13,6 +22,8 @@ protocol WordRepository {
     func find(key: String) -> Word?
     /// One word by id. Prefer this over `allWords().first { ... }`, which loads every word (and its audio).
     func word(id: UUID) -> Word?
+    /// Newest first, like `allWords()`, but only the fields in `WordSummary` are fetched.
+    func wordSummaries() -> [WordSummary]
     /// How many words are saved, counted in the store without loading them.
     func wordCount() -> Int
     @discardableResult
@@ -48,6 +59,14 @@ final class SwiftDataWordRepository: WordRepository {
     func word(id: UUID) -> Word? { fetchByID(id) }
 
     func wordCount() -> Int { (try? context.fetchCount(FetchDescriptor<Word>())) ?? 0 }
+
+    func wordSummaries() -> [WordSummary] {
+        var descriptor = FetchDescriptor<Word>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        // A partial fetch: anything not listed is loaded on first access, so this is only ever an optimisation.
+        descriptor.propertiesToFetch = [\.id, \.spanish, \.translation, \.category]
+        let words = (try? context.fetch(descriptor)) ?? []
+        return words.map { WordSummary(id: $0.id, spanish: $0.spanish, translation: $0.translation, category: $0.category) }
+    }
 
     @discardableResult
     func insert(spanish: String, key: String, searchKey: String, content: WordContent, rawJSON: Data) -> Word {

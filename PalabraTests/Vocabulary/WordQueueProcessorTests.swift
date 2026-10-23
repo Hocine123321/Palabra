@@ -202,6 +202,21 @@ final class WordQueueProcessorTests: XCTestCase {
         XCTAssertEqual(reloaded?.status, .pending)
     }
 
+    func testSavingAKeyPutsWordsThatWaitedForOneBackInTheQueue() {
+        let (env, _) = makeEnvironment()
+        env.removeAPIKey()
+        let item = env.wordQueue.enqueue(inputWord: "hablar", mode: .new, language: .english)
+        env.wordQueue.markFailed(id: item.id, lastError: AIError.missingAPIKey.userMessage)
+        let other = env.wordQueue.enqueue(inputWord: "comer", mode: .new, language: .english)
+        env.wordQueue.markFailed(id: other.id, lastError: AIError.blocked("x").userMessage)
+
+        env.saveAPIKey("a-new-key")
+
+        let items = env.wordQueue.allItems()
+        XCTAssertEqual(items.first { $0.inputWord == "hablar" }?.status, .pending, "waited only for a key")
+        XCTAssertEqual(items.first { $0.inputWord == "comer" }?.status, .failed, "failed for another reason: left for the person")
+    }
+
     func testDrainResetsItemOrphanedAsProcessingByAPreviousLaunch() async {
         let (env, client) = makeEnvironment()
         await selectModel(env, client)

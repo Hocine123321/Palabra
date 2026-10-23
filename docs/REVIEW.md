@@ -16,14 +16,16 @@ Status: **Fixed** = changed in the review pass (see "Fixed" for the files), **Op
 ### R1. Word rows are huge and are loaded whole (Med-High, performance/memory) - partly fixed
 - **Done:** `word(id:)` and `wordCount()` on `WordRepository`; the single-word lookups (`RootView.openChat`, `WordWriter`, `WordDetailHost`,
   `VocabularyCardPronunciation`) and the delete-all count no longer load the whole library.
-- **Still open:** the audio blob itself, and the launch/Study-time full loads below.
+- **Done too:** `wordSummaries()` (a partial fetch of id, spanish, translation, category) now serves `syncVocabularyCards`,
+  `syncReviewNeeds` and the section-name lookup, so launch and Study visits no longer touch the blobs (if the store ignores
+  `propertiesToFetch` they simply load as before).
+- **Still open:** the audio blob itself (the rows are still large; `allWords()` is still used by the Spanish hub, library screen, export and capabilities).
 - `Word.pronunciationAudio` (a WAV per word) sits inline in the main row next to `contentData`, `rawJSON`, `chatData`.
   Nothing uses `.externalStorage` or a partial fetch, so **every `allWords()` loads every audio blob**.
 - `allWords()` is called on the main actor at launch and on each Study visit (`AppEnvironment.syncVocabularyCards`,
   `syncReviewNeeds`), in `requestOrganizationIfConfigured` (just to collect category names), in `RootView.openChat`
   and `WordWriter.commit` (to find one word by id), and by `updatePlacements` / `clearAllPlacements` / export.
-- Fix (remaining): a light `wordSummaries()` (id, spanish, translation, category) for `syncVocabularyCards`, `syncReviewNeeds` and
-  `requestOrganizationIfConfigured`. Move audio out of the row: a new `WordAudio` entity or a file cache in Application Support
+- Fix (remaining): move audio out of the row: a new `WordAudio` entity or a file cache in Application Support
   (adding a model is safe per AGENTS.md; changing `Word` is not, so do not flip `.externalStorage` without a tested migration).
   `FetchDescriptor.propertiesToFetch` may avoid loading blobs for the listing; verify on a device before relying on it.
 
@@ -91,8 +93,7 @@ Status: **Fixed** = changed in the review pass (see "Fixed" for the files), **Op
 - `StudyHomeView` / `RootView.refreshDueBadge` call `counts` often; it is now cheap, but debounce on tab changes.
 
 ### R12. Queue and key behaviour (Low)
-- A queue item marked `.failed` for a missing key stays failed after the key is added until the person taps Retry. Reset such
-  items when a key is saved.
+- (Fixed: queue items that failed only for a missing key go back in the queue when a key is saved.)
 - `SwiftData...Repository.inMemory()` uses `try!` and ships in the app target (only tests/previews call it).
 - Keychain: `read()` returns the stored value untrimmed (save trims, so harmless today).
 
@@ -125,6 +126,7 @@ Status: **Fixed** = changed in the review pass (see "Fixed" for the files), **Op
 | F11 | README said "Planned: a second page of AI study tools" and listed three folders. | Updated to what exists. AGENTS.md notes the offline rule change and points here. | `README.md`, `AGENTS.md` |
 | F12 | Single-word lookups (`openChat`, `WordWriter`, word detail, card pronunciation) loaded the whole library, including every audio blob, and the delete-all dialog loaded it just to count. | `word(id:)` and `wordCount()` on `WordRepository`. Test added. | `WordRepository.swift`, `RootView.swift`, `WordWriter.swift`, `WordDetailHost.swift`, `VocabularyCardPronunciation.swift`, `SettingsView.swift` |
 | F13 | 40 saves ignored their errors; an import could report words imported that were never written. | `Persistence.save` (logs, returns Bool); import rolls back and throws `saveFailed`. | `Core/Storage/Persistence.swift`, all repositories, `VocabularyLibraryExporter.swift` |
+| F16 | Words queued while there was no API key stayed failed after a key was added, until the person found Retry. Card sync, orphan cleanup and section names loaded every full word. | Saving a key requeues those items and starts a drain; `wordSummaries()` partial fetch for the library-wide jobs. Two tests added. | `AppEnvironment.swift`, `WordRepository.swift`, `WordQueueProcessorTests.swift`, `SwiftDataWordRepositoryTests.swift` |
 | F14 | Huge factorials/exponents could tie up the on-device math engine until the app exits. | Refused up front (Gemini fallback answers). Two tests added. | `Features/Solve/Service/LocalMathEngine.swift`, `LocalMathSolverTests.swift` |
 | F15 | `listModels` could loop on a repeated page token; an unencodable body was sent empty. | Token and page guard; body validated before sending. Two tests added. | `Core/AI/GeminiClient.swift`, `GeminiClientTests.swift` |
 
