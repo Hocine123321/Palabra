@@ -20,18 +20,29 @@ enum ContentValidator {
     static let maxPartOfSpeechLength = 60
     static let maxSimilarWordLength = 60
     static let maxDifferenceLength = 500
+    /// The model is asked for exactly three; this only stops a damaged import from carrying a long list.
+    static let maxExamples = 12
 
     private static func clip(_ s: String, to limit: Int) -> String {
         s.count <= limit ? s : String(s.prefix(limit - 1)) + "…"
     }
 
     static func validate(_ raw: WordContent) -> Result<WordContent, AIError> {
+        let (content, failed) = clean(raw)
+        return failed.isEmpty ? .success(content) : .failure(.validationFailed(failed))
+    }
+
+    /// The same trimming and clipping as `validate`, but nothing is rejected: used for imported libraries, so an old or
+    /// slightly odd export still comes in while a damaged one cannot bring huge strings or lists with it.
+    static func clipped(_ raw: WordContent) -> WordContent { clean(raw).content }
+
+    private static func clean(_ raw: WordContent) -> (content: WordContent, failed: [String]) {
         var failed: [String] = []
 
         let word = raw.word.trimmed
         if word.isEmpty || word.count > 60 { failed.append("word") }
 
-        let examples = raw.examples.map {
+        let examples = raw.examples.prefix(maxExamples).map {
             WordContent.Example(
                 context: clip($0.context.trimmed, to: maxContextLength),
                 spanish: clip($0.spanish.trimmed, to: maxParagraphLength),
@@ -83,9 +94,7 @@ enum ContentValidator {
         if similar.isEmpty { failed.append("similarWords") }
         if similar.count > 8 { similar = Array(similar.prefix(8)) }
 
-        guard failed.isEmpty else { return .failure(.validationFailed(failed)) }
-
-        return .success(WordContent(
+        let content = WordContent(
             word: word,
             examples: examples,
             meaning: .init(translations: translations, explanation: meaningExplanation),
@@ -93,7 +102,8 @@ enum ContentValidator {
             forms: .init(partOfSpeech: partOfSpeech, groups: groups),
             similarWords: similar,
             contentLanguage: raw.contentLanguage
-        ))
+        )
+        return (content, failed)
     }
 
     private static func nonEmpty(_ s: String?) -> String? {

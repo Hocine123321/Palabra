@@ -112,7 +112,7 @@ final class LibraryOrganizationTests: XCTestCase {
         let env = makeEnvironment().0
         let word = add(env, "gato")
         env.repository.updatePlacement(id: word.id, category: "Animals", tags: ["pet"])
-        let data = env.repository.exportData()
+        let data = try env.repository.exportData()
         env.repository.deleteAll()
         let result = try env.repository.importData(data)
         XCTAssertEqual(result.imported, 1)

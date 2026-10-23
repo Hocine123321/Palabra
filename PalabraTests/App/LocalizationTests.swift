@@ -195,7 +195,7 @@ final class LocalizationTests: XCTestCase {
         let errors: [AIError] = [
             .missingAPIKey, .noModelSelected, .modelUnavailable("m"), .offline, .timeout, .invalidAPIKey, .permissionDenied,
             .rateLimited, .quotaExhausted, .serverError(500), .blocked(nil), .truncated, .malformedResponse,
-            .validationFailed([]), .emptyCatalogue, .unknown(nil, ""),
+            .validationFailed([]), .emptyCatalogue, .cancelled, .unknown(nil, ""),
         ]
         var keys: [String] = []
         for error in errors {

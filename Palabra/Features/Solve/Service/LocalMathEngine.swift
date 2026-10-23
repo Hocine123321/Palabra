@@ -53,6 +53,10 @@ final class LocalMathEngine: @unchecked Sendable {
     private let timeout: TimeInterval
     private let lock = NSLock()
     private var lane = Lane()
+    private var abandoned = 0
+    /// A run that never finishes keeps its thread for good. After this many, the engine stops taking problems (they go
+    /// to the Gemini fallback) instead of leaking another thread and a JavaScript context each time.
+    static let maxAbandonedRuns = 3
 
     init(bundle: Bundle = Bundle(for: LocalMathEngine.self), timeout: TimeInterval = LocalMathEngine.timeout) {
         self.bundle = bundle
@@ -74,7 +78,7 @@ final class LocalMathEngine: @unchecked Sendable {
     }
 
     func solve(_ query: String) async -> Outcome {
-        if Self.isTooHeavy(query) { return .unsupported }
+        if Self.isTooHeavy(query) || isRetired { return .unsupported }
         let current = currentLane()
         return await withCheckedContinuation { continuation in
             let once = Once(continuation)
@@ -83,9 +87,25 @@ final class LocalMathEngine: @unchecked Sendable {
             }
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { [weak self] in
                 // Still running: give up, and move later problems to a fresh context so they don't queue behind this one.
-                if once.resume(.unsupported) { self?.replaceLane(ifCurrent: current) }
+                if once.resume(.unsupported) {
+                    self?.registerAbandonedRun()
+                    self?.replaceLane(ifCurrent: current)
+                }
             }
         }
+    }
+
+    /// True once too many runs had to be abandoned; the engine then answers "unsupported" for the rest of the session.
+    var isRetired: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return abandoned >= Self.maxAbandonedRuns
+    }
+
+    func registerAbandonedRun() {
+        lock.lock()
+        defer { lock.unlock() }
+        abandoned += 1
     }
 
     private func currentLane() -> Lane {

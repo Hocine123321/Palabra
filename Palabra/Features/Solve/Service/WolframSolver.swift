@@ -6,6 +6,13 @@ struct WolframSolver: MathSolver {
     /// A typeset image is a few KB; anything bigger is not worth keeping.
     static let maxImageBytes = 600_000
 
+    /// Pod images are only fetched from Wolfram's own hosts over https, so a damaged or tampered reply cannot make
+    /// the app request an arbitrary address.
+    static func isTrustedImageURL(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else { return false }
+        return host == "wolframalpha.com" || host.hasSuffix(".wolframalpha.com")
+    }
+
     private let session: URLSession
 
     init(session: URLSession = .shared) { self.session = session }
@@ -79,7 +86,7 @@ struct WolframSolver: MathSolver {
         var jobs: [(pod: Int, sub: Int, url: URL)] = []
         for (podIndex, urls) in parsed.imageURLs.enumerated() {
             for (subIndex, url) in urls.enumerated() {
-                if let url { jobs.append((podIndex, subIndex, url)) }
+                if let url, Self.isTrustedImageURL(url) { jobs.append((podIndex, subIndex, url)) }
             }
         }
         let downloaded = await withTaskGroup(of: (Int, Int, Data?).self) { group -> [(Int, Int, Data?)] in
@@ -87,10 +94,7 @@ struct WolframSolver: MathSolver {
                 group.addTask {
                     var request = URLRequest(url: job.url)
                     request.timeoutInterval = 20
-                    guard let (data, response) = try? await session.data(for: request),
-                          (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
-                          !data.isEmpty, data.count <= WolframSolver.maxImageBytes else { return (job.pod, job.sub, nil) }
-                    return (job.pod, job.sub, data)
+                    return (job.pod, job.sub, await WolframSolver.download(request, with: session))
                 }
             }
             var all: [(Int, Int, Data?)] = []
@@ -101,5 +105,22 @@ struct WolframSolver: MathSolver {
             result.pods[podIndex].subpods[subIndex].imageData = data
         }
         return WolframParser.Parsed(result: result, imageURLs: parsed.imageURLs)
+    }
+
+    /// Reads at most `maxImageBytes` (stops as soon as the limit is passed, instead of loading a huge body first).
+    private static func download(_ request: URLRequest, with session: URLSession) async -> Data? {
+        guard let (stream, response) = try? await session.bytes(for: request) else { return nil }
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { return nil }
+        if response.expectedContentLength > Int64(maxImageBytes) { return nil }
+        var data = Data()
+        do {
+            for try await byte in stream {
+                data.append(byte)
+                if data.count > maxImageBytes { return nil }
+            }
+        } catch {
+            return nil
+        }
+        return data.isEmpty ? nil : data
     }
 }

@@ -61,9 +61,9 @@ final class SwiftDataWordRepositoryTests: XCTestCase {
         XCTAssertTrue(repository.allWords().isEmpty)
     }
 
-    func testExportThenImportIntoFreshLibrarySkipsExistingOnSecondImport() {
+    func testExportThenImportIntoFreshLibrarySkipsExistingOnSecondImport() throws {
         repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
-        let exported = repository.exportData()
+        let exported = try repository.exportData()
 
         let freshContainer = try! ModelContainer(for: Schema([Word.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let freshRepository = SwiftDataWordRepository(context: ModelContext(freshContainer))
@@ -106,6 +106,32 @@ final class SwiftDataWordRepositoryTests: XCTestCase {
         let result = try repository.importData(VocabularyLibraryExporter.encode(items: items))
         XCTAssertEqual(result, ImportResult(imported: 1, skipped: 1))
         XCTAssertEqual(repository.allWords().map(\.key), ["hablar"])
+    }
+
+    func testImportClipsHugeTextInsteadOfRejectingTheWord() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var content = sampleContent(word: "hablar")
+        content.meaning.explanation = String(repeating: "x", count: 50_000)
+        content.meaning.translations = (0..<80).map { "t\($0)" }
+        content.similarWords = (0..<40).map { .init(word: "w\($0)", difference: "d") }
+        let item = VocabularyLibraryExporter.Item(content: content, raw: Data(), createdAt: now, updatedAt: now, chat: [])
+        let result = try repository.importData(VocabularyLibraryExporter.encode(items: [item]))
+        XCTAssertEqual(result, ImportResult(imported: 1, skipped: 0))
+        let stored = try XCTUnwrap(repository.find(key: "hablar")).content
+        XCTAssertEqual(stored.meaning.explanation.count, ContentValidator.maxParagraphLength)
+        XCTAssertEqual(stored.meaning.translations.count, ContentValidator.maxTranslations)
+        XCTAssertEqual(stored.similarWords.count, 8)
+    }
+
+    func testImportKeepsAWordWhoseShapeIsUnusual() throws {
+        // An old export with two examples must still come in (validate() would reject it).
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var content = sampleContent(word: "hablar")
+        content.examples = Array(content.examples.prefix(2))
+        let item = VocabularyLibraryExporter.Item(content: content, raw: Data(), createdAt: now, updatedAt: now, chat: [])
+        let result = try repository.importData(VocabularyLibraryExporter.encode(items: [item]))
+        XCTAssertEqual(result.imported, 1)
+        XCTAssertEqual(repository.find(key: "hablar")?.content.examples.count, 2)
     }
 
     func testUpdatePronunciationStoresAndClearsAudio() {

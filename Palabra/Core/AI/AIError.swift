@@ -20,6 +20,8 @@ enum AIError: Error, Equatable, Sendable {
     case malformedResponse
     case validationFailed([String])
     case emptyCatalogue
+    /// The request was cancelled by the caller (a screen closed, a task was cancelled). Not a failure of the service.
+    case cancelled
     case unknown(Int?, String)
 
     enum Recovery: Equatable, Sendable {
@@ -30,7 +32,7 @@ enum AIError: Error, Equatable, Sendable {
 
     var isRetryable: Bool {
         switch self {
-        case .missingAPIKey, .noModelSelected, .modelUnavailable, .invalidAPIKey, .permissionDenied, .blocked:
+        case .missingAPIKey, .noModelSelected, .modelUnavailable, .invalidAPIKey, .permissionDenied, .blocked, .cancelled:
             return false
         case .offline, .timeout, .rateLimited, .serverError, .truncated, .malformedResponse, .validationFailed, .emptyCatalogue, .unknown:
             return true
@@ -47,7 +49,7 @@ enum AIError: Error, Equatable, Sendable {
             return .chooseModel
         case .offline, .timeout, .rateLimited, .serverError, .truncated, .malformedResponse, .validationFailed, .unknown:
             return .retry
-        case .blocked:
+        case .blocked, .cancelled:
             return nil
         }
     }
@@ -87,6 +89,8 @@ enum AIError: Error, Equatable, Sendable {
             return "The AI response was incomplete. Try again."
         case .emptyCatalogue:
             return "Google didn't return any usable models."
+        case .cancelled:
+            return "The request was cancelled."
         case .unknown(_, let message):
             return message.isEmpty ? "Something went wrong. Try again." : message
         }

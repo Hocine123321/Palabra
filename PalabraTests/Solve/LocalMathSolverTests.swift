@@ -108,4 +108,13 @@ final class LocalMathSolverTests: XCTestCase {
         XCTAssertEqual(LocalMathEngine.parse(Data("{\"ok\":true,\"answer\":\"  \"}".utf8)), .unsupported)
         XCTAssertEqual(LocalMathEngine.parse(Data("not json".utf8)), .unsupported)
     }
+
+    func testEngineStopsTakingProblemsAfterTooManyAbandonedRuns() async {
+        let engine = LocalMathEngine()
+        XCTAssertFalse(engine.isRetired)
+        for _ in 0..<LocalMathEngine.maxAbandonedRuns { engine.registerAbandonedRun() }
+        XCTAssertTrue(engine.isRetired)
+        let outcome = await engine.solve("1 + 1")
+        XCTAssertEqual(outcome, .unsupported, "left to the Gemini fallback, no new context is started")
+    }
 }

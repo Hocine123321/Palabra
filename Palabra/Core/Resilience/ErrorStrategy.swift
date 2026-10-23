@@ -41,7 +41,7 @@ enum ErrorStrategy {
             return .key
         case .offline, .timeout, .serverError, .truncated, .malformedResponse, .validationFailed, .unknown, .emptyCatalogue:
             return .transient
-        case .blocked:
+        case .blocked, .cancelled:
             return .request
         case .missingAPIKey, .noModelSelected, .modelUnavailable:
             return .setup
@@ -75,7 +75,7 @@ enum ErrorStrategy {
         switch error {
         case .offline:
             return .waitForNetwork
-        case .blocked, .missingAPIKey, .noModelSelected:
+        case .blocked, .missingAPIKey, .noModelSelected, .cancelled:
             return .giveUp
         case .modelUnavailable:
             return hasBackupModel ? .switchModel : .askUser

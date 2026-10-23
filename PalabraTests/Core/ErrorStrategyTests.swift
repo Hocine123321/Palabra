@@ -43,6 +43,8 @@ final class ErrorStrategyTests: XCTestCase {
         XCTAssertEqual(ErrorStrategy.next(after: .blocked("SAFETY"), failedAttempts: 0, policy: policy, hasFallback: true), .giveUp)
         XCTAssertEqual(ErrorStrategy.next(after: .missingAPIKey, failedAttempts: 0, policy: policy, hasFallback: true), .giveUp)
         XCTAssertEqual(ErrorStrategy.next(after: .noModelSelected, failedAttempts: 0, policy: policy, hasFallback: true), .giveUp)
+        XCTAssertEqual(ErrorStrategy.next(after: .cancelled, failedAttempts: 0, policy: policy, hasFallback: true), .giveUp)
+        XCTAssertFalse(AIError.cancelled.isRetryable)
         XCTAssertEqual(ErrorStrategy.next(after: .modelUnavailable("models/x"), failedAttempts: 0, policy: policy, hasFallback: true), .askUser)
     }
 
@@ -89,7 +91,7 @@ final class ErrorStrategyTests: XCTestCase {
     }
 
     func testEveryErrorHasHelpfulGuidance() {
-        let all: [AIError] = [.missingAPIKey, .noModelSelected, .modelUnavailable("m"), .offline, .timeout, .invalidAPIKey, .permissionDenied, .rateLimited, .quotaExhausted, .serverError(500), .blocked(nil), .truncated, .malformedResponse, .validationFailed([]), .emptyCatalogue, .unknown(nil, "")]
+        let all: [AIError] = [.missingAPIKey, .noModelSelected, .modelUnavailable("m"), .offline, .timeout, .invalidAPIKey, .permissionDenied, .rateLimited, .quotaExhausted, .serverError(500), .blocked(nil), .truncated, .malformedResponse, .validationFailed([]), .emptyCatalogue, .cancelled, .unknown(nil, "")]
         for error in all {
             XCTAssertFalse(error.headline.isEmpty)
             XCTAssertFalse(error.shortReason.isEmpty)

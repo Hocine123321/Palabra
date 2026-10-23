@@ -8,6 +8,10 @@ private enum ImportResultMessage {
     case imported(count: Int, skipped: Int)
     case invalidFile
     case unreadable
+    /// The words were read but could not be written to the library.
+    case saveFailed
+    /// The export file could not be made.
+    case exportFailed
 }
 
 struct SettingsView: View {
@@ -184,7 +188,10 @@ struct SettingsView: View {
                         Label("Export Library", systemImage: "square.and.arrow.up")
                     }
                 } else {
-                    Button { exportURL = writeExportFile() } label: {
+                    Button {
+                        exportURL = writeExportFile()
+                        if exportURL == nil { importResultMessage = .exportFailed }
+                    } label: {
                         Label("Export Library", systemImage: "square.and.arrow.up")
                     }
                 }
@@ -326,7 +333,7 @@ struct SettingsView: View {
     }
 
     private func writeExportFile() -> URL? {
-        let data = environment.repository.exportData()
+        guard let data = try? environment.repository.exportData() else { return nil }
         let name = "Palabra-Library-\(Date().formatted(.iso8601.year().month().day())).json"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         return (try? data.write(to: url, options: .atomic)) != nil ? url : nil
@@ -341,6 +348,10 @@ struct SettingsView: View {
             Text("That file isn't a Palabra export.")
         case .unreadable:
             Text("Couldn't read that file.")
+        case .saveFailed:
+            Text("The words couldn't be saved to your library. Nothing was imported.")
+        case .exportFailed:
+            Text("Couldn't create the export file.")
         }
     }
 
@@ -356,6 +367,8 @@ struct SettingsView: View {
             do {
                 let outcome = try environment.repository.importData(data)
                 importResultMessage = .imported(count: outcome.imported, skipped: outcome.skipped)
+            } catch VocabularyLibraryExporter.ExportError.saveFailed {
+                importResultMessage = .saveFailed
             } catch {
                 importResultMessage = .invalidFile
             }

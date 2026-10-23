@@ -7,8 +7,8 @@ final class WolframSolverTests: XCTestCase {
         super.tearDown()
     }
 
-    private let json = #"{"queryresult":{"success":true,"pods":[{"id":"Input","title":"Input","subpods":[{"plaintext":"1+1","img":{"src":"https://img.example/in.gif","width":50,"height":20}}]},{"id":"Result","title":"Result","primary":true,"subpods":[{"plaintext":"2","img":{"src":"https://img.example/r.gif","width":20,"height":20}}],"states":[{"name":"Step-by-step solution","input":"Result__Step-by-step solution"}]}]}}"#
-    private let stepsJSON = #"{"queryresult":{"success":true,"pods":[{"id":"Result","title":"Result","subpods":[{"plaintext":"2"},{"title":"Possible intermediate steps","plaintext":"1 + 1 = 2","img":{"src":"https://img.example/s.gif","width":50,"height":50}}]}]}}"#
+    private let json = #"{"queryresult":{"success":true,"pods":[{"id":"Input","title":"Input","subpods":[{"plaintext":"1+1","img":{"src":"https://www4b.wolframalpha.com/in.gif","width":50,"height":20}}]},{"id":"Result","title":"Result","primary":true,"subpods":[{"plaintext":"2","img":{"src":"https://www4b.wolframalpha.com/r.gif","width":20,"height":20}}],"states":[{"name":"Step-by-step solution","input":"Result__Step-by-step solution"}]}]}}"#
+    private let stepsJSON = #"{"queryresult":{"success":true,"pods":[{"id":"Result","title":"Result","subpods":[{"plaintext":"2"},{"title":"Possible intermediate steps","plaintext":"1 + 1 = 2","img":{"src":"https://www4b.wolframalpha.com/s.gif","width":50,"height":50}}]}]}}"#
     private let gif = Data([0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
 
     private func solver() -> WolframSolver { WolframSolver(session: MockURLProtocol.session()) }
@@ -56,6 +56,28 @@ final class WolframSolverTests: XCTestCase {
         }
         let result = try await solver().solve(query: "1+1", appID: "K").get()
         XCTAssertNil(result.pods[1].subpods[0].imageData)
+    }
+
+    func testImagesFromOtherHostsAreNeverRequested() async throws {
+        let foreign = json.replacingOccurrences(of: "www4b.wolframalpha.com", with: "img.example")
+        let hosts = Box<[String]>([])
+        MockURLProtocol.handler = { [foreign, gif] request in
+            let host = request.url?.host ?? ""
+            hosts.value.append(host)
+            return host == "api.wolframalpha.com" ? (200, Data(foreign.utf8)) : (200, gif)
+        }
+        let result = try await solver().solve(query: "1+1", appID: "K").get()
+        XCTAssertEqual(hosts.value, ["api.wolframalpha.com"])
+        XCTAssertNil(result.pods[1].subpods[0].imageData)
+        XCTAssertEqual(result.answerText, "2")
+    }
+
+    func testTrustedImageHosts() {
+        XCTAssertTrue(WolframSolver.isTrustedImageURL(URL(string: "https://www4b.wolframalpha.com/a.gif")!))
+        XCTAssertTrue(WolframSolver.isTrustedImageURL(URL(string: "https://wolframalpha.com/a.gif")!))
+        XCTAssertFalse(WolframSolver.isTrustedImageURL(URL(string: "https://evilwolframalpha.com/a.gif")!))
+        XCTAssertFalse(WolframSolver.isTrustedImageURL(URL(string: "https://wolframalpha.com.evil.example/a.gif")!))
+        XCTAssertFalse(WolframSolver.isTrustedImageURL(URL(string: "http://www4b.wolframalpha.com/a.gif")!))
     }
 
     func testStatusCodesMapToErrors() async {

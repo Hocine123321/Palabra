@@ -23,13 +23,17 @@ enum VocabularyLibraryExporter {
         case malformed
         /// The words were read but could not be written to the store.
         case saveFailed
+        /// The library could not be turned into a file.
+        case encodingFailed
     }
 
     static let currentVersion = 1
 
-    static func encode(items: [Item], exportedAt: Date = Date()) -> Data {
+    /// Throws instead of returning empty data: an empty file named `.json` would look like a successful backup.
+    static func encode(items: [Item], exportedAt: Date = Date()) throws -> Data {
         let envelope = Envelope(app: "Palabra", version: currentVersion, exportedAt: exportedAt, words: items)
-        return (try? JSONEncoder().encode(envelope)) ?? Data()
+        guard let data = try? JSONEncoder().encode(envelope), !data.isEmpty else { throw ExportError.encodingFailed }
+        return data
     }
 
     static func decode(_ data: Data) throws -> Envelope {

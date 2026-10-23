@@ -39,7 +39,7 @@ protocol WordRepository {
     func delete(id: UUID)
     func deleteAll()
     func allWords() -> [Word]
-    func exportData() -> Data
+    func exportData() throws -> Data
     func importData(_ data: Data) throws -> ImportResult
 }
 
@@ -140,11 +140,11 @@ final class SwiftDataWordRepository: WordRepository {
         return (try? context.fetch(descriptor)) ?? []
     }
 
-    func exportData() -> Data {
+    func exportData() throws -> Data {
         let items = allWords().map {
             VocabularyLibraryExporter.Item(content: $0.content, raw: $0.rawJSON, createdAt: $0.createdAt, updatedAt: $0.updatedAt, chat: $0.chat)
         }
-        return VocabularyLibraryExporter.encode(items: items)
+        return try VocabularyLibraryExporter.encode(items: items)
     }
 
     func importData(_ data: Data) throws -> ImportResult {
@@ -158,7 +158,9 @@ final class SwiftDataWordRepository: WordRepository {
                 skipped += 1
                 continue
             }
-            let word = Word(spanish: item.content.word, key: key, searchKey: WordKey.search(item.content.word), content: item.content, rawJSON: item.raw, createdAt: item.createdAt)
+            // Clip, never reject: old exports keep importing, a damaged one can't bring huge text with it.
+            let content = ContentValidator.clipped(item.content)
+            let word = Word(spanish: content.word, key: key, searchKey: WordKey.search(content.word), content: content, rawJSON: item.raw, createdAt: item.createdAt)
             word.updatedAt = item.updatedAt
             word.chat = item.chat
             context.insert(word)

@@ -272,7 +272,7 @@ struct GeminiMathSolver: MathSolver {
     /// Gemini's failures in the Solve tab's terms.
     static func solveError(for error: AIError) -> SolveError {
         switch error {
-        case .offline, .timeout, .serverError, .unknown: return .network
+        case .offline, .timeout, .serverError, .unknown, .cancelled: return .network
         case .rateLimited, .quotaExhausted: return .rateLimited
         case .missingAPIKey, .noModelSelected, .modelUnavailable, .invalidAPIKey, .permissionDenied, .emptyCatalogue: return .missingKey
         case .blocked: return .noResult(suggestions: [])

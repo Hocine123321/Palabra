@@ -204,16 +204,24 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
         return try? JSONSerialization.data(withJSONObject: body)
     }
 
+    /// The largest reply that is parsed (the biggest legitimate one is a few MB of speech audio).
+    static let maxResponseBytes = 24 * 1024 * 1024
+
     private func perform(_ request: URLRequest) async -> Result<Data, AIError> {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 return .failure(.unknown(nil, "No HTTP response"))
             }
-            if (200..<300).contains(http.statusCode) { return .success(data) }
+            if (200..<300).contains(http.statusCode) {
+                // Nothing this app asks for comes close to this size; refuse to decode something absurd.
+                return data.count > Self.maxResponseBytes ? .failure(.malformedResponse) : .success(data)
+            }
             return .failure(mapError(status: http.statusCode, data: data))
         } catch let urlError as URLError {
             return .failure(mapURLError(urlError))
+        } catch is CancellationError {
+            return .failure(.cancelled)
         } catch {
             return .failure(.unknown(nil, error.localizedDescription))
         }
@@ -225,6 +233,8 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
             return .offline
         case .timedOut:
             return .timeout
+        case .cancelled:
+            return .cancelled
         default:
             return .unknown(nil, error.localizedDescription)
         }
@@ -338,15 +348,7 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
         return ContentValidator.validate(content)
     }
 
-    private func stripCodeFences(_ text: String) -> String {
-        var t = text.trimmed
-        guard t.hasPrefix("```") else { return t }
-        if let firstNewline = t.firstIndex(of: "\n") {
-            t = String(t[t.index(after: firstNewline)...])
-        }
-        if t.hasSuffix("```") { t = String(t.dropLast(3)) }
-        return t.trimmed
-    }
+    private func stripCodeFences(_ text: String) -> String { CodeFence.extractJSON(text) }
 }
 
 private extension String {

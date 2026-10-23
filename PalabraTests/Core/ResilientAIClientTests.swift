@@ -232,6 +232,27 @@ final class ResilientAIClientTests: XCTestCase {
         XCTAssertNil(center.retrying)
     }
 
+    func testACancelledRequestIsReportedAsCancelledNotTimeout() async {
+        let (client, base, _, slept) = make([ok])
+        let task = Task { () -> Result<[AIModel], AIError> in
+            try? await Task.sleep(nanoseconds: 10_000_000_000) // ends at once: the task is cancelled below
+            return await client.listModels(apiKey: "main")
+        }
+        task.cancel()
+        let result = await task.value
+        XCTAssertEqual(result.failureError, .cancelled)
+        XCTAssertEqual(base.callCount, 0, "a cancelled request never reaches the network")
+        XCTAssertEqual(slept.seconds, 0)
+    }
+
+    func testACancelledResultFromTheClientIsNotRetried() async {
+        let (client, base, _, slept) = make([.failure(.cancelled), ok])
+        let result = await client.listModels(apiKey: "main")
+        XCTAssertEqual(result.failureError, .cancelled)
+        XCTAssertEqual(base.callCount, 1)
+        XCTAssertEqual(slept.seconds, 0)
+    }
+
     func testCancelledRequestLeavesTheQuestionAndClearsTheCard() async {
         let center = ResilienceCenter()
         let decision = ResilienceCenter.Decision(error: .rateLimited, attempts: 3, canSwitchKey: false, what: "x")

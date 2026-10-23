@@ -119,6 +119,32 @@ final class GeminiClientTests: XCTestCase {
         XCTAssertEqual(result, .failure(.timeout))
     }
 
+    func testGenerateWordMapsCancelled() async {
+        MockURLProtocol.handler = { _ in throw URLError(.cancelled) }
+        let result = await client.generateWord("hablar", apiKey: "key", model: model)
+        XCTAssertEqual(result, .failure(.cancelled))
+    }
+
+    func testGenerateJSONUnwrapsAFenceThatFollowsChatter() async {
+        let reply = "Here is the JSON you asked for:\n```json\n{\"a\": 1}\n```\nHope that helps."
+        MockURLProtocol.handler = { [self] _ in (200, responseJSON(parts: [["text": reply]])) }
+        let result = await client.generateJSON(prompt: "x", systemInstruction: "y", schema: nil, apiKey: "key", model: model, temperature: 0)
+        XCTAssertEqual(result, .success("{\"a\": 1}"))
+    }
+
+    func testGenerateJSONLeavesJSONWithBackticksInsideAStringAlone() async {
+        let reply = "{\"note\": \"use ```code``` here\"}"
+        MockURLProtocol.handler = { [self] _ in (200, responseJSON(parts: [["text": reply]])) }
+        let result = await client.generateJSON(prompt: "x", systemInstruction: "y", schema: nil, apiKey: "key", model: model, temperature: 0)
+        XCTAssertEqual(result, .success(reply))
+    }
+
+    func testAbsurdlyLargeReplyIsRefused() async {
+        MockURLProtocol.handler = { _ in (200, Data(count: GeminiClient.maxResponseBytes + 1)) }
+        let result = await client.generateWord("hablar", apiKey: "key", model: model)
+        XCTAssertEqual(result, .failure(.malformedResponse))
+    }
+
     func testGenerateWordMapsBlocked() async {
         MockURLProtocol.handler = { [self] _ in (200, responseJSON(parts: [["text": ""]], blockReason: "SAFETY")) }
         let result = await client.generateWord("hablar", apiKey: "key", model: model)

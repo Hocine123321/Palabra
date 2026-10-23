@@ -25,7 +25,7 @@ final class VocabularyLibraryExporterTests: XCTestCase {
     }
 
     func testEncodeDecodeRoundTripsQuotesNewlinesAndEmoji() throws {
-        let data = VocabularyLibraryExporter.encode(items: [item()])
+        let data = try VocabularyLibraryExporter.encode(items: [item()])
         let envelope = try VocabularyLibraryExporter.decode(data)
         XCTAssertEqual(envelope.app, "Palabra")
         XCTAssertEqual(envelope.words.first?.content.examples[0].spanish, "Dijo \"hola\".")

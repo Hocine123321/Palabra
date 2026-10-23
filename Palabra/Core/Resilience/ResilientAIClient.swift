@@ -136,7 +136,7 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
         var lastError: AIError = .unknown(nil, "")
 
         while true {
-            if Task.isCancelled { await center.setRetrying(nil, request: requestID); return .failure(lastError == .unknown(nil, "") ? .timeout : lastError) }
+            if Task.isCancelled { await center.setRetrying(nil, request: requestID); return .failure(.cancelled) }
             let fallback = fallbackKey()
             let hasFallback = fallback != nil
             let health = await center.health
@@ -197,7 +197,7 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                                 let wait = policy.delay(forAttempt: failedAttempts)
                                 failedAttempts += 1
                                 await countdown(wait, request: requestID, error: error, attempt: failedAttempts, of: policy.maxAutomaticAttempts, usingFallback: slot == .fallback)
-                                if Task.isCancelled { await center.setRetrying(nil, request: requestID); return .failure(error) }
+                                if Task.isCancelled { await center.setRetrying(nil, request: requestID); return .failure(.cancelled) }
                                 continue attemptLoop
                             }
                             await center.setRetrying(nil, request: requestID)
@@ -232,7 +232,7 @@ final class ResilientAIClient: AIClient, @unchecked Sendable {
                         failedAttempts += 1
                         let total = ErrorStrategy.maxAttempts(for: error, policy: policy)
                         await countdown(after, request: requestID, error: error, attempt: failedAttempts, of: total, usingFallback: slot == .fallback)
-                        if Task.isCancelled { await center.setRetrying(nil, request: requestID); return .failure(error) }
+                        if Task.isCancelled { await center.setRetrying(nil, request: requestID); return .failure(.cancelled) }
                         continue attemptLoop
                     case .switchKey:
                         await center.setRetrying(nil, request: requestID)
