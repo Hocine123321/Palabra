@@ -68,7 +68,7 @@ PalabraTests/           unit tests; folders mirror Palabra/ (App, Core, Vocabula
 PalabraUITests/         UI tests (stubbed AI)
 project.yml             XcodeGen project definition (the .xcodeproj is generated, never committed)
 docs/features/          notes on shipped features
-docs/superpowers/       ORIGINAL Spanish-only design and plan — historical, not current
+docs/archive/superpowers/ ORIGINAL Spanish-only design and plan — historical, not current
 ```
 
 New files under `Palabra/`, `PalabraTests/` and `PalabraUITests/` are picked up automatically by XcodeGen; there is no project file to edit.
@@ -110,6 +110,7 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 
 ## Build, test, verify
 
+- `scripts/check-conventions.sh` (run by CI first) rejects direct `withAnimation`/`.animation(` use, `try? context.save()`, hardcoded `Color(hex:)` and numeric corner radii; run it locally before pushing.
 - Builds and tests run in GitHub Actions on a macOS runner (`.github/workflows/build-ipa.yml`). The `ipa` job produces the unsigned IPA (`Palabra-unsigned-ipa` artifact); the `tests` job runs unit and UI tests.
 - When the archive or a unit-test step fails, the workflow prints the compiler / test errors as an annotation on the failed job, so they can be read through the GitHub API without downloading logs.
 - A green `ipa` job means the app compiles; it does not prove the app works on a device. Check behaviour changes with tests.

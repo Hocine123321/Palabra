@@ -10,7 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The IPA job is independent of the test job, so a flaky UI test never blocks the deliverable.
+  # The IPA job is independent of the test job, so a failing test never blocks the deliverable; the run itself still
+  # turns red when any unit or UI test fails.
   ipa:
     runs-on: macos-26
     steps:
@@ -64,6 +65,12 @@ jobs:
         run: brew install xcodegen
       - name: Generate project
         run: xcodegen generate
+      - name: Tool versions
+        run: |
+          xcodebuild -version
+          xcodegen --version
+      - name: Check conventions
+        run: bash scripts/check-conventions.sh
       - name: Pick an iPhone simulator
         id: sim
         run: |
@@ -75,14 +82,24 @@ jobs:
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
       - name: Unit tests
         shell: bash
+        run: |
+          mkdir -p build
+          # No secrets here: only the live smoke test below gets the API key.
+          xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:PalabraTests -skip-testing:PalabraTests/LiveSmokeTests \
+            -resultBundlePath build/unit.xcresult \
+            | tee build/unit.log | tail -n 80
+      - name: Live smoke test
+        shell: bash
         env:
           TEST_RUNNER_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          mkdir -p build
           xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
             -destination "id=${{ steps.sim.outputs.udid }}" \
-            -only-testing:PalabraTests -resultBundlePath build/unit.xcresult \
-            | tee build/unit.log | tail -n 80
+            -only-testing:PalabraTests/LiveSmokeTests \
+            -resultBundlePath build/live.xcresult \
+            | tee -a build/unit.log | tail -n 40
       - name: Surface unit-test failures as annotations
         if: failure()
         shell: bash
@@ -110,8 +127,8 @@ jobs:
           MSG=$(python3 -c "print(open('build/unit-summary.txt').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
           echo "::notice title=Unit test summary::$MSG"
       - name: UI tests
+        # Runs even after a unit failure, and fails the job when a UI test fails (the summary steps below still run).
         if: always()
-        continue-on-error: true
         shell: bash
         run: |
           xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
@@ -122,7 +139,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          # The UI step is allowed to fail the build, so say plainly what happened (logs are not downloadable).
+          # Say plainly what happened (logs are not downloadable).
           grep -v 'CoreData:' build/ui.log > build/ui-clean.log || true
           {
             echo "UI tests: passed cases: $(grep -cE "^Test Case .* passed" build/ui-clean.log)  failed cases: $(grep -cE "^Test Case .* failed" build/ui-clean.log)"
@@ -156,6 +173,7 @@ jobs:
           name: test-results
           path: |
             build/unit.xcresult
+            build/live.xcresult
             build/ui.xcresult
             build/screenshots
           retention-days: 14

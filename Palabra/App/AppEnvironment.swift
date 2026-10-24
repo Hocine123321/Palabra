@@ -370,6 +370,14 @@ final class AppEnvironment {
     /// Makes the Study tool's Vocabulary deck match the library (one card per word,
     /// headword -> translation). Idempotent and cheap; call on launch and whenever the
     /// Study tab appears. This is the only place that knows both `Word` and Study.
+    /// One-time move of pronunciation clips out of word rows (older versions stored them there) into files, a few at a
+    /// time with a pause between batches so the screen stays responsive. Does nothing once every clip has moved.
+    func migrateLegacyPronunciation() async {
+        while repository.migrateLegacyPronunciation(limit: 8) > 0 {
+            await Task.yield()
+        }
+    }
+
     func syncVocabularyCards() {
         let entries = repository.wordSummaries().compactMap { word -> VocabularyCardEntry? in
             let front = word.spanish.trimmingCharacters(in: .whitespacesAndNewlines)

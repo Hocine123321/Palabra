@@ -56,6 +56,9 @@ extension SRSGrade {
 
 /// Short human label for a delay ("10m", "1d"); the formatter follows the current locale.
 enum IntervalLabel {
+    /// For a card that comes back on a later study day ("1d", "25d"): the interval, not the hours until 04:00.
+    static func text(days: Double) -> String { text(seconds: max(1, days) * 86_400) }
+
     static func text(seconds: TimeInterval) -> String {
         let formatter = DateComponentsFormatter()
         formatter.unitsStyle = .abbreviated

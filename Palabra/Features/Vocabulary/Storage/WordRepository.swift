@@ -31,6 +31,13 @@ protocol WordRepository {
     func replaceContent(id: UUID, content: WordContent, rawJSON: Data)
     func updateChat(id: UUID, messages: [ChatMessage])
     func updatePronunciation(id: UUID, audio: Data?)
+    /// The saved clip for a word, or nil. Read from its file; a clip still in the database row (saved by an older
+    /// version) is returned too.
+    func pronunciation(id: UUID) -> Data?
+    func hasPronunciation(id: UUID) -> Bool
+    /// Moves up to `limit` clips that are still inside word rows into files. Returns how many moved (0 = nothing left
+    /// to move, or no progress), so a caller can loop until it returns 0.
+    func migrateLegacyPronunciation(limit: Int) -> Int
     /// Sets a word's section and tags. `nil` category clears the placement.
     func updatePlacement(id: UUID, category: String?, tags: [String])
     func updatePlacements(_ placements: [UUID: WordPlacement])
@@ -48,9 +55,11 @@ protocol WordRepository {
 @MainActor
 final class SwiftDataWordRepository: WordRepository {
     private let context: ModelContext
+    private let audio: PronunciationFileStore
 
-    init(context: ModelContext) {
+    init(context: ModelContext, audio: PronunciationFileStore = .standard()) {
         self.context = context
+        self.audio = audio
     }
 
     func find(key: String) -> Word? {
@@ -89,6 +98,7 @@ final class SwiftDataWordRepository: WordRepository {
         // pronunciation would be for the wrong word — clear it and let the
         // caller re-trigger synthesis for the new content.
         word.pronunciationAudio = nil
+        audio.remove(id)
         Persistence.save(context)
     }
 
@@ -98,10 +108,41 @@ final class SwiftDataWordRepository: WordRepository {
         Persistence.save(context)
     }
 
-    func updatePronunciation(id: UUID, audio: Data?) {
+    func updatePronunciation(id: UUID, audio clip: Data?) {
         guard let word = fetchByID(id) else { return }
-        word.pronunciationAudio = audio
+        if let clip {
+            // A file when it can be written; if the disk refuses, the clip stays in the row so it is not lost.
+            if audio.write(clip, for: id) { word.pronunciationAudio = nil } else { word.pronunciationAudio = clip }
+        } else {
+            audio.remove(id)
+            word.pronunciationAudio = nil
+        }
         Persistence.save(context)
+    }
+
+    func pronunciation(id: UUID) -> Data? {
+        if let data = audio.data(for: id) { return data }
+        return fetchByID(id)?.pronunciationAudio
+    }
+
+    func hasPronunciation(id: UUID) -> Bool {
+        audio.exists(for: id) || fetchByID(id)?.pronunciationAudio != nil
+    }
+
+    func migrateLegacyPronunciation(limit: Int) -> Int {
+        guard limit > 0 else { return 0 }
+        var descriptor = FetchDescriptor<Word>(predicate: #Predicate { $0.pronunciationAudio != nil })
+        descriptor.fetchLimit = limit
+        guard let words = try? context.fetch(descriptor) else { return 0 }
+        var moved = 0
+        for word in words {
+            guard let clip = word.pronunciationAudio, audio.write(clip, for: word.id) else { continue }
+            word.pronunciationAudio = nil
+            moved += 1
+        }
+        guard moved > 0 else { return 0 }
+        // If the save fails the clips are still in the rows (and the files are just copies): report no progress.
+        return Persistence.save(context) ? moved : 0
     }
 
     func updatePlacement(id: UUID, category: String?, tags: [String]) {
@@ -131,11 +172,13 @@ final class SwiftDataWordRepository: WordRepository {
     func delete(id: UUID) {
         guard let word = fetchByID(id) else { return }
         context.delete(word)
+        audio.remove(id)
         Persistence.save(context)
     }
 
     func deleteAll() {
         for word in allWords() { context.delete(word) }
+        audio.removeAll()
         Persistence.save(context)
     }
 

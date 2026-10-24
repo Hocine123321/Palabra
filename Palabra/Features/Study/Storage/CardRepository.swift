@@ -93,7 +93,7 @@ final class SwiftDataCardRepository: CardRepository {
         }
         let due = (try? context.fetch(dueDescriptor)) ?? []
 
-        let startOfDay = Calendar.current.startOfDay(for: now)
+        let startOfDay = SRSScheduler.studyDayStart(for: now)
         let remaining = max(0, newLimit - newCardsStudied(since: startOfDay))
         // A fetch limit of 0 means "no limit" to the store, so never ask for it.
         guard remaining > 0 else { return due }

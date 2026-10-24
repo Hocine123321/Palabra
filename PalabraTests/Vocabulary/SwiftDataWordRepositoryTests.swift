@@ -6,12 +6,19 @@ import SwiftData
 final class SwiftDataWordRepositoryTests: XCTestCase {
     private var container: ModelContainer!
     private var repository: SwiftDataWordRepository!
+    private var audioDirectory: URL!
 
     override func setUp() {
         super.setUp()
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         container = try! ModelContainer(for: Schema([Word.self]), configurations: [config])
-        repository = SwiftDataWordRepository(context: ModelContext(container))
+        audioDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("audio-\(UUID().uuidString)")
+        repository = SwiftDataWordRepository(context: ModelContext(container), audio: PronunciationFileStore(directory: audioDirectory))
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: audioDirectory)
+        super.tearDown()
     }
 
     private func sampleContent(word: String = "hablar") -> WordContent {
@@ -142,14 +149,60 @@ final class SwiftDataWordRepositoryTests: XCTestCase {
 
     func testUpdatePronunciationStoresAndClearsAudio() {
         let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
-        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio)
+        XCTAssertNil(repository.pronunciation(id: word.id))
+        XCTAssertFalse(repository.hasPronunciation(id: word.id))
 
         let audio = Data([1, 2, 3, 4])
         repository.updatePronunciation(id: word.id, audio: audio)
-        XCTAssertEqual(repository.find(key: "hablar")?.pronunciationAudio, audio)
+        XCTAssertEqual(repository.pronunciation(id: word.id), audio)
+        XCTAssertTrue(repository.hasPronunciation(id: word.id))
+        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio, "the clip lives in a file, not in the word's row")
 
         repository.updatePronunciation(id: word.id, audio: nil)
-        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio)
+        XCTAssertNil(repository.pronunciation(id: word.id))
+        XCTAssertFalse(repository.hasPronunciation(id: word.id))
+    }
+
+    func testDeletingAWordRemovesItsClipFile() {
+        let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
+        repository.updatePronunciation(id: word.id, audio: Data([1]))
+        let store = PronunciationFileStore(directory: audioDirectory)
+        XCTAssertTrue(store.exists(for: word.id))
+        repository.delete(id: word.id)
+        XCTAssertFalse(store.exists(for: word.id))
+    }
+
+    func testDeleteAllRemovesEveryClipFile() {
+        let a = repository.insert(spanish: "uno", key: "uno", searchKey: "uno", content: sampleContent(word: "uno"), rawJSON: Data())
+        repository.updatePronunciation(id: a.id, audio: Data([1]))
+        repository.deleteAll()
+        XCTAssertFalse(PronunciationFileStore(directory: audioDirectory).exists(for: a.id))
+    }
+
+    func testClipsSavedByAnOlderVersionStillPlayAndMoveToFiles() {
+        let word = repository.insert(spanish: "hablar", key: "hablar", searchKey: "hablar", content: sampleContent(), rawJSON: Data())
+        word.pronunciationAudio = Data([7, 7, 7]) // the old storage: a column of the row
+        XCTAssertTrue(repository.flush())
+        XCTAssertEqual(repository.pronunciation(id: word.id), Data([7, 7, 7]))
+        XCTAssertTrue(repository.hasPronunciation(id: word.id))
+
+        XCTAssertEqual(repository.migrateLegacyPronunciation(limit: 8), 1)
+        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio, "the row no longer carries the clip")
+        XCTAssertEqual(repository.pronunciation(id: word.id), Data([7, 7, 7]), "and it still plays, from the file")
+        XCTAssertEqual(repository.migrateLegacyPronunciation(limit: 8), 0, "nothing left to move")
+    }
+
+    func testMigrationWorksInBatches() {
+        for i in 0..<5 {
+            let w = repository.insert(spanish: "w\(i)", key: "w\(i)", searchKey: "w\(i)", content: sampleContent(word: "w\(i)"), rawJSON: Data())
+            w.pronunciationAudio = Data([UInt8(i)])
+        }
+        XCTAssertTrue(repository.flush())
+        XCTAssertEqual(repository.migrateLegacyPronunciation(limit: 2), 2)
+        XCTAssertEqual(repository.migrateLegacyPronunciation(limit: 2), 2)
+        XCTAssertEqual(repository.migrateLegacyPronunciation(limit: 2), 1)
+        XCTAssertEqual(repository.migrateLegacyPronunciation(limit: 2), 0)
+        XCTAssertEqual(repository.allWords().filter { $0.pronunciationAudio != nil }.count, 0)
     }
 
     func testReplaceContentClearsStalePronunciationAudio() {
@@ -158,6 +211,6 @@ final class SwiftDataWordRepositoryTests: XCTestCase {
 
         repository.replaceContent(id: word.id, content: sampleContent(word: "hablar (regenerated)"), rawJSON: Data("new".utf8))
 
-        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio)
+        XCTAssertNil(repository.pronunciation(id: word.id))
     }
 }

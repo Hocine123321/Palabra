@@ -2,7 +2,7 @@
 
 The Spanish tab's **Artifacts** page. The person asks the AI for a table, chart, roadmap or checklist; it is previewed (live), saved as a versioned artifact, reopened later, updated, and rolled back. Tables and charts can bind live to library data.
 
-Plans B1 (spec artifacts), B2 (`app` artifacts in a sandboxed web view) and C (Need Review) are shipped. Design: `docs/superpowers/specs/2026-10-06-artifacts-design.md`.
+Plans B1 (spec artifacts), B2 (`app` artifacts in a sandboxed web view) and C (Need Review) are shipped. Design: `docs/archive/superpowers/specs/2026-10-06-artifacts-design.md`.
 
 ## Architecture
 

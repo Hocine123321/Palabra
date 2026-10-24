@@ -11,7 +11,7 @@ final class PronunciationServiceTests: XCTestCase {
     override func setUp() {
         super.setUp()
         container = try! ModelContainer(for: Schema([Word.self, WordQueueItem.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
-        repository = SwiftDataWordRepository(context: ModelContext(container))
+        repository = SwiftDataWordRepository(context: ModelContext(container), audio: PronunciationFileStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("audio-\(UUID().uuidString)")))
         keychain = KeychainStore()
         keychain.delete()
     }
@@ -58,7 +58,7 @@ final class PronunciationServiceTests: XCTestCase {
         await env.pronunciation.generate(for: word, using: env)
 
         XCTAssertEqual(env.pronunciation.status(for: word.id), .failed(.missingAPIKey))
-        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio)
+        XCTAssertNil(repository.find(key: "hablar").flatMap { repository.pronunciation(id: $0.id) })
     }
 
     func testGenerateFailsWithNoModelSelectedWhenAPIKeyPresentButNoModelChosen() async {
@@ -100,7 +100,7 @@ final class PronunciationServiceTests: XCTestCase {
         await env.pronunciation.generate(for: word, using: env)
 
         XCTAssertEqual(env.pronunciation.status(for: word.id), .idle)
-        XCTAssertEqual(repository.find(key: "hablar")?.pronunciationAudio, audio)
+        XCTAssertEqual(repository.find(key: "hablar").flatMap { repository.pronunciation(id: $0.id) }, audio)
     }
 
     func testGenerateSetsFailedStatusAndLeavesNoAudioWhenAICallFails() async {
@@ -116,7 +116,7 @@ final class PronunciationServiceTests: XCTestCase {
         await env.pronunciation.generate(for: word, using: env)
 
         XCTAssertEqual(env.pronunciation.status(for: word.id), .failed(.rateLimited))
-        XCTAssertNil(repository.find(key: "hablar")?.pronunciationAudio)
+        XCTAssertNil(repository.find(key: "hablar").flatMap { repository.pronunciation(id: $0.id) })
     }
 
     func testGenerateAutoSelectsDefaultModelWhenNoneChosen() async {
@@ -133,7 +133,7 @@ final class PronunciationServiceTests: XCTestCase {
 
         XCTAssertEqual(env.selectedTTSModelID, ttsModel.id)
         XCTAssertEqual(env.pronunciation.status(for: word.id), .idle)
-        XCTAssertEqual(repository.find(key: "hablar")?.pronunciationAudio, audio)
+        XCTAssertEqual(repository.find(key: "hablar").flatMap { repository.pronunciation(id: $0.id) }, audio)
     }
 
     func testEnsureTTSModelSelectedPicksDefaultFromFetchedCatalogue() async {

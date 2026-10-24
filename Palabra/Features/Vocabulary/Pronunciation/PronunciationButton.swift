@@ -12,6 +12,9 @@ struct PronunciationButton: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var player = PronunciationPlayer()
 
+    /// Whether a clip is saved (a file check, so the word's row is not loaded with its audio).
+    private var hasAudio: Bool { environment.repository.hasPronunciation(id: word.id) }
+
     private var status: PronunciationService.Status {
         environment.pronunciation.status(for: word.id)
     }
@@ -38,7 +41,7 @@ struct PronunciationButton: View {
         case .failed:
             Image(systemName: "speaker.slash.circle")
         case .idle:
-            if word.pronunciationAudio != nil {
+            if hasAudio {
                 Image(systemName: player.isPlaying ? "stop.circle.fill" : "play.circle.fill")
             } else {
                 Image(systemName: "speaker.wave.2.circle")
@@ -53,13 +56,13 @@ struct PronunciationButton: View {
         case .failed:
             return "Pronunciation unavailable. Tap to retry."
         case .idle:
-            return word.pronunciationAudio != nil ? "Play pronunciation" : "Hear pronunciation"
+            return hasAudio ? "Play pronunciation" : "Hear pronunciation"
         }
     }
 
     private func handleTap() {
         if status == .loading { return }
-        if case .idle = status, let audio = word.pronunciationAudio {
+        if case .idle = status, let audio = environment.repository.pronunciation(id: word.id) {
             player.toggle(data: audio)
             return
         }

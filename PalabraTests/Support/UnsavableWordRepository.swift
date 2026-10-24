@@ -22,6 +22,9 @@ final class UnsavableWordRepository: WordRepository {
     func replaceContent(id: UUID, content: WordContent, rawJSON: Data) { base.replaceContent(id: id, content: content, rawJSON: rawJSON) }
     func updateChat(id: UUID, messages: [ChatMessage]) { base.updateChat(id: id, messages: messages) }
     func updatePronunciation(id: UUID, audio: Data?) { base.updatePronunciation(id: id, audio: audio) }
+    func pronunciation(id: UUID) -> Data? { base.pronunciation(id: id) }
+    func hasPronunciation(id: UUID) -> Bool { base.hasPronunciation(id: id) }
+    func migrateLegacyPronunciation(limit: Int) -> Int { base.migrateLegacyPronunciation(limit: limit) }
     func updatePlacement(id: UUID, category: String?, tags: [String]) { base.updatePlacement(id: id, category: category, tags: tags) }
     func updatePlacements(_ placements: [UUID: WordPlacement]) { base.updatePlacements(placements) }
     func clearAllPlacements() { base.clearAllPlacements() }

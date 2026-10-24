@@ -31,7 +31,27 @@ struct SRSScheduler: Sendable {
     static let maxIntervalDays = 3650.0
     static let againDelay: TimeInterval = 10 * 60
     static let hardLearningDelay: TimeInterval = 30 * 60
-    private static let day: TimeInterval = 86_400
+    /// A study day starts at 04:00 local time, not midnight (as in Anki): someone who studies after midnight is still on
+    /// the same day, and a card answered at any hour of a day is due at the start of a later study day.
+    static let rolloverHour = 4
+
+    /// Whole-day intervals are counted in study days of this calendar (device calendar and time zone by default).
+    let calendar: Calendar
+
+    init(calendar: Calendar = .current) { self.calendar = calendar }
+
+    /// When the study day containing `date` began.
+    static func studyDayStart(for date: Date, calendar: Calendar = .current) -> Date {
+        let shifted = date.addingTimeInterval(-Double(rolloverHour) * 3600)
+        let midnight = calendar.startOfDay(for: shifted)
+        return calendar.date(byAdding: .hour, value: rolloverHour, to: midnight) ?? midnight.addingTimeInterval(Double(rolloverHour) * 3600)
+    }
+
+    /// The start of the study day `days` after the one `now` belongs to.
+    func dueDate(afterDays days: Double, from now: Date) -> Date {
+        let start = Self.studyDayStart(for: now, calendar: calendar)
+        return calendar.date(byAdding: .day, value: Int(days), to: start) ?? start.addingTimeInterval(days * 86_400)
+    }
 
     func next(_ state: SRSState, grade: SRSGrade, now: Date) -> SRSState {
         var n = state
@@ -92,6 +112,6 @@ struct SRSScheduler: Sendable {
     private func graduate(_ n: inout SRSState, days: Double, now: Date) {
         n.phase = .review
         n.interval = min(Self.maxIntervalDays, days.rounded())
-        n.due = now.addingTimeInterval(n.interval * Self.day)
+        n.due = dueDate(afterDays: n.interval, from: now)
     }
 }

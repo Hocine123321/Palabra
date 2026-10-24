@@ -46,8 +46,11 @@ final class ReviewViewModel {
     /// Label for a grade button (time until the card is next due if that grade is chosen).
     func intervalLabel(for grade: SRSGrade) -> String {
         guard let card = current else { return "" }
-        let delay = scheduler.previewDelays(card.srs, now: now())[grade] ?? 0
-        return IntervalLabel.text(seconds: delay)
+        let moment = now()
+        let next = scheduler.next(card.srs, grade: grade, now: moment)
+        // A review card is due on a later study day: show the interval ("1d"), not the hours until the rollover.
+        if next.phase == .review { return IntervalLabel.text(days: next.interval) }
+        return IntervalLabel.text(seconds: next.due.timeIntervalSince(moment))
     }
 
     func grade(_ grade: SRSGrade) {

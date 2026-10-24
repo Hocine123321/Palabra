@@ -59,6 +59,9 @@ struct PalabraApp: App {
             Persistence.save(context)
         }
 
+        // One context for every repository and for the views (`.modelContainer` shares it): two contexts over one store
+        // could briefly disagree, and an object held by a view could be invalidated by a delete made in the other.
+        let sharedContext = container.mainContext
         if isUITest {
             let settings = SettingsStore(defaults: UserDefaults(suiteName: "uitest-\(UUID().uuidString)") ?? .standard)
             let keychain = KeychainStore()
@@ -81,22 +84,22 @@ struct PalabraApp: App {
             let solveTool = SolveTool(
                 solver: StubMathSolver(),
                 recognizer: StubTextRecognizer(),
-                history: SwiftDataSolveRepository(context: ModelContext(container)),
+                history: SwiftDataSolveRepository(context: sharedContext),
                 usage: SolveUsage(defaults: UserDefaults(suiteName: "uitest-solve-\(UUID().uuidString)") ?? .standard),
                 keychain: solveKeychain
             )
             let env = AppEnvironment(
                 ai: StubAIClient(),
-                repository: SwiftDataWordRepository(context: ModelContext(container)),
+                repository: SwiftDataWordRepository(context: sharedContext),
                 catalogue: catalogue,
                 ttsCatalogue: ttsCatalogue,
                 keychain: keychain,
                 settings: settings,
-                wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container)),
-                cardRepository: SwiftDataCardRepository(context: ModelContext(container)),
-                artifactRepository: SwiftDataArtifactRepository(context: ModelContext(container)),
-                reviewRepository: SwiftDataReviewRepository(context: ModelContext(container)),
-                chatRepository: SwiftDataChatRepository(context: ModelContext(container)),
+                wordQueue: SwiftDataWordQueueRepository(context: sharedContext),
+                cardRepository: SwiftDataCardRepository(context: sharedContext),
+                artifactRepository: SwiftDataArtifactRepository(context: sharedContext),
+                reviewRepository: SwiftDataReviewRepository(context: sharedContext),
+                chatRepository: SwiftDataChatRepository(context: sharedContext),
                 solveTool: solveTool
             )
             if !arguments.contains("-UITestNoKey") {
@@ -130,7 +133,7 @@ struct PalabraApp: App {
             }
             environment = env
         } else {
-            environment = AppEnvironment.live(modelContext: ModelContext(container))
+            environment = AppEnvironment.live(modelContext: sharedContext)
         }
     }
 

@@ -7,105 +7,37 @@ Review of `main` at `afb5bfb` (2026-10-19). Done by reading the code; **nothing 
 `ModelHealth`, `GeminiMathSolver` parsing, `WolframParser`, the design-system views, and the JS (`solver.js`, nerdamer).
 Findings here come from the files that were read; absence of a finding is not a clean bill of health.
 
-Status: **Fixed** = changed in the review pass (see "Fixed" for the files), **Open** = still to do.
+Status: everything in "Fixed" is changed on `main`; "Still open" lists what was left on purpose and why.
 
 ---
 
-## Open: fix next (highest value first)
+## Still open (each is a decision or needs a device, not an oversight)
 
-### R1. Word rows are huge and are loaded whole (Med-High, performance/memory) - partly fixed
-- **Done:** `word(id:)` and `wordCount()` on `WordRepository`; the single-word lookups (`RootView.openChat`, `WordWriter`, `WordDetailHost`,
-  `VocabularyCardPronunciation`) and the delete-all count no longer load the whole library.
-- **Done too:** `wordSummaries()` (a partial fetch of id, spanish, translation, category) now serves `syncVocabularyCards`,
-  `syncReviewNeeds` and the section-name lookup, so launch and Study visits no longer touch the blobs (if the store ignores
-  `propertiesToFetch` they simply load as before).
-- **Still open:** the audio blob itself (the rows are still large; `allWords()` is still used by the Spanish hub, library screen, export and capabilities).
-- `Word.pronunciationAudio` (a WAV per word) sits inline in the main row next to `contentData`, `rawJSON`, `chatData`.
-  Nothing uses `.externalStorage` or a partial fetch, so **every `allWords()` loads every audio blob**.
-- `allWords()` is called on the main actor at launch and on each Study visit (`AppEnvironment.syncVocabularyCards`,
-  `syncReviewNeeds`), in `requestOrganizationIfConfigured` (just to collect category names), in `RootView.openChat`
-  and `WordWriter.commit` (to find one word by id), and by `updatePlacements` / `clearAllPlacements` / export.
-- Fix (remaining): move audio out of the row: a new `WordAudio` entity or a file cache in Application Support
-  (adding a model is safe per AGENTS.md; changing `Word` is not, so do not flip `.externalStorage` without a tested migration).
-  `FetchDescriptor.propertiesToFetch` may avoid loading blobs for the listing; verify on a device before relying on it.
+### O1. Serve app artifacts through a `WKURLSchemeHandler` (Low-Med, needs a device)
+- The CSP is still a `<meta>` inserted by `ArtifactSandbox.documentWithCSP`. A real `Content-Security-Policy` header from a custom
+  scheme handler would be stronger (no regex, nothing for a `<head>` inside a script string to confuse), but it changes the
+  page's origin, storage and how the content rules apply, and CI cannot load a `WKWebView`. Do it with a device at hand.
 
-### R2. Review due times are "now + n x 24 h", not calendar days (Med, UX)
-- `SRSScheduler.graduate` sets `due = now + interval * 86_400`. A card answered at 21:00 is not due at 08:00 the next day, so
-  someone who studies at varying times sees fewer cards than expected, and the new-card day starts at midnight
-  (`Calendar.current.startOfDay`).
-- Fix (design decision, changes `SRSSchedulerTests`): round review-phase dues to the start of the due day with a rollover
-  hour (Anki uses 04:00); keep minute-level steps for learning cards.
+### O2. Other silent `try?` (Low-Med)
+- Word saves are now checked end to end (`WordRepository.flush`, queue items kept on a failed write, a message in the preview
+  sheet, import errors). The other repositories still ignore `Persistence.save`'s Bool; the screens would show success after a
+  failed write. The ~145 other `try?` (JSON decode of stored blobs and similar) were not reviewed one by one.
 
-### R3. Persistence failures are silent (Med) - partly fixed
-- **Done:** all 40 `try? context.save()` now go through `Persistence.save`, which logs the failure (Console, subsystem
-  `dev.palabra.app`) and returns a Bool; `importData` rolls back and throws `ExportError.saveFailed` instead of reporting words imported.
-- **Still open:** most repositories ignore the Bool, so the UI still shows success. Make `insert` / `record` / `replaceContent`
-  return it where the caller can react, show a message for `saveFailed` (the import screen currently shows "invalid file"),
-  and remove a queue item only after a real save. The other ~145 `try?` (JSON decode of stored blobs etc.) were not reviewed one by one.
-
-### R4. UI test failures never fail CI (Med)
-- `build-ipa.yml`: the UI step has `continue-on-error: true` and only posts a notice, so a broken screen is a green build.
-- Fix: keep the IPA job independent but make the `tests` job fail on UI failures once the suite is stable, or at least fail on
-  a drop in passed cases.
-
-### R5. A stuck on-device math run cannot be stopped (Med) - mitigated
-- **Done:** `LocalMathEngine.isTooHeavy` refuses factorials of 500 or more and exponents of 1,000 or more before the engine runs
-  (the Gemini fallback answers instead). A run that is still slow for another reason is still only abandoned after 8 s, and each
-  abandon loads a fresh nerdamer context; count timeouts and stop using the engine for the session after a few.
-
-### R6. Two `ModelContext`s over one store (Med-Low)
-- All repositories share one `ModelContext(container)` (`AppEnvironment.live`), while views use `container.mainContext` through
-  `@Query` / `.modelContainer`. Saves propagate, but the two can briefly disagree, and `Card` / `Word` objects held by a view
-  can be invalidated by a repository delete in the other context.
-- Fix: build the repositories on `container.mainContext`.
-
-### R7. Smaller sandbox/bridge hardening (Low-Med)
-- `PalabraBridge`: the `__log` path runs before the size limit; the whole message is converted to `JSONValue` and re-serialised
-  just to measure it. Cap `message.body` size first.
-- `BridgeDispatcher.race`: on timeout the work is cancelled but a write that already started still completes, so the page sees
-  "timeout" for something that happened. Make writes report their own outcome or run them to completion before replying.
-- `AIUsageLimiter` forgets the oldest of 64 sessions, which resets that session's limits. Fine in practice; keep a floor.
-- `webViewWebContentProcessDidTerminate` only logs; the artifact goes blank with no way back. Show "Reload".
-- Defence in depth: serve the document through a `WKURLSchemeHandler` with a real `Content-Security-Policy` header instead of
-  regex-inserting a `<meta>` (the comment case is fixed, other contexts such as a `<head>` inside a script string are not).
-
-### R8. `GeminiClient` / `ResilientAIClient` small things (Low) - mostly fixed
-- **Done:** `listModels` stops on a repeated page token (and after 50 pages); an unencodable request body fails instead of sending
-  nothing (and no longer risks an Objective-C exception); `internationalRoamingOff` and `callIsActive` count as offline.
-- **Open:** `URLError.cancelled` maps to `.unknown` and `ResilientAIClient` reports a cancelled task as `.timeout` (add an explicit
-  cancelled case, which touches every exhaustive `AIError` switch); no response size limit; `stripCodeFences` only handles a fence at the very start.
-
-### R9. Import and export (Low-Med) - partly fixed
-- `importData` does not run `ContentValidator`; a damaged file can bring over huge strings or a word with the wrong number of
-  examples. (The blank-headword case is fixed.) Run the validator in a tolerant mode (clip, do not reject) so old exports keep importing.
-- `VocabularyLibraryExporter.encode` returns empty `Data` if encoding fails, which exports an empty file named `.json`.
-- (Fixed: a failed save during import is no longer reported as success.)
-
-### R10. Wolfram images (Low)
-- The parser already refuses non-`https` image URLs. Still open: the host is not checked, and `maxImageBytes` is checked after the
-  whole download. Require a `wolframalpha.com` host (the `WolframSolverTests` fixtures use `img.example`, so they need updating
-  with it) and use a bytes-limited download.
-
-### R11. Performance in views (Low-Med)
-- `Word.content`, `chat` and `tags` decode JSON on every access; views that read them in `body` decode repeatedly on large libraries.
-  Cache the decoded value (transient property) and invalidate it in the setter.
-- `CardRepository.reviewStats` still loads every `ReviewLog` for the streak; fetch only the dates or keep a daily summary.
-- `StudyHomeView` / `RootView.refreshDueBadge` call `counts` often; it is now cheap, but debounce on tab changes.
-
-### R12. Queue and key behaviour (Low)
-- (Fixed: queue items that failed only for a missing key go back in the queue when a key is saved.)
-- `SwiftData...Repository.inMemory()` uses `try!` and ships in the app target (only tests/previews call it).
-- Keychain: `read()` returns the stored value untrimmed (save trims, so harmless today).
-
-### R13. Chat, for later (Low, no action now)
-- There is no destructive write capability today (`words.add`, `words.place`, `review.flag`, `study.addCards`). If one is added,
-  it must confirm even when "Ask Before Making Changes" is off, because stored content can carry prompt injection.
-
-### R14. CI and repo hygiene (Low)
-- Runner image, Xcode version and `brew install xcodegen` are unpinned and uncached (slow, and a moving target).
-- No SwiftLint / swift-format.
-- `docs/superpowers/` is historical (a 5,000-line plan); it is labelled as such, but it still shows up in searches.
-- `GEMINI_API_KEY` is exposed to the whole unit-test step; only `LiveSmokeTests` needs it.
+### O3. Smaller notes (Low)
+- `AIUsageLimiter` still forgets the oldest of 64 sessions (resetting that session's limits). Sessions end when the screen closes,
+  so 64 open at once is not realistic; left as is.
+- `GeminiClient.maxResponseBytes` refuses a huge reply before it is decoded, but `URLSession.data` has already downloaded it;
+  true streaming would cost per-byte async iteration on every reply.
+- `Word.content`, `chat` and `tags` are still JSON behind computed properties. The grid and list read stored columns
+  (`spanish`, `translation`, `partOfSpeech`, `category`); the detail page decodes once per render; search decodes `tags` per word.
+  Add a cache only if a profile shows it.
+- `SwiftData...Repository.inMemory()` keeps `try!` and ships in the app target (the app passes real repositories; tests and
+  previews call it). An in-memory container can only fail on a programmer error.
+- `Streak` and "today" in Study stats still turn over at midnight; scheduling and the daily new-card limit use the 04:00 study day.
+- CI: the runner label (`macos-26`) is fixed but Xcode and `brew install xcodegen` are whatever the image has (now printed in the
+  log); nothing is cached; no SwiftLint (`scripts/check-conventions.sh` covers the AGENTS.md rules a compiler cannot).
+- Chat (for later): there is no destructive write capability today. If one is added it must confirm even when
+  "Ask Before Making Changes" is off, because stored content can carry prompt injection.
 
 ---
 
@@ -129,6 +61,17 @@ Status: **Fixed** = changed in the review pass (see "Fixed" for the files), **Op
 | F16 | Words queued while there was no API key stayed failed after a key was added, until the person found Retry. Card sync, orphan cleanup and section names loaded every full word. | Saving a key requeues those items and starts a drain; `wordSummaries()` partial fetch for the library-wide jobs. Two tests added. | `AppEnvironment.swift`, `WordRepository.swift`, `WordQueueProcessorTests.swift`, `SwiftDataWordRepositoryTests.swift` |
 | F14 | Huge factorials/exponents could tie up the on-device math engine until the app exits. | Refused up front (Gemini fallback answers). Two tests added. | `Features/Solve/Service/LocalMathEngine.swift`, `LocalMathSolverTests.swift` |
 | F15 | `listModels` could loop on a repeated page token; an unencodable body was sent empty. | Token and page guard; body validated before sending. Two tests added. | `Core/AI/GeminiClient.swift`, `GeminiClientTests.swift` |
+| F17 | A cancelled request was reported as a timeout (`ResilientAIClient`) or "unknown" (`URLError.cancelled`). | New `AIError.cancelled` (not retryable, never benches a key or model); all exhaustive switches, Arabic string, tests. | `AIError.swift`, `ErrorStrategy.swift`, `GeminiClient.swift`, `ResilientAIClient.swift`, `GeminiMathSolver.swift`, tests |
+| F18 | Wolfram pod images were fetched from whatever host the reply named and the size cap was checked after the download. | Only `https` on `wolframalpha.com` hosts; the download stops as soon as it passes the cap. Fixtures moved to `www4b.wolframalpha.com`; two tests added. | `Features/Solve/Service/WolframSolver.swift`, `WolframSolverTests.swift` |
+| F19 | Import trusted the file: huge strings or lists came in. Export wrote an empty `.json` if encoding failed. | Import clips with the validator's rules but never rejects (old exports still import); `encode` and `exportData` throw, Settings shows the failure; a save failure during import has its own message. | `ContentValidator.swift`, `VocabularyLibraryExporter.swift`, `WordRepository.swift`, `SettingsView.swift`, tests |
+| F20 | A reply with a line of chatter before the code fence was not unwrapped; an absurdly large reply was decoded. | `CodeFence.extractJSON` (JSON that already starts with `{`/`[` is left alone); 24 MB cap. | `CodeFence.swift`, `GeminiClient.swift`, `GeminiClientTests.swift` |
+| F21 | The math engine leaked a thread and a JavaScript context for each run that had to be abandoned. | After 3 abandoned runs the engine answers "unsupported" for the session (Gemini answers). Keychain `read()` trims like `save()`. | `LocalMathEngine.swift`, `KeychainStore.swift`, `LocalMathSolverTests.swift` |
+| F22 | Bridge: a message was converted and re-serialised before its size was checked; a slow write reported "timeout" although it completed; a killed web-content process left a blank page. | Size first; writes run to completion and report their real outcome; the page is reloaded (at most twice). Tests added. | `PalabraBridge.swift`, `BridgeDispatcher.swift`, `ArtifactSandbox.swift`, `AppRendererView.swift`, tests |
+| F23 | A word could be shown as saved, and its queue item deleted, although the write never reached the disk. | `WordRepository.flush()`; `WordWriter.commit` returns nil on failure; the queue keeps the item (retries, then failed); the preview sheet says so. Tests with an unsavable repository double. | `WordRepository.swift`, `WordWriter.swift`, `WordQueueProcessor.swift`, `WordPreviewSheet.swift`, tests |
+| F24 | Pronunciation clips lived inside the word row, so every full fetch (library screen, export, capabilities) loaded every clip. | One file per word in Application Support (not backed up); old clips still play and move to files in batches at launch; deleting a word removes its file. The `pronunciationAudio` column stays (schema unchanged) and is empty after the move. | `PronunciationFileStore.swift`, `WordRepository.swift`, `PronunciationButton.swift`, `AppEnvironment.swift`, `RootView.swift`, tests |
+| F25 | Repositories used their own `ModelContext` while views used the container's main context. | Everything shares `container.mainContext`. | `App/PalabraApp.swift` |
+| F26 | Review due times were "now + n x 24 h": a card answered at 21:00 was not due at 08:00 the next day. | Review-phase cards are due at the start of a study day (04:00 local) `n` days on; learning steps stay minute-based; grade buttons show the interval ("1d"); the daily new-card limit uses the same day. Tests with a fixed calendar, including a clock change. | `SRSScheduler.swift`, `CardRepository.swift`, `ReviewViewModel.swift`, `StudyTypes.swift`, `SRSSchedulerTests.swift` |
+| F27 | UI test failures never failed the build; the API key was visible to every unit test; no check for the AGENTS.md rules; historical docs cluttered searches. | The UI step fails the job (summaries still run); the key is given only to the live smoke test; `scripts/check-conventions.sh` runs first; tool versions are printed; `docs/superpowers` moved to `docs/archive/superpowers`; `reviewStats` fetches only dates; the detail page decodes once. | `.github/workflows/build-ipa.yml`, `scripts/check-conventions.sh`, `docs/` |
 
 ## Checked and fine
 
