@@ -553,3 +553,11 @@
 "Couldn't create the export file." = "تعذّر إنشاء ملف التصدير.";
 "Couldn't save this word. Try again." = "تعذّر حفظ هذه الكلمة. حاول مرة أخرى.";
 "The word couldn't be saved to your library." = "تعذّر حفظ الكلمة في مكتبتك.";
+"All" = "الكل";
+"Words" = "كلمات";
+"Phrases" = "عبارات";
+"Show" = "عرض";
+"No words yet" = "لا توجد كلمات بعد";
+"Entries of more than one word are under Phrases." = "المدخلات المكوّنة من أكثر من كلمة موجودة ضمن العبارات.";
+"No phrases yet" = "لا توجد عبارات بعد";
+"Add a phrase or a sentence, like \"cómo estás\", and it will show up here." = "أضف عبارة أو جملة، مثل \"cómo estás\"، وستظهر هنا.";

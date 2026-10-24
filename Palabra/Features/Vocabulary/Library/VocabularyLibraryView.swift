@@ -13,6 +13,7 @@ struct VocabularyLibraryView: View {
     @State private var activeFlow: AddWordFlow?
     @State private var savedCount = 0
     @AppStorage("librarySort") private var sortRaw = LibrarySort.newest.rawValue
+    @AppStorage("libraryKind") private var kindRaw = LibraryKind.all.rawValue
     @State private var duplicateCandidate: Word?
     @State private var pendingDelete: Word?
     @State private var selectedTag: String?
@@ -34,7 +35,16 @@ struct VocabularyLibraryView: View {
                     )
                 }
                 if !words.isEmpty {
-                    TagFilterBar(tags: LibrarySections.tagCounts(words), selected: $selectedTag)
+                    Picker("Show", selection: $kindRaw) {
+                        ForEach(LibraryKind.allCases) { option in
+                            Text(LocalizedStringKey(option.title)).tag(option.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.top, Theme.Spacing.sm)
+                    .accessibilityIdentifier("libraryKindPicker")
+                    TagFilterBar(tags: LibrarySections.tagCounts(words.filter(kind.includes)), selected: $selectedTag)
                         .padding(.top, Theme.Spacing.sm)
                 }
                 if filteredWords.isEmpty {
@@ -102,6 +112,8 @@ struct VocabularyLibraryView: View {
         .sheet(isPresented: $showOrganizeSettings) {
             NavigationStack { OrganizationSettingsView() }
         }
+        // A tag from the other tab would leave this one empty with no visible reason.
+        .onChange(of: kindRaw) { _, _ in selectedTag = nil }
         .sensoryFeedback(.success, trigger: savedCount)
         .sheet(item: $activeFlow) { flow in
             WordPreviewSheet(flow: flow) { saved in
@@ -138,9 +150,12 @@ struct VocabularyLibraryView: View {
 
     private var sort: LibrarySort { LibrarySort(rawValue: sortRaw) ?? .newest }
 
+    private var kind: LibraryKind { LibraryKind(rawValue: kindRaw) ?? .all }
+
     private var filteredWords: [Word] {
         sort.apply(words.filter { word in
-            LibrarySections.matches(word, query: searchText)
+            kind.includes(word)
+                && LibrarySections.matches(word, query: searchText)
                 && (selectedTag.map { tag in word.tags.contains(tag) } ?? true)
         })
     }
@@ -149,6 +164,10 @@ struct VocabularyLibraryView: View {
     private var emptyContent: some View {
         if words.isEmpty {
             EmptyStateView(systemImage: "text.book.closed", title: "Your library is empty", message: "Add the first Spanish word you'd like to learn.")
+        } else if searchText.isEmpty, selectedTag == nil, kind == .words {
+            EmptyStateView(systemImage: "textformat.abc", title: "No words yet", message: "Entries of more than one word are under Phrases.")
+        } else if searchText.isEmpty, selectedTag == nil, kind == .phrases {
+            EmptyStateView(systemImage: "text.bubble", title: "No phrases yet", message: "Add a phrase or a sentence, like \"cómo estás\", and it will show up here.")
         } else {
             EmptyStateView(systemImage: "magnifyingglass", title: "No matches", message: "No saved words match \"\(searchText)\".")
         }
