@@ -81,12 +81,16 @@ struct SolveResult: Codable, Equatable, Sendable {
     var interpretation: String?
     var pods: [SolvePod] = []
     var source: SolveSource?
+    /// True when the problem is a photo (kept beside the answer, see `SolveRepository.problemImage`). Then `query` is
+    /// only a short label for lists: the photo is the problem.
+    var fromPhoto: Bool?
 
-    init(query: String, interpretation: String? = nil, pods: [SolvePod] = [], source: SolveSource? = nil) {
+    init(query: String, interpretation: String? = nil, pods: [SolvePod] = [], source: SolveSource? = nil, fromPhoto: Bool? = nil) {
         self.query = query
         self.interpretation = interpretation
         self.pods = pods
         self.source = source
+        self.fromPhoto = fromPhoto
     }
 
     init(from decoder: Decoder) throws {
@@ -95,6 +99,7 @@ struct SolveResult: Codable, Equatable, Sendable {
         interpretation = try c.decodeIfPresent(String.self, forKey: .interpretation)
         pods = try c.decodeIfPresent([SolvePod].self, forKey: .pods) ?? []
         source = try c.decodeIfPresent(SolveSource.self, forKey: .source)
+        fromPhoto = try c.decodeIfPresent(Bool.self, forKey: .fromPhoto)
     }
 
     /// True for answers that came from Wolfram|Alpha, including ones saved before `source` existed.
@@ -140,8 +145,8 @@ enum SolveError: Error, Equatable {
     case malformed
     /// The photo has no readable problem in it (or could not be opened).
     case unreadablePhoto
-    /// Gemini copied the problem from the photo but would not give an answer. The copy is kept so it can be checked.
-    case unsolvedPhoto(problem: String)
+    /// Gemini looked at the photo but gave no answer.
+    case unsolvedPhoto
 
     /// A localization key (shown through `LocalizedStringKey`).
     var userMessage: String {
@@ -155,7 +160,7 @@ enum SolveError: Error, Equatable {
         case .network: return "Couldn't reach the solver. Check your connection."
         case .malformed: return "The solver sent an answer the app couldn't read."
         case .unreadablePhoto: return "No problem found in the photo. Get closer or add light."
-        case .unsolvedPhoto: return "Gemini read the problem but couldn't solve it. It's in the box: check it, then tap Solve."
+        case .unsolvedPhoto: return "Gemini couldn't solve this photo. Try a clearer one, or type the problem."
         }
     }
 }

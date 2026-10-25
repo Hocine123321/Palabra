@@ -49,16 +49,21 @@ final class SolveModel {
         }
     }
 
-    /// Solves straight from a photo (Gemini reads and solves in one step) and saves the answer under the problem it
-    /// copied out, which also fills the problem box so it can be edited and solved again.
-    /// Returns the saved entry's id. Returns nil with `error` set, or, when Gemini can't be used right now, after
-    /// reading the text on this device instead (the box is filled and `photoMessage` says so).
+    /// Solves straight from a photo: Gemini looks at the picture and solves it, nothing is transcribed. The photo is
+    /// kept beside the answer and is what the result screen shows as the problem. The same photo opened again is
+    /// answered from the saved result. Returns the saved entry's id. Returns nil with `error` set, or, when Gemini
+    /// can't be used right now (or can't solve it), after reading the text on this device instead (the box is filled
+    /// and `photoNotice` says so).
     func solvePhoto(imageData: Data) async -> UUID? {
         guard phase == .idle else { return nil }
-        phase = .solvingPhoto
         photoMessage = nil
         photoNotice = nil
         error = nil
+        let key = SolveImageStore.key(forPhoto: imageData)
+        if let cached = tool.history.entry(forKey: key), let result = cached.result {
+            return tool.history.save(query: cached.query, key: key, result: result, now: now()).id
+        }
+        phase = .solvingPhoto
         // Without a key or model there is nothing to send the photo to: say so and read the text here.
         guard await tool.geminiReady() else {
             phase = .idle
@@ -70,27 +75,29 @@ final class SolveModel {
         // The person pressed Cancel: nothing saved, nothing shown.
         if Task.isCancelled { return nil }
         switch outcome {
-        case .success(let result):
-            input = result.query
-            return tool.history.save(query: result.query, key: MathInputNormalizer.key(for: result.query), result: result, now: now()).id
+        case .success(var result):
+            result.fromPhoto = true
+            let stored = PhotoPreparer.prepare(imageData, maxPixelSize: Self.storedPhotoPixelSize)?.data
+            return tool.history.save(query: result.query, key: key, result: result, image: stored, now: now()).id
         case .failure(.missingKey), .failure(.network), .failure(.rateLimited):
             await readTextInstead(imageData, reason: "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve.")
             return nil
         case .failure(.unreadablePhoto):
             photoMessage = RecognitionError.nothingFound.userMessage
             return nil
-        case .failure(.unsolvedPhoto(let problem)):
-            // Gemini read it but gave no answer: put the copy where it can be checked, and let the normal chain
-            // (the on-device engine, then Gemini on the typed text) have a go before giving up.
-            input = problem
-            let id = await solve()
-            if id == nil, !Task.isCancelled, case .noResult? = error { error = .unsolvedPhoto(problem: problem) }
-            return id
+        case .failure(.unsolvedPhoto):
+            // Gemini looked but gave no answer: put the text where it can be checked, and let the normal chain
+            // (the on-device engine, then Gemini on the typed text) have a go from there.
+            await readTextInstead(imageData, reason: "Gemini couldn't solve the photo, so the text was read on this device. Check it, then tap Solve.")
+            return nil
         case .failure(let failure):
             error = failure
             return nil
         }
     }
+
+    /// The saved copy of a photo is shown on the result screen, so it is kept smaller than what is sent to Gemini.
+    static let storedPhotoPixelSize = 1280
 
     /// Gemini can't be used, so the photo is read as text on the device and the person checks it before solving.
     private func readTextInstead(_ imageData: Data, reason: String) async {
@@ -144,6 +151,8 @@ final class SolveModel {
 final class SolveResultModel {
     let entryID: UUID
     private(set) var result: SolveResult?
+    /// The photo of the problem, for an answer solved from a picture.
+    private(set) var problemImage: Data?
     /// The pod whose steps are loading.
     private(set) var loadingStepsPodID: String?
     private(set) var stepsError: SolveError?
@@ -156,6 +165,7 @@ final class SolveResultModel {
         self.entryID = entryID
         self.now = now
         result = tool.history.entry(id: entryID)?.result
+        problemImage = tool.history.problemImage(id: entryID)
     }
 
     /// Gets one pod's steps and saves the richer answer: from Gemini (no free call used) or, for a Wolfram|Alpha

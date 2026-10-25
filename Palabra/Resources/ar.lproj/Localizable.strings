@@ -546,7 +546,9 @@
 "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve." = "تعذر الوصول إلى Gemini، فقُرئ النص على هذا الجهاز. راجعه ثم اضغط حلّ.";
 "Working models only" = "النماذج العاملة فقط";
 "No Gemini key or model is set, so the text was read on this device. Check it, then tap Solve." = "لم يتم تعيين مفتاح أو نموذج Gemini، فقُرئ النص على هذا الجهاز. راجعه ثم اضغط حلّ.";
-"Gemini read the problem but couldn't solve it. It's in the box: check it, then tap Solve." = "قرأ Gemini المسألة لكنه لم يستطع حلها. هي في المربع: راجعها ثم اضغط حلّ.";
+"Gemini couldn't solve this photo. Try a clearer one, or type the problem." = "لم يستطع Gemini حل هذه الصورة. جرّب صورة أوضح أو اكتب المسألة.";
+"Gemini couldn't solve the photo, so the text was read on this device. Check it, then tap Solve." = "لم يستطع Gemini حل الصورة، لذلك قُرئ النص على جهازك. راجعه ثم اضغط حلّ.";
+"The photo" = "الصورة";
 "Your library couldn't be opened" = "تعذّر فتح مكتبتك";
 "Palabra is using a temporary library, so anything you add will be lost when the app closes. Close the app and open it again. If this keeps happening, don't delete the app: your saved words are still on this device." = "يستخدم Palabra مكتبة مؤقتة حاليًا، لذا ستُفقد أي إضافات عند إغلاق التطبيق. أغلق التطبيق ثم افتحه من جديد. إذا استمرت المشكلة فلا تحذف التطبيق: كلماتك المحفوظة ما زالت على هذا الجهاز.";
 "The words couldn't be saved to your library. Nothing was imported." = "تعذّر حفظ الكلمات في مكتبتك. لم يتم استيراد أي شيء.";

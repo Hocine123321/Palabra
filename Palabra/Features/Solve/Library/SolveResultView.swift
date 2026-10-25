@@ -7,6 +7,9 @@ struct SolveResultView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var model: SolveResultModel?
     @State private var copied = false
+    @Environment(\.layoutDirection) private var layoutDirection
+
+    private var isRightToLeft: Bool { layoutDirection == .rightToLeft }
 
     var body: some View {
         ZStack {
@@ -35,7 +38,7 @@ struct SolveResultView: View {
     private func page(_ model: SolveResultModel, _ result: SolveResult) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                problemHeader(result)
+                problemHeader(result, photo: model.problemImage)
                 if let answer = result.answerPod { podCard(answer, hero: true, model: model, result: result) }
                 if let error = model.stepsError { stepsErrorView(error, model) }
                 ForEach(Array(result.otherPods.enumerated()), id: \.offset) { _, pod in
@@ -47,15 +50,31 @@ struct SolveResultView: View {
         }
     }
 
-    private func problemHeader(_ result: SolveResult) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text("Problem").font(.footnote.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
-            Text(verbatim: result.query)
-                .font(Theme.Font.title)
-                .foregroundStyle(Theme.ink)
-                .textSelection(.enabled)
-            if let interpretation = result.interpretation, !interpretation.isEmpty, interpretation != result.query {
-                Text(verbatim: interpretation).font(.footnote).foregroundStyle(Theme.inkSecondary)
+    /// A photo problem is shown as the photo itself; a typed one as its text.
+    @ViewBuilder
+    private func problemHeader(_ result: SolveResult, photo: Data?) -> some View {
+        if result.fromPhoto == true, let photo, let image = UIImage(data: photo) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text("Problem").font(.footnote.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: 360)
+                    .background(Theme.paper)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+                    .accessibilityLabel(Text("The photo"))
+                    .accessibilityIdentifier("problemPhoto")
+            }
+        } else {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text("Problem").font(.footnote.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
+                Text(verbatim: BidiText.display(result.query, rightToLeftLayout: isRightToLeft))
+                    .font(Theme.Font.title)
+                    .foregroundStyle(Theme.ink)
+                    .textSelection(.enabled)
+                if let interpretation = result.interpretation, !interpretation.isEmpty, interpretation != result.query {
+                    Text(verbatim: BidiText.display(interpretation, rightToLeftLayout: isRightToLeft)).font(.footnote).foregroundStyle(Theme.inkSecondary)
+                }
             }
         }
     }
@@ -132,12 +151,41 @@ struct SolveResultView: View {
                     .background(Theme.paper, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
                     .accessibilityLabel(Text(verbatim: sub.plaintext))
             } else if !sub.plaintext.isEmpty {
-                Text(verbatim: sub.plaintext)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(hero ? Theme.onTint : Theme.ink)
-                    .textSelection(.enabled)
+                textLines(sub.plaintext, hero: hero)
             }
         }
+    }
+
+    /// The text of a part, line by line, so each line keeps its own direction: Arabic text reads right to left with its
+    /// formulas intact, a formula line stays left to right, and a numbered step has its number in a column of its own.
+    private func textLines(_ text: String, hero: Bool) -> some View {
+        let lines = text.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        return VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                if let numbered = BidiText.numberedLine(line) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
+                        Text(verbatim: BidiText.isolated("\(numbered.number)."))
+                            .font(SwiftUI.Font.system(.body, design: .monospaced).weight(.semibold))
+                            .foregroundStyle(hero ? Theme.onTint.opacity(0.7) : Theme.inkSecondary)
+                            .frame(minWidth: 28, alignment: .trailing)
+                        lineText(numbered.text, hero: hero)
+                    }
+                } else {
+                    lineText(line, hero: hero)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func lineText(_ line: String, hero: Bool) -> some View {
+        Text(verbatim: BidiText.display(line, rightToLeftLayout: isRightToLeft))
+            // The monospaced face has no Arabic letters, so Arabic text uses the normal face.
+            .font(BidiText.containsArabic(line) ? SwiftUI.Font.body : SwiftUI.Font.system(.body, design: .monospaced))
+            .foregroundStyle(hero ? Theme.onTint : Theme.ink)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
     }
 
     private func stepsButton(_ pod: SolvePod, _ model: SolveResultModel, hero: Bool) -> some View {

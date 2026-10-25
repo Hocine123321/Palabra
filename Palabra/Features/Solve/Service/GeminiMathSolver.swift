@@ -40,7 +40,7 @@ struct GeminiMathSolver: MathSolver {
     static let maxSteps = 12
     static let maxQueryLength = MathInputNormalizer.maxLength
     /// A problem solved from a photo can have many parts, so its limits are wider.
-    static let maxPhotoProblemLength = 1_500
+    static let maxPhotoTitleLength = 80
     static let maxPhotoAnswerLength = 1_200
     static let maxPhotoSteps = 20
 
@@ -67,7 +67,7 @@ struct GeminiMathSolver: MathSolver {
         }
     }
 
-    /// Sends the photo itself with the instruction to copy the whole problem and then solve every part.
+    /// Sends the photo itself and asks for the solution: the problem is never transcribed, the photo stays the problem.
     func solvePhoto(imageData: Data) async -> Result<SolveResult, SolveError> {
         guard let credentials = await link.credentials() else { return .failure(.missingKey) }
         guard let image = PhotoPreparer.prepare(imageData, maxPixelSize: PhotoPreparer.solvePixelSize) else { return .failure(.unreadablePhoto) }
@@ -129,18 +129,19 @@ struct GeminiMathSolver: MathSolver {
         """
     }
 
-    static let photoPrompt = "Copy the problem in this photo, then solve it."
+    static let photoPrompt = "Solve the problem in this photo."
 
     static func photoInstruction(language: SupportedLanguage) -> String {
         """
         You are a careful maths and science solver for a student. The photo shows a problem.
-        First copy the whole problem into "problem", exactly as written: every part, number, symbol and sub-question such as (a), (b), (c), plus any table, given data or labels the question depends on. Never shorten it, skip a line or merge parts. Write [?] for a single character you cannot make out.
-        Then solve every part. "answer" holds the final answer of each part on its own line, labelled "(a) ..." when the problem has parts.
+        Solve every part of it: sub-questions such as (a), (b), (c), and any table, given data or labels in the photo are part of the problem. Do not copy the problem out.
+        "answer" holds the final answer of each part on its own line, labelled "(a) ..." when the problem has parts.
         "steps" are short lines, one idea each, covering all parts.
         Write plain text only: no LaTeX, no markdown. Use ^ for powers, sqrt(), pi, and a/b for fractions.
         Use school conventions: log is base 10, ln is natural, angles are in radians unless the problem says degrees. Check the answer by substituting it back.
         Always give your best answer when the problem is readable: a student can check it, a refusal helps nobody. If one part is too hard, solve the others and say which part you could not do inside "answer".
         If the photo shows several unrelated problems, solve the one that is circled or underlined, otherwise the first. Ignore page numbers, margins and other people's working.
+        "title" is a label of the problem for a history list: at most 8 words, no answer in it.
         Set "readable" to false only when there is no problem in the photo. Set "solvable" to false only when what is written is not a solvable maths or science problem at all.
         \(languageLine(language))
         """
@@ -148,15 +149,15 @@ struct GeminiMathSolver: MathSolver {
 
     static let photoSchema: [String: Any] = [
         "type": "OBJECT",
-        "propertyOrdering": ["readable", "problem", "solvable", "answer", "steps"],
+        "propertyOrdering": ["readable", "solvable", "answer", "steps", "title"],
         "properties": [
             "readable": ["type": "BOOLEAN"],
-            "problem": ["type": "STRING"],
             "solvable": ["type": "BOOLEAN"],
             "answer": ["type": "STRING"],
             "steps": ["type": "ARRAY", "items": ["type": "STRING"]],
+            "title": ["type": "STRING"],
         ],
-        "required": ["readable", "problem", "solvable", "answer", "steps"],
+        "required": ["readable", "solvable", "answer", "steps", "title"],
     ]
 
     private static func languageLine(_ language: SupportedLanguage) -> String {
@@ -199,10 +200,10 @@ struct GeminiMathSolver: MathSolver {
 
     private struct PhotoSolution: Decodable {
         let readable: Bool?
-        let problem: String?
         let solvable: Bool?
         let answer: String?
         let steps: [String]?
+        let title: String?
     }
 
     private struct StepsPayload: Decodable {
@@ -224,22 +225,24 @@ struct GeminiMathSolver: MathSolver {
         return .success(SolveResult(query: query, interpretation: interpretation.isEmpty ? nil : interpretation, pods: pods, source: .gemini))
     }
 
-    /// The reply to `solvePhoto`: the copied problem becomes the saved question, so the answer can be checked against it.
+    /// The reply to `solvePhoto`. The photo is the problem, so the result keeps only a short label (for lists and
+    /// sharing); the caller stores the photo itself next to it.
     static func parsePhotoSolution(_ text: String) -> Result<SolveResult, SolveError> {
         guard let data = text.data(using: .utf8), let solution = try? JSONDecoder().decode(PhotoSolution.self, from: data) else {
             return .failure(.malformed)
         }
-        let problem = cap(solution.problem ?? "", maxPhotoProblemLength)
-        if solution.readable == false || problem.isEmpty { return .failure(.unreadablePhoto) }
+        if solution.readable == false { return .failure(.unreadablePhoto) }
         let answer = cap(solution.answer ?? "", maxPhotoAnswerLength)
-        guard solution.solvable != false, !answer.isEmpty else { return .failure(.unsolvedPhoto(problem: problem)) }
+        guard solution.solvable != false, !answer.isEmpty else { return .failure(.unsolvedPhoto) }
         let steps = cleanSteps(solution.steps ?? [], limit: maxPhotoSteps)
-        let pods = [
-            SolvePod(id: "Input", title: "Input", subpods: [SolveSubpod(plaintext: problem)]),
-            pod(id: "Result", answer: answer, steps: steps),
-        ]
-        return .success(SolveResult(query: problem, interpretation: problem, pods: pods, source: .gemini))
+        let title = cap(solution.title ?? "", maxPhotoTitleLength)
+        let label = title.isEmpty ? photoFallbackTitle : title
+        let pods = [pod(id: "Result", answer: answer, steps: steps)]
+        return .success(SolveResult(query: label, interpretation: nil, pods: pods, source: .gemini, fromPhoto: true))
     }
+
+    /// The label of a photo problem the model gave no title for.
+    static let photoFallbackTitle = "Photo problem"
 
     static func parseSteps(_ text: String) -> [String]? {
         guard let data = text.data(using: .utf8), let payload = try? JSONDecoder().decode(StepsPayload.self, from: data) else { return nil }

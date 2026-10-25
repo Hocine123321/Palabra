@@ -12,11 +12,13 @@ struct SolveHomeView: View {
     @State private var solvedCount = 0
     @State private var solveTask: Task<Void, Never>?
     @FocusState private var problemFocused: Bool
+    @Environment(\.layoutDirection) private var layoutDirection
 
     private struct RecentRow: Identifiable {
         let id: UUID
         let query: String
         let answer: String
+        let fromPhoto: Bool
     }
 
     private static let symbols = ["^", "\u{221A}(", "\u{03C0}", "\u{00D7}", "\u{00F7}", "(", ")", "=", "\u{2264}", "\u{2265}", "x"]
@@ -298,12 +300,20 @@ struct SolveHomeView: View {
                     GlassSurface {
                         HStack(spacing: Theme.Spacing.sm) {
                             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                                Text(verbatim: row.query)
-                                    .font(.system(.body, design: .monospaced).weight(.semibold))
-                                    .foregroundStyle(Theme.ink)
-                                    .lineLimit(2)
+                                HStack(spacing: Theme.Spacing.xs) {
+                                    if row.fromPhoto {
+                                        Image(systemName: "photo")
+                                            .font(.footnote)
+                                            .foregroundStyle(Theme.inkSecondary)
+                                            .accessibilityHidden(true)
+                                    }
+                                    Text(verbatim: BidiText.display(row.query, rightToLeftLayout: layoutDirection == .rightToLeft))
+                                        .font(BidiText.containsArabic(row.query) ? SwiftUI.Font.body.weight(.semibold) : SwiftUI.Font.system(.body, design: .monospaced).weight(.semibold))
+                                        .foregroundStyle(Theme.ink)
+                                        .lineLimit(2)
+                                }
                                 if !row.answer.isEmpty {
-                                    Text(verbatim: row.answer)
+                                    Text(verbatim: BidiText.display(row.answer, rightToLeftLayout: layoutDirection == .rightToLeft))
                                         .font(.subheadline)
                                         .foregroundStyle(Theme.accentDeep)
                                         .lineLimit(1)
@@ -321,7 +331,9 @@ struct SolveHomeView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("recentSolve")
                 .contextMenu {
-                    Button("Edit Problem", systemImage: "pencil") { model?.input = row.query }
+                    if !row.fromPhoto {
+                        Button("Edit Problem", systemImage: "pencil") { model?.input = row.query }
+                    }
                     Button("Delete", role: .destructive) {
                         environment.solve.history.delete(id: row.id)
                         reloadRecents()
@@ -353,7 +365,11 @@ struct SolveHomeView: View {
 
     private func reloadRecents() {
         recents = environment.solve.history.entries(limit: 10).map {
-            RecentRow(id: $0.id, query: $0.query, answer: $0.result?.answerText.replacingOccurrences(of: "\n", with: ", ") ?? "")
+            RecentRow(
+                id: $0.id, query: $0.query,
+                answer: $0.result?.answerText.replacingOccurrences(of: "\n", with: ", ") ?? "",
+                fromPhoto: $0.result?.fromPhoto == true
+            )
         }
     }
 }

@@ -21,11 +21,12 @@ final class GeminiPhotoSolveTests: XCTestCase {
     }
 
     private let solvedJSON = """
-    {"readable": true, "problem": "Solve: (a) x^2 - 4 = 0 (b) 2x + 1 = 7", "solvable": true,
-     "answer": "(a) x = -2 or x = 2\\n(b) x = 3", "steps": ["1. (a) x^2 = 4", "(a) x = +-2", "(b) 2x = 6", "(b) x = 3"]}
+    {"readable": true, "solvable": true,
+     "answer": "(a) x = -2 or x = 2\\n(b) x = 3", "steps": ["1. (a) x^2 = 4", "(a) x = +-2", "(b) 2x = 6", "(b) x = 3"],
+     "title": "Two equations"}
     """
 
-    func testThePhotoItselfGoesToGeminiWithTheCopyThenSolveInstruction() async throws {
+    func testThePhotoItselfGoesToGeminiAndTheProblemIsNeverTranscribed() async throws {
         attach()
         ai.imageResult = .success(solvedJSON)
         let result = await solver.solvePhoto(imageData: GeminiTextRecognizerTests.photo())
@@ -35,29 +36,33 @@ final class GeminiPhotoSolveTests: XCTestCase {
         XCTAssertFalse(call.image.data.isEmpty, "the picture is sent, not just a request")
         XCTAssertEqual(call.image.mimeType, "image/jpeg")
         XCTAssertEqual(call.prompt, GeminiMathSolver.photoPrompt)
-        XCTAssertTrue(call.systemInstruction.contains("every part"), "the whole problem must be copied")
+        XCTAssertTrue(call.systemInstruction.contains("every part"))
+        XCTAssertTrue(call.systemInstruction.contains("Do not copy the problem out"))
+        XCTAssertFalse(call.systemInstruction.contains("copy the whole problem"))
         XCTAssertTrue(call.systemInstruction.contains("Write the steps in English."))
-        XCTAssertEqual((call.schema?["required"] as? [String])?.sorted(), ["answer", "problem", "readable", "solvable", "steps"])
-        XCTAssertEqual(call.schema?["propertyOrdering"] as? [String], ["readable", "problem", "solvable", "answer", "steps"], "the problem is copied before it is solved")
+        XCTAssertEqual((call.schema?["required"] as? [String])?.sorted(), ["answer", "readable", "solvable", "steps", "title"])
+        XCTAssertEqual(call.schema?["propertyOrdering"] as? [String], ["readable", "solvable", "answer", "steps", "title"], "no transcription step in the schema")
+        XCTAssertNil((call.schema?["properties"] as? [String: Any])?["problem"])
         XCTAssertTrue(ai.generateJSONCalls.isEmpty, "no separate text step")
     }
 
-    func testAMultiPartAnswerKeepsEveryPartAndIsSavedUnderTheCopiedProblem() async throws {
+    func testAMultiPartAnswerKeepsEveryPartAndIsLabelledByTheTitle() async throws {
         attach()
         ai.imageResult = .success(solvedJSON)
         let outcome = await solver.solvePhoto(imageData: GeminiTextRecognizerTests.photo())
         let solved = try XCTUnwrap(outcome.success)
-        XCTAssertEqual(solved.query, "Solve: (a) x^2 - 4 = 0 (b) 2x + 1 = 7")
+        XCTAssertEqual(solved.query, "Two equations")
+        XCTAssertEqual(solved.fromPhoto, true)
+        XCTAssertNil(solved.pods.first { $0.id == "Input" }, "no copy of the problem")
         XCTAssertEqual(solved.source, .gemini)
         XCTAssertFalse(solved.isFromWolfram)
         XCTAssertEqual(solved.answerText.components(separatedBy: "\n").prefix(2).map { $0 }, ["(a) x = -2 or x = 2", "(b) x = 3"])
         XCTAssertEqual(solved.answerPod?.hasSteps, true)
-        XCTAssertEqual(solved.pods.first?.subpods.first?.plaintext, solved.query)
     }
 
     func testPhotoSolutionsAllowMoreStepsThanTypedOnes() throws {
         let steps = (1...18).map { "\"step \($0)\"" }.joined(separator: ",")
-        let json = "{\"readable\":true,\"problem\":\"p\",\"solvable\":true,\"answer\":\"a\",\"steps\":[\(steps)]}"
+        let json = "{\"readable\":true,\"solvable\":true,\"answer\":\"a\",\"steps\":[\(steps)],\"title\":\"p\"}"
         let solved = try XCTUnwrap(GeminiMathSolver.parsePhotoSolution(json).success)
         let text = try XCTUnwrap(solved.answerPod?.subpods.last?.plaintext)
         XCTAssertEqual(text.components(separatedBy: "\n").count, 18)
@@ -65,16 +70,24 @@ final class GeminiPhotoSolveTests: XCTestCase {
 
     func testNoProblemInThePhotoIsReportedAsUnreadable() async {
         attach()
-        ai.imageResult = .success(#"{"readable": false, "problem": "", "solvable": false, "answer": "", "steps": []}"#)
+        ai.imageResult = .success(#"{"readable": false, "solvable": false, "answer": "", "steps": [], "title": ""}"#)
         let result = await solver.solvePhoto(imageData: GeminiTextRecognizerTests.photo())
         XCTAssertEqual(result.failure, .unreadablePhoto)
     }
 
-    func testAReadableProblemWithoutAnAnswerKeepsTheCopyForChecking() async {
+    func testAReadableProblemWithoutAnAnswerIsUnsolved() async {
         attach()
-        ai.imageResult = .success(#"{"readable": true, "problem": "hard thing", "solvable": false, "answer": "", "steps": []}"#)
+        ai.imageResult = .success(#"{"readable": true, "solvable": false, "answer": "", "steps": [], "title": "hard thing"}"#)
         let result = await solver.solvePhoto(imageData: GeminiTextRecognizerTests.photo())
-        XCTAssertEqual(result.failure, .unsolvedPhoto(problem: "hard thing"))
+        XCTAssertEqual(result.failure, .unsolvedPhoto)
+    }
+
+    func testAMissingTitleGetsAPlainLabelAndLongOnesAreCapped() throws {
+        let none = try XCTUnwrap(GeminiMathSolver.parsePhotoSolution(#"{"readable":true,"solvable":true,"answer":"4","steps":[],"title":" "}"#).success)
+        XCTAssertEqual(none.query, GeminiMathSolver.photoFallbackTitle)
+        let long = String(repeating: "t", count: 500)
+        let capped = try XCTUnwrap(GeminiMathSolver.parsePhotoSolution("{\"readable\":true,\"solvable\":true,\"answer\":\"4\",\"steps\":[],\"title\":\"\(long)\"}").success)
+        XCTAssertEqual(capped.query.count, GeminiMathSolver.maxPhotoTitleLength)
     }
 
     func testThePhotoInstructionAsksForABestAnswerInsteadOfARefusal() {
@@ -141,24 +154,45 @@ final class SolveModelPhotoTests: XCTestCase {
 
     private func model() -> SolveModel { SolveModel(tool: tool, now: { self.now }) }
 
-    private func solved(_ query: String = "(a) 2+2 (b) 3+3") -> SolveResult {
-        SolveResult(query: query, interpretation: query, pods: [
-            SolvePod(id: "Input", title: "Input", subpods: [SolveSubpod(plaintext: query)]),
+    private func solved(_ query: String = "Two sums") -> SolveResult {
+        SolveResult(query: query, pods: [
             SolvePod(id: "Result", title: "Result", primary: true, subpods: [SolveSubpod(plaintext: "(a) 4\n(b) 6")]),
-        ], source: .gemini)
+        ], source: .gemini, fromPhoto: true)
     }
 
-    func testSolvingAPhotoSavesTheAnswerAndFillsTheProblemBox() async throws {
+    func testSolvingAPhotoSavesTheAnswerAndThePhotoAndLeavesTheBoxAlone() async throws {
         solver.photoResults = [.success(solved())]
         let model = model()
-        let id = await model.solvePhoto(imageData: Data([1]))
+        let photo = GeminiTextRecognizerTests.photo()
+        let id = await model.solvePhoto(imageData: photo)
         let entry = try XCTUnwrap(tool.history.entry(id: try XCTUnwrap(id)))
-        XCTAssertEqual(entry.query, "(a) 2+2 (b) 3+3")
-        XCTAssertEqual(model.input, "(a) 2+2 (b) 3+3", "the copied problem can be edited and solved again")
+        XCTAssertEqual(entry.query, "Two sums")
+        XCTAssertEqual(entry.result?.fromPhoto, true)
+        XCTAssertNotNil(tool.history.problemImage(id: entry.id), "the photo is kept as the problem")
+        XCTAssertEqual(model.input, "", "nothing was transcribed into the box")
         XCTAssertEqual(model.phase, .idle)
         XCTAssertNil(model.error)
         XCTAssertEqual(tool.callsThisMonth, 0, "only Wolfram answers count")
         XCTAssertTrue(solver.solveCalls.isEmpty, "no second, text-only step")
+    }
+
+    func testTheSamePhotoAgainIsAnsweredFromTheSavedResult() async throws {
+        solver.photoResults = [.success(solved())]
+        let model = model()
+        let photo = GeminiTextRecognizerTests.photo()
+        let first = await model.solvePhoto(imageData: photo)
+        let second = await model.solvePhoto(imageData: photo)
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(solver.photoCalls, 1, "no second call for the same picture")
+    }
+
+    func testADifferentPhotoWithTheSameTitleDoesNotReplaceTheFirst() async throws {
+        solver.photoResults = [.success(solved()), .success(solved())]
+        let model = model()
+        let first = await model.solvePhoto(imageData: GeminiTextRecognizerTests.photo(width: 120, height: 80))
+        let second = await model.solvePhoto(imageData: GeminiTextRecognizerTests.photo(width: 200, height: 90))
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(tool.history.entries(limit: 10).count, 2)
     }
 
     func testWhenGeminiCantBeUsedThePhotoIsReadAsTextInstead() async {
@@ -202,25 +236,14 @@ final class SolveModelPhotoTests: XCTestCase {
         XCTAssertEqual(model.photoMessage, RecognitionError.nothingFound.userMessage)
     }
 
-    func testAnUnsolvedPhotoFillsTheBoxAndTriesTheNormalChain() async throws {
-        solver.photoResults = [.failure(.unsolvedPhoto(problem: "2 + 2"))]
-        solver.solveResults = [.success(.sample(query: "2 + 2"))]
-        let model = model()
-        let id = await model.solvePhoto(imageData: Data([1]))
-        XCTAssertNotNil(id)
-        XCTAssertEqual(model.input, "2 + 2")
-        XCTAssertEqual(solver.solveCalls.map(\.query), ["2 + 2"], "the copied problem was solved as typed text")
-        XCTAssertNil(model.error)
-    }
-
-    func testAnUnsolvedPhotoThatStaysUnsolvedShowsTheCopyNotAVagueError() async {
-        solver.photoResults = [.failure(.unsolvedPhoto(problem: "hard thing"))]
-        solver.solveResults = [.failure(.noResult(suggestions: []))]
+    func testAnUnsolvedPhotoIsReadAsTextOnTheDeviceForChecking() async {
+        solver.photoResults = [.failure(.unsolvedPhoto)]
         let model = model()
         let id = await model.solvePhoto(imageData: Data([1]))
         XCTAssertNil(id)
-        XCTAssertEqual(model.input, "hard thing")
-        XCTAssertEqual(model.error, .unsolvedPhoto(problem: "hard thing"))
+        XCTAssertEqual(model.input, "gemini text")
+        XCTAssertEqual(model.photoNotice, "Gemini couldn't solve the photo, so the text was read on this device. Check it, then tap Solve.")
+        XCTAssertNil(model.error)
     }
 
     func testOtherFailuresAreShownAsErrors() async {
@@ -238,7 +261,7 @@ final class SolveModelPhotoTests: XCTestCase {
         let id = await task.value
         XCTAssertNil(id)
         XCTAssertEqual(model.phase, .idle)
-        XCTAssertNil(tool.history.entry(forKey: MathInputNormalizer.key(for: "(a) 2+2 (b) 3+3")))
+        XCTAssertTrue(tool.history.entries(limit: 10).isEmpty)
     }
 
     func testTheReadingModesPickTheirOwnReader() async {

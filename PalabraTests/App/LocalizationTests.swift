@@ -117,7 +117,7 @@ final class LocalizationTests: XCTestCase {
     /// Every message the Solve tab can show is looked up by its English text.
     func testArabicStringsCoverSolveMessages() throws {
         let table = try arabicTable()
-        let solveErrors: [SolveError] = [.emptyInput, .missingKey, .invalidKey, .rateLimited, .noResult(suggestions: []), .noSteps, .network, .malformed, .unreadablePhoto, .unsolvedPhoto(problem: "")]
+        let solveErrors: [SolveError] = [.emptyInput, .missingKey, .invalidKey, .rateLimited, .noResult(suggestions: []), .noSteps, .network, .malformed, .unreadablePhoto, .unsolvedPhoto]
         for error in solveErrors { XCTAssertFalse((table[error.userMessage] ?? "").isEmpty, "missing Arabic string: \(error.userMessage)") }
         for error in [RecognitionError.unreadable, .nothingFound] {
             XCTAssertFalse((table[error.userMessage] ?? "").isEmpty, "missing Arabic string: \(error.userMessage)")

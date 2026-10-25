@@ -30,10 +30,8 @@ struct StubMathSolver: MathSolver {
     }
 
     func solvePhoto(imageData: Data) async -> Result<SolveResult, SolveError> {
-        let problem = "3 \u{00D7} 4 + x\u{00B2} = 16"
-        let input = SolvePod(id: "Input", title: "Input", subpods: [SolveSubpod(plaintext: problem)])
         let result = SolvePod(id: "Result", title: "Result", primary: true, subpods: [SolveSubpod(plaintext: "x = -2 or x = 2")])
-        return .success(SolveResult(query: problem, interpretation: problem, pods: [input, result], source: .gemini))
+        return .success(SolveResult(query: "Photo problem", pods: [result], source: .gemini, fromPhoto: true))
     }
 
     func steps(query: String, podID: String, stepsInput: String, appID: String) async -> Result<SolvePod, SolveError> {
