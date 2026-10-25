@@ -12,6 +12,15 @@ struct StudyBackup: Codable, Equatable, Sendable {
         var lapses: Int
         var due: Date
 
+        init(phase: String, interval: Double, ease: Double, reps: Int, lapses: Int, due: Date) {
+            self.phase = phase
+            self.interval = interval
+            self.ease = ease
+            self.reps = reps
+            self.lapses = lapses
+            self.due = due
+        }
+
         init(_ state: SRSState) {
             phase = state.phase.rawValue
             interval = state.interval
