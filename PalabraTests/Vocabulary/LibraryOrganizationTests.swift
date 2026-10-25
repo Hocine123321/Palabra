@@ -108,15 +108,16 @@ final class LibraryOrganizationTests: XCTestCase {
         XCTAssertEqual(env.repository.find(key: "gato")?.tags, [])
     }
 
-    func testExportDoesNotIncludePlacementAndImportStillWorks() throws {
+    func testBackupCarriesPlacementAndRestoreBringsItBack() throws {
         let env = makeEnvironment().0
         let word = add(env, "gato")
         env.repository.updatePlacement(id: word.id, category: "Animals", tags: ["pet"])
-        let data = try env.repository.exportData()
+        let records = env.repository.backupRecords()
         env.repository.deleteAll()
-        let result = try env.repository.importData(data)
+        let result = try env.repository.restore(records) { _ in nil }
         XCTAssertEqual(result.imported, 1)
-        XCTAssertNil(env.repository.find(key: "gato")?.category)
+        XCTAssertEqual(env.repository.find(key: "gato")?.category, "Animals")
+        XCTAssertEqual(env.repository.find(key: "gato")?.tags, ["pet"])
     }
 
     // MARK: grouping and search

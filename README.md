@@ -30,7 +30,7 @@ The `tests` job runs unit tests, UI tests (with screenshots uploaded as the `tes
 
 ## Data safety
 
-Some sideload tools rewrite the bundle id; if it changes, the on-device library does not carry over. Use **Settings > Data > Export library** before reinstalling and **Import library** afterwards.
+Some sideload tools rewrite the bundle id; if it changes, the on-device library does not carry over. Use **Settings > Data > Export library** before reinstalling and **Import library** afterwards. The export is one compact `.palabra` file (compressed binary, not JSON) with the words, sections and tags, pronunciation audio, chats, your decks and study progress. Importing merges: nothing already in the library is overwritten. Exports from older versions (`.json`) still import.
 
 ## Project layout
 

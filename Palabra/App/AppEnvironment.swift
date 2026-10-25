@@ -378,6 +378,11 @@ final class AppEnvironment {
         }
     }
 
+    /// Exports and imports the whole library (words, clips, study progress, chats) as one file.
+    func makeBackupService() -> LibraryBackupService {
+        LibraryBackupService(words: repository, cards: cards, chats: chat, afterWords: { [weak self] in self?.syncVocabularyCards() })
+    }
+
     func syncVocabularyCards() {
         let entries = repository.wordSummaries().compactMap { word -> VocabularyCardEntry? in
             let front = word.spanish.trimmingCharacters(in: .whitespacesAndNewlines)

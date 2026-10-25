@@ -55,7 +55,7 @@ Palabra/
     Vocabulary/         the Spanish word library
       Domain/           WordContent, WordKey, ContentValidator, Honeycomb, chat types, LibraryOrganization (tag/section cleanup)
       Organization/     LibraryOrganizer (batch AI re-organize), LibrarySections (grouping/search), sectioned view, organize sheet, organization settings
-      Storage/          Word (SwiftData), WordRepository, VocabularyLibraryExporter, WordQueueItem/WordQueueRepository (offline queue), WordWriter (shared save logic)
+      Storage/          Word (SwiftData), WordRepository, VocabularyLibraryExporter (old JSON format, read-only), WordBackup (backup records), WordQueueItem/WordQueueRepository (offline queue), WordWriter (shared save logic)
       AI/               VocabularyPrompts, VocabularyResponseSchema
       Pronunciation/    PronunciationService, PronunciationButton
       Queue/            WordQueueProcessor (drains the offline queue), QueuedWordsBanner
@@ -97,7 +97,7 @@ Changing any of these silently loses the user's saved words, settings or API key
 - The SwiftData entity `ChatConversation` and its stored properties (`turnsData` is JSON `[ChatTurn]` with tolerant decoding: add fields, never rename).
 - The SwiftData entity `SolveEntry` and its stored properties (`query`, `queryKey`, `resultData`, `createdAt`, `updatedAt`; `resultData` is JSON `SolveResult` with tolerant decoding) and the UserDefaults key `wolframUsage`; the Keychain account `wolfram-app-id`.
 - The SwiftData entity `ReviewNeed` and its stored properties (including `statusRaw`); the `ReviewStatus` raw values `"open"` / `"cleared"` are append-only.
-- The library export envelope (`app: "Palabra"`, `version`) written by `VocabularyLibraryExporter`; old exports must keep importing.
+- The library backup file: `Core/Backup/ArchiveContainer.swift` (header `PLBR`, footer `PLBE`, version byte) and the metadata `LibraryArchive` (`format: "Palabra Library"`, `version`) written by `LibraryBackupService`. New fields in `LibraryArchive`, `WordBackup`, `StudyBackup`, `ChatBackup` must be optional so older files keep reading; a layout change bumps the version. The old JSON envelope (`app: "Palabra"`, `version: 1`) is read-only in `VocabularyLibraryExporter`; old exports must keep importing.
 - The SwiftData entity `WordQueueItem` and its stored property names (`inputWord`, `existingWordID`, `existingCreatedAt`, `languageRaw`, `createdAt`, `statusRaw`, `attempts`, `lastErrorMessage`) — same reasoning as `Word`: a rename changes the on-device schema and loses whatever's mid-flight in someone's offline queue.
 
 It is fine — and encouraged — to rename Swift *types* and files that are not persisted (that is how `Prompts` became `VocabularyPrompts`).
@@ -161,7 +161,7 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 
 ## Library organization
 
-- Each `Word` has an optional `category` (one section) and `tagsData` (JSON `[String]`). `nil` category = not organized yet. Both are excluded from library export on purpose.
+- Each `Word` has an optional `category` (one section) and `tagsData` (JSON `[String]`). `nil` category = not organized yet. Both are part of the library backup (`WordBackup`); restoring never overwrites a section or tags the word already has.
 - "Re-organize Library" (`LibraryOrganizer`) works in batches of `batchSize`, writes nothing until every batch succeeds, and sends known section names to later batches so names are reused. Words the AI omits go to "Other".
 - New words are placed by `AppEnvironment.requestOrganizationIfConfigured` (respects `OrganizerSettings.autoOrganizeNewWords`). Regenerating a word keeps its placement.
 - Search matches word, translation, section and tags; `#tag` searches tags only.

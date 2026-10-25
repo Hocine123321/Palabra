@@ -80,3 +80,14 @@ Status: everything in "Fixed" is changed on `main`; "Still open" lists what was 
 - Bridge grants are enforced in `CapabilityRegistry.call`, not by the page-visible `granted` list.
 - `NavigationGate`, `createWebViewWith -> nil`, non-persistent store and the network block rules behave as documented.
 - Logic coverage is broad: only SwiftUI views lack unit tests, and `GeminiClientTests` inspects request bodies.
+
+## Backup rework (export / import)
+
+| # | Change | Where |
+|---|--------|-------|
+| B1 | Export is one compressed binary `.palabra` file (header, zlib blobs, binary-plist metadata, CRC-32 footer), not JSON. Audio is stored as bytes, never base64; clips are written one at a time. | `Core/Backup/ArchiveContainer.swift`, `App/Backup/LibraryBackupService.swift` |
+| B2 | The backup holds the whole library: words with sections, tags, old per-word chat and pronunciation clips; the person's decks and cards; vocabulary card progress; review history; assistant chats. | `WordBackup`, `StudyBackup`, `ChatBackup`, `LibraryArchive` |
+| B3 | Import merges and never overwrites: new words are added, existing ones only gain what they lack (section, tags, clip, chat); study progress is adopted only by cards still new; ids are never reused when taken. Importing the same file twice adds nothing. | `WordRepository.restore`, `CardRepository.restore`, `ChatRepository.restore` |
+| B4 | Damage is reported, not guessed: truncated, corrupt, newer-version and not-a-library files each have a message; a damaged clip only loses that clip. Old `.json` exports still import. | `LibraryBackupService.Failure`, `SettingsView.swift` |
+
+Not included yet: saved artifacts, the Need Review list and app settings.

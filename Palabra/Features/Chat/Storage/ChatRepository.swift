@@ -14,6 +14,12 @@ protocol ChatRepository {
     /// Replaces the messages (trimmed to the newest `maxTurns`, texts capped) and touches `updatedAt`.
     func save(id: UUID, turns: [ChatTurn], title: String?, now: Date)
     func delete(id: UUID)
+    /// Every conversation as plain values, for a backup.
+    func backupConversations() -> [ChatBackup]
+    /// Adds the conversations that are not here yet (same id = same chat, left alone). `wordIDMap` re-points a chat to
+    /// the word it now has in this library. Returns how many were added. Throws `PersistenceError.saveFailed` when
+    /// the batch cannot be written (nothing is added then).
+    func restore(_ records: [ChatBackup], wordIDMap: [UUID: UUID]) throws -> Int
 }
 
 @MainActor
@@ -70,6 +76,32 @@ final class SwiftDataChatRepository: ChatRepository {
         guard let conversation = conversation(id: id) else { return }
         context.delete(conversation)
         Persistence.save(context)
+    }
+
+    func backupConversations() -> [ChatBackup] {
+        conversations().map {
+            ChatBackup(id: $0.id, title: $0.title, wordID: $0.wordID, turns: $0.turns, createdAt: $0.createdAt, updatedAt: $0.updatedAt)
+        }
+    }
+
+    func restore(_ records: [ChatBackup], wordIDMap: [UUID: UUID]) throws -> Int {
+        var added = 0
+        var seen = Set<UUID>()
+        for record in records where !seen.contains(record.id) && conversation(id: record.id) == nil {
+            seen.insert(record.id)
+            let wordID = record.wordID.map { wordIDMap[$0] ?? $0 }
+            let conversation = ChatConversation(title: Self.cleanTitle(record.title), wordID: wordID, turns: Self.trimmed(record.turns), now: record.createdAt)
+            conversation.id = record.id
+            conversation.updatedAt = record.updatedAt
+            context.insert(conversation)
+            added += 1
+        }
+        guard added > 0 else { return 0 }
+        guard Persistence.save(context) else {
+            context.rollback()
+            throw PersistenceError.saveFailed
+        }
+        return added
     }
 
     private static func cleanTitle(_ raw: String) -> String {

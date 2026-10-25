@@ -32,6 +32,6 @@ final class UnsavableWordRepository: WordRepository {
     func delete(id: UUID) { base.delete(id: id) }
     func deleteAll() { base.deleteAll() }
     func allWords() -> [Word] { base.allWords() }
-    func exportData() throws -> Data { try base.exportData() }
-    func importData(_ data: Data) throws -> ImportResult { try base.importData(data) }
+    func backupRecords() -> [WordBackup] { base.backupRecords() }
+    func restore(_ records: [WordBackup], clip: (WordBackup) -> Data?) throws -> WordRestoreResult { try base.restore(records, clip: clip) }
 }

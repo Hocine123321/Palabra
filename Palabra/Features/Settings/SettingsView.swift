@@ -1,15 +1,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The result of a library import, kept structured (rather than a
-/// pre-formatted String) so the count-bearing case can still be displayed
-/// with a real, localizable `Text` interpolation.
-private enum ImportResultMessage {
-    case imported(count: Int, skipped: Int)
-    case invalidFile
+/// The result of a library import or export, kept structured (rather than a pre-formatted String) so the
+/// count-bearing cases can still be displayed with real, localizable `Text` interpolation.
+private enum DataMessage {
+    case imported(LibraryBackupService.ImportSummary)
+    case importFailed(LibraryBackupService.Failure)
     case unreadable
-    /// The words were read but could not be written to the library.
-    case saveFailed
     /// The export file could not be made.
     case exportFailed
 }
@@ -24,9 +21,11 @@ struct SettingsView: View {
     @State private var showDeleteAllConfirm = false
     @State private var showModelPicker = false
     @State private var showTTSModelPicker = false
-    @State private var exportURL: URL?
+    @State private var exported: LibraryBackupService.ExportSummary?
+    @State private var isExporting = false
+    @State private var isImporting = false
     @State private var showImporter = false
-    @State private var importResultMessage: ImportResultMessage?
+    @State private var dataMessage: DataMessage?
 
     var body: some View {
         Form {
@@ -183,23 +182,36 @@ struct SettingsView: View {
             .themedSection()
 
             Section("Data") {
-                if let exportURL {
-                    ShareLink(item: exportURL) {
-                        Label("Export Library", systemImage: "square.and.arrow.up")
+                if let exported {
+                    ShareLink(item: exported.url) {
+                        Label("Share Library File", systemImage: "square.and.arrow.up")
                     }
-                } else {
-                    Button {
-                        exportURL = writeExportFile()
-                        if exportURL == nil { importResultMessage = .exportFailed }
-                    } label: {
-                        Label("Export Library", systemImage: "square.and.arrow.up")
-                    }
+                    Text("Exported \(exported.words) words, \(exported.clips) pronunciations, \(exported.cards) cards, \(exported.chats) chats (\(ByteCountFormatter.string(fromByteCount: exported.bytes, countStyle: .file))).")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.inkSecondary)
                 }
+                Button {
+                    Task { await runExport() }
+                } label: {
+                    Label("Export Library", systemImage: "square.and.arrow.up.on.square")
+                }
+                .disabled(isExporting || isImporting)
                 Button { showImporter = true } label: {
                     Label("Import Library", systemImage: "square.and.arrow.down")
                 }
-                if let importResultMessage {
-                    importResultText(importResultMessage)
+                .disabled(isExporting || isImporting)
+                if isExporting || isImporting {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        ProgressView()
+                        Group {
+                            if isExporting { Text("Exporting…") } else { Text("Importing…") }
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(Theme.inkSecondary)
+                    }
+                }
+                if let dataMessage {
+                    dataMessageText(dataMessage)
                         .font(.footnote)
                         .foregroundStyle(Theme.inkSecondary)
                 }
@@ -224,7 +236,7 @@ struct SettingsView: View {
                 selection: Binding(get: { environment.selectedTTSModelID }, set: { environment.selectedTTSModelID = $0 })
             )
         }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json], onCompletion: handleImport)
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.data, .json], onCompletion: handleImport)
         .confirmationDialog("Remove your API key?", isPresented: $showRemoveKeyConfirm) {
             Button("Remove", role: .destructive) { environment.removeAPIKey() }
             Button("Cancel", role: .cancel) {}
@@ -332,48 +344,79 @@ struct SettingsView: View {
         await environment.ttsCatalogue.refresh(apiKey: apiKey, using: environment.ai)
     }
 
-    private func writeExportFile() -> URL? {
-        guard let data = try? environment.repository.exportData() else { return nil }
-        let name = "Palabra-Library-\(Date().formatted(.iso8601.year().month().day())).json"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-        return (try? data.write(to: url, options: .atomic)) != nil ? url : nil
+    private func runExport() async {
+        isExporting = true
+        dataMessage = nil
+        defer { isExporting = false }
+        do {
+            exported = try await environment.makeBackupService().export()
+        } catch {
+            exported = nil
+            dataMessage = .exportFailed
+        }
     }
 
     @ViewBuilder
-    private func importResultText(_ result: ImportResultMessage) -> some View {
-        switch result {
-        case .imported(let count, let skipped):
-            Text("Imported \(count), skipped \(skipped).")
-        case .invalidFile:
-            Text("That file isn't a Palabra export.")
+    private func dataMessageText(_ message: DataMessage) -> some View {
+        switch message {
+        case .imported(let summary):
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Imported \(summary.words.imported), skipped \(summary.words.skipped).")
+                if summary.words.updated > 0 {
+                    Text("Updated \(summary.words.updated) words already in your library.")
+                }
+                if summary.decks + summary.cards + summary.progress + summary.reviews > 0 {
+                    Text("Study: \(summary.decks) decks, \(summary.cards) cards, \(summary.progress) with progress, \(summary.reviews) reviews restored.")
+                }
+                if summary.chats > 0 {
+                    Text("Chats added: \(summary.chats).")
+                }
+                if summary.words.clipsRestored > 0 {
+                    Text("Pronunciations restored: \(summary.words.clipsRestored).")
+                }
+                if summary.clipsLost > 0 {
+                    Text("\(summary.clipsLost) pronunciations couldn't be read from the file.")
+                }
+                if summary.words.invalid > 0 {
+                    Text("\(summary.words.invalid) entries had no word and were ignored.")
+                }
+            }
+        case .importFailed(let failure):
+            switch failure {
+            case .notALibrary: Text("That file isn't a Palabra export.")
+            case .unsupportedVersion: Text("That file was made by a newer version of Palabra.")
+            case .incomplete: Text("That file is incomplete. Copy or download it again.")
+            case .corrupt: Text("That file is damaged and can't be imported.")
+            case .saveFailed: Text("Some of the library couldn't be saved. Import the same file again: what was added is skipped.")
+            case .writeFailed: Text("Couldn't create the export file.")
+            }
         case .unreadable:
             Text("Couldn't read that file.")
-        case .saveFailed:
-            Text("The words couldn't be saved to your library. Nothing was imported.")
         case .exportFailed:
             Text("Couldn't create the export file.")
         }
     }
 
     private func handleImport(_ result: Result<URL, Error>) {
-        switch result {
-        case .success(let url):
+        guard case .success(let url) = result else {
+            dataMessage = .unreadable
+            return
+        }
+        isImporting = true
+        dataMessage = nil
+        Task {
             let accessed = url.startAccessingSecurityScopedResource()
-            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-            guard let data = try? Data(contentsOf: url) else {
-                importResultMessage = .unreadable
-                return
+            defer {
+                if accessed { url.stopAccessingSecurityScopedResource() }
+                isImporting = false
             }
             do {
-                let outcome = try environment.repository.importData(data)
-                importResultMessage = .imported(count: outcome.imported, skipped: outcome.skipped)
-            } catch VocabularyLibraryExporter.ExportError.saveFailed {
-                importResultMessage = .saveFailed
+                dataMessage = .imported(try await environment.makeBackupService().importLibrary(from: url))
+            } catch let failure as LibraryBackupService.Failure {
+                dataMessage = .importFailed(failure)
             } catch {
-                importResultMessage = .invalidFile
+                dataMessage = .unreadable
             }
-        case .failure:
-            importResultMessage = .unreadable
         }
     }
 }

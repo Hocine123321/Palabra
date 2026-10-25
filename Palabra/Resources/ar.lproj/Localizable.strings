@@ -561,3 +561,19 @@
 "Entries of more than one word are under Phrases." = "المدخلات المكوّنة من أكثر من كلمة موجودة ضمن العبارات.";
 "No phrases yet" = "لا توجد عبارات بعد";
 "Add a phrase or a sentence, like \"cómo estás\", and it will show up here." = "أضف عبارة أو جملة، مثل \"cómo estás\"، وستظهر هنا.";
+
+/* Library backup (export / import) */
+"Share Library File" = "مشاركة ملف المكتبة";
+"Exporting…" = "جارٍ التصدير…";
+"Importing…" = "جارٍ الاستيراد…";
+"Exported %lld words, %lld pronunciations, %lld cards, %lld chats (%@)." = "تم تصدير %lld كلمة و%lld نطق و%lld بطاقة و%lld محادثة (%@).";
+"Updated %lld words already in your library." = "تم تحديث %lld كلمة موجودة في مكتبتك.";
+"Study: %lld decks, %lld cards, %lld with progress, %lld reviews restored." = "الدراسة: استُعيدت %lld مجموعة و%lld بطاقة و%lld بتقدّم محفوظ و%lld مراجعة.";
+"Chats added: %lld." = "المحادثات المضافة: %lld.";
+"Pronunciations restored: %lld." = "النطق المستعاد: %lld.";
+"%lld pronunciations couldn't be read from the file." = "تعذّرت قراءة %lld نطق من الملف.";
+"%lld entries had no word and were ignored." = "تم تجاهل %lld إدخال لخلوّه من كلمة.";
+"That file was made by a newer version of Palabra." = "أُنشئ هذا الملف بإصدار أحدث من Palabra.";
+"That file is incomplete. Copy or download it again." = "هذا الملف غير مكتمل. انسخه أو نزّله مرة أخرى.";
+"That file is damaged and can't be imported." = "هذا الملف تالف ولا يمكن استيراده.";
+"Some of the library couldn't be saved. Import the same file again: what was added is skipped." = "تعذّر حفظ جزء من المكتبة. استورد الملف نفسه مرة أخرى: ما أُضيف سابقًا يُتخطّى.";

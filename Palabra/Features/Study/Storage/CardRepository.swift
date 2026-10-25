@@ -30,6 +30,14 @@ protocol CardRepository {
     /// `sourceWordID`, keeps scheduling state of existing cards, removes cards (and their
     /// logs) for words that are gone.
     func syncVocabulary(_ entries: [VocabularyCardEntry])
+    /// The person's decks and cards, the progress on vocabulary cards and the review history, for a backup.
+    func backup() -> StudyBackup
+    /// Merges decks, cards and progress from a backup (without the history, see `restoreLogs`). Never replaces
+    /// progress the person already has: a card takes the backup's progress only while it is still new.
+    /// Throws `PersistenceError.saveFailed` (and changes nothing) when it cannot be written.
+    func restore(_ backup: StudyBackup, wordIDMap: [UUID: UUID]) throws -> StudyRestoreResult
+    /// Adds review history entries whose card is in `cardIDMap`, skipping ones already here. Returns how many were added.
+    func restoreLogs(_ logs: [StudyBackup.LogRecord], cardIDMap: [UUID: UUID]) throws -> Int
 }
 
 @MainActor
@@ -212,7 +220,137 @@ final class SwiftDataCardRepository: CardRepository {
         Persistence.save(context)
     }
 
+    // MARK: - Backup
+
+    func backup() -> StudyBackup {
+        var result = StudyBackup()
+        let allDecks = decks()
+        var included = Set<UUID>()
+        for deck in allDecks where deck.kind == .user {
+            result.decks.append(.init(id: deck.id, name: deck.name, createdAt: deck.createdAt))
+            for card in cards(inDeck: deck.id) {
+                result.cards.append(.init(id: card.id, deckID: deck.id, front: card.front, back: card.back, createdAt: card.createdAt, srs: .init(card.srs)))
+                included.insert(card.id)
+            }
+        }
+        if let vocabulary = allDecks.first(where: { $0.kind == .vocabulary }) {
+            for card in cards(inDeck: vocabulary.id) where card.phase != .new {
+                guard let word = card.sourceWordID else { continue }
+                result.vocabulary.append(.init(cardID: card.id, wordID: word, srs: .init(card.srs)))
+                included.insert(card.id)
+            }
+        }
+        let logs = (try? context.fetch(FetchDescriptor<ReviewLog>(sortBy: [SortDescriptor(\.reviewedAt)]))) ?? []
+        for log in logs where included.contains(log.cardID) {
+            result.logs.append(.init(id: log.id, cardID: log.cardID, grade: log.gradeRaw, reviewedAt: log.reviewedAt, prevInterval: log.prevInterval, newInterval: log.newInterval))
+        }
+        return result
+    }
+
+    func restore(_ backup: StudyBackup, wordIDMap: [UUID: UUID]) throws -> StudyRestoreResult {
+        var result = StudyRestoreResult()
+        let existingDecks = decks().filter { $0.kind == .user }
+        var deckByArchivedID: [UUID: Deck] = [:]
+        for record in backup.decks {
+            if let same = existingDecks.first(where: { $0.id == record.id }) {
+                deckByArchivedID[record.id] = same
+            } else if let named = existingDecks.first(where: { $0.name.caseInsensitiveCompare(record.name) == .orderedSame }) {
+                deckByArchivedID[record.id] = named
+            } else {
+                let name = String(record.name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+                let deck = Deck(name: name.isEmpty ? "Deck" : name, kind: .user, createdAt: record.createdAt)
+                if !deckIDTaken(record.id) { deck.id = record.id }
+                context.insert(deck)
+                deckByArchivedID[record.id] = deck
+                result.decks += 1
+            }
+        }
+
+        func normalized(_ front: String, _ back: String) -> String { "\(front.lowercased())\u{1F}\(back.lowercased())" }
+        var existingByDeck: [UUID: [String: Card]] = [:]
+        for card in backup.cards {
+            guard let deck = deckByArchivedID[card.deckID] else { continue }
+            let front = card.front.trimmingCharacters(in: .whitespacesAndNewlines)
+            let back = card.back.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !front.isEmpty, !back.isEmpty else { continue }
+            if existingByDeck[deck.id] == nil {
+                existingByDeck[deck.id] = Dictionary(cards(inDeck: deck.id).map { (normalized($0.front, $0.back), $0) }, uniquingKeysWith: { first, _ in first })
+            }
+            let key = normalized(front, back)
+            let state = card.srs.state
+            if let existing = existingByDeck[deck.id]?[key] {
+                result.cardIDMap[card.id] = existing.id
+                if existing.phase == .new, state.phase != .new {
+                    existing.srs = state
+                    result.progress += 1
+                }
+            } else {
+                let created = Card(deckID: deck.id, front: front, back: back, createdAt: card.createdAt)
+                if !cardIDTaken(card.id) { created.id = card.id }
+                created.srs = state
+                context.insert(created)
+                existingByDeck[deck.id]?[key] = created
+                result.cardIDMap[card.id] = created.id
+                result.cards += 1
+            }
+        }
+
+        if !backup.vocabulary.isEmpty, let vocabulary = decks().first(where: { $0.kind == .vocabulary }) {
+            var bySource: [UUID: Card] = [:]
+            for card in cards(inDeck: vocabulary.id) {
+                if let source = card.sourceWordID, bySource[source] == nil { bySource[source] = card }
+            }
+            for entry in backup.vocabulary {
+                guard let card = bySource[wordIDMap[entry.wordID] ?? entry.wordID] else { continue }
+                result.cardIDMap[entry.cardID] = card.id
+                let state = entry.srs.state
+                if card.phase == .new, state.phase != .new {
+                    card.srs = state
+                    result.progress += 1
+                }
+            }
+        }
+        guard Persistence.save(context) else {
+            context.rollback()
+            throw PersistenceError.saveFailed
+        }
+        return result
+    }
+
+    func restoreLogs(_ logs: [StudyBackup.LogRecord], cardIDMap: [UUID: UUID]) throws -> Int {
+        let usable = logs.filter { cardIDMap[$0.cardID] != nil }
+        guard !usable.isEmpty else { return 0 }
+        var known = Set<UUID>()
+        for chunk in Self.chunks(usable.map(\.id)) {
+            let found = (try? context.fetch(FetchDescriptor<ReviewLog>(predicate: #Predicate { chunk.contains($0.id) }))) ?? []
+            known.formUnion(found.map(\.id))
+        }
+        var added = 0
+        for record in usable where !known.contains(record.id) {
+            guard let cardID = cardIDMap[record.cardID] else { continue }
+            let log = ReviewLog(cardID: cardID, grade: SRSGrade(rawValue: record.grade) ?? .again, reviewedAt: record.reviewedAt, prevInterval: max(0, record.prevInterval), newInterval: max(0, record.newInterval))
+            log.id = record.id
+            context.insert(log)
+            known.insert(record.id)
+            added += 1
+        }
+        guard Persistence.save(context) else {
+            context.rollback()
+            throw PersistenceError.saveFailed
+        }
+        return added
+    }
+
     // MARK: - Helpers
+
+    /// `id` is unique in every model: reusing an archived id that is taken would replace the other record.
+    private func deckIDTaken(_ id: UUID) -> Bool {
+        ((try? context.fetchCount(FetchDescriptor<Deck>(predicate: #Predicate { $0.id == id }))) ?? 0) > 0
+    }
+
+    private func cardIDTaken(_ id: UUID) -> Bool {
+        ((try? context.fetchCount(FetchDescriptor<Card>(predicate: #Predicate { $0.id == id }))) ?? 0) > 0
+    }
 
     private func count<T: PersistentModel>(_ descriptor: FetchDescriptor<T>) -> Int {
         (try? context.fetchCount(descriptor)) ?? 0

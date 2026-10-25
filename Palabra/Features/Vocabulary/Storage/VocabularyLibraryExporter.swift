@@ -1,7 +1,8 @@
 import Foundation
 
-/// Pure JSON envelope for Settings > Data > Export/Import. Kept independent
-/// of SwiftData so it can be unit tested without a `ModelContainer`.
+/// The OLD export format: one JSON file with the words (base64 for any binary data). It is no longer written, because
+/// the file grew too large; it is only read, so an export made by an earlier version still imports.
+/// The current format is `LibraryArchive` in an `ArchiveContainer` file (see `LibraryBackupService`).
 enum VocabularyLibraryExporter {
     struct Envelope: Codable {
         var app: String
@@ -21,18 +22,14 @@ enum VocabularyLibraryExporter {
     enum ExportError: Error, Equatable {
         case unsupportedVersion(Int)
         case malformed
-        /// The words were read but could not be written to the store.
-        case saveFailed
-        /// The library could not be turned into a file.
-        case encodingFailed
     }
 
     static let currentVersion = 1
 
-    /// Throws instead of returning empty data: an empty file named `.json` would look like a successful backup.
+    /// Only used by tests, to build an old-format file.
     static func encode(items: [Item], exportedAt: Date = Date()) throws -> Data {
         let envelope = Envelope(app: "Palabra", version: currentVersion, exportedAt: exportedAt, words: items)
-        guard let data = try? JSONEncoder().encode(envelope), !data.isEmpty else { throw ExportError.encodingFailed }
+        guard let data = try? JSONEncoder().encode(envelope), !data.isEmpty else { throw ExportError.malformed }
         return data
     }
 
@@ -44,5 +41,12 @@ enum VocabularyLibraryExporter {
             throw ExportError.unsupportedVersion(envelope.version)
         }
         return envelope
+    }
+
+    /// An old export as backup records (new ids, no audio, no organization: the old format never carried them).
+    static func records(from envelope: Envelope) -> [WordBackup] {
+        envelope.words.map {
+            WordBackup(id: UUID(), content: $0.content, createdAt: $0.createdAt, updatedAt: $0.updatedAt, category: nil, tags: nil, chat: $0.chat.isEmpty ? nil : $0.chat, audio: nil)
+        }
     }
 }

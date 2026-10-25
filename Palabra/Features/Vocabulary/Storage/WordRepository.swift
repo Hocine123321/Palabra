@@ -10,11 +10,6 @@ struct WordSummary: Equatable, Sendable {
     let category: String?
 }
 
-struct ImportResult: Equatable {
-    var imported: Int
-    var skipped: Int
-}
-
 /// Hides SwiftData behind a small protocol so features depend on this, not
 /// `ModelContext` directly.
 @MainActor
@@ -48,8 +43,12 @@ protocol WordRepository {
     func delete(id: UUID)
     func deleteAll()
     func allWords() -> [Word]
-    func exportData() throws -> Data
-    func importData(_ data: Data) throws -> ImportResult
+    /// Every word as plain values for a backup (no audio bytes: read those with `pronunciation(id:)`).
+    func backupRecords() -> [WordBackup]
+    /// Adds the words that are not in the library, and fills in what a word already here lacks (section, tags, clip, old
+    /// chat). Never overwrites anything the person already has. `clip` is asked for only when a clip is needed.
+    /// Throws `PersistenceError.saveFailed` (and changes nothing) when the batch cannot be written.
+    func restore(_ records: [WordBackup], clip: (WordBackup) -> Data?) throws -> WordRestoreResult
 }
 
 @MainActor
@@ -111,8 +110,7 @@ final class SwiftDataWordRepository: WordRepository {
     func updatePronunciation(id: UUID, audio clip: Data?) {
         guard let word = fetchByID(id) else { return }
         if let clip {
-            // A file when it can be written; if the disk refuses, the clip stays in the row so it is not lost.
-            if audio.write(clip, for: id) { word.pronunciationAudio = nil } else { word.pronunciationAudio = clip }
+            store(clip, for: word)
         } else {
             audio.remove(id)
             word.pronunciationAudio = nil
@@ -187,42 +185,109 @@ final class SwiftDataWordRepository: WordRepository {
         return (try? context.fetch(descriptor)) ?? []
     }
 
-    func exportData() throws -> Data {
-        let items = allWords().map {
-            VocabularyLibraryExporter.Item(content: $0.content, raw: $0.rawJSON, createdAt: $0.createdAt, updatedAt: $0.updatedAt, chat: $0.chat)
+    func backupRecords() -> [WordBackup] {
+        allWords().map { word in
+            let tags = word.tags
+            let chat = word.chat
+            return WordBackup(
+                id: word.id, content: word.content, createdAt: word.createdAt, updatedAt: word.updatedAt,
+                category: word.category, tags: tags.isEmpty ? nil : tags, chat: chat.isEmpty ? nil : chat, audio: nil
+            )
         }
-        return try VocabularyLibraryExporter.encode(items: items)
     }
 
-    func importData(_ data: Data) throws -> ImportResult {
-        let envelope = try VocabularyLibraryExporter.decode(data)
-        var imported = 0
-        var skipped = 0
-        for item in envelope.words {
-            let key = WordKey.identity(item.content.word)
-            // A hand-edited or damaged file can carry a blank headword; it would become an unreachable, unnamed word.
-            guard !key.isEmpty, find(key: key) == nil else {
-                skipped += 1
+    func restore(_ records: [WordBackup], clip: (WordBackup) -> Data?) throws -> WordRestoreResult {
+        var result = WordRestoreResult()
+        // Every word that got a clip file here, so a failed save leaves no stray files behind.
+        var clipIDs: [UUID] = []
+        var keysThisBatch = Set<String>()
+        var idsThisBatch = Set<UUID>()
+        for record in records {
+            // Clip, never reject: an old or slightly odd backup still comes in, a damaged one cannot bring huge text.
+            let content = ContentValidator.clipped(record.content)
+            let key = WordKey.identity(content.word)
+            guard !key.isEmpty else {
+                result.invalid += 1
                 continue
             }
-            // Clip, never reject: old exports keep importing, a damaged one can't bring huge text with it.
-            let content = ContentValidator.clipped(item.content)
-            let word = Word(spanish: content.word, key: key, searchKey: WordKey.search(content.word), content: content, rawJSON: item.raw, createdAt: item.createdAt)
-            word.updatedAt = item.updatedAt
-            word.chat = item.chat
+            let category = record.category?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            let tags = (record.tags ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            let chat = record.chat ?? []
+
+            if keysThisBatch.contains(key) {
+                result.skipped += 1
+                continue
+            }
+            if let existing = find(key: key) {
+                keysThisBatch.insert(key)
+                result.idMap[record.id] = existing.id
+                var changed = false
+                if existing.category == nil, let category {
+                    existing.category = category
+                    changed = true
+                }
+                if existing.tags.isEmpty, !tags.isEmpty {
+                    existing.tags = tags
+                    changed = true
+                }
+                if existing.chat.isEmpty, !chat.isEmpty {
+                    existing.chat = chat
+                    changed = true
+                }
+                if record.audio != nil, !hasPronunciation(id: existing.id), let data = clip(record) {
+                    store(data, for: existing)
+                    clipIDs.append(existing.id)
+                    result.clipsRestored += 1
+                    changed = true
+                }
+                if changed {
+                    existing.updatedAt = Date()
+                    result.updated += 1
+                } else {
+                    result.skipped += 1
+                }
+                continue
+            }
+
+            // `id` is unique: reusing the backup's id would replace a different word that already has it.
+            let id = (idsThisBatch.contains(record.id) || fetchByID(record.id) != nil) ? UUID() : record.id
+            let word = Word(spanish: content.word, key: key, searchKey: WordKey.search(content.word), content: content, rawJSON: (try? JSONEncoder().encode(content)) ?? Data(), createdAt: record.createdAt)
+            word.id = id
+            word.updatedAt = record.updatedAt
+            word.category = category
+            word.tags = tags
+            word.chat = chat
             context.insert(word)
-            imported += 1
+            keysThisBatch.insert(key)
+            idsThisBatch.insert(id)
+            if record.audio != nil, let data = clip(record) {
+                store(data, for: word)
+                clipIDs.append(id)
+                result.clipsRestored += 1
+            }
+            result.imported += 1
+            result.idMap[record.id] = id
         }
-        // Never report words as imported when they are not on disk.
+        // Never report words as restored when they are not on disk.
         guard Persistence.save(context) else {
             context.rollback()
-            throw VocabularyLibraryExporter.ExportError.saveFailed
+            for id in clipIDs { audio.remove(id) }
+            throw PersistenceError.saveFailed
         }
-        return ImportResult(imported: imported, skipped: skipped)
+        return result
+    }
+
+    /// A file when it can be written; if the disk refuses, the clip stays in the row so it is not lost.
+    private func store(_ clip: Data, for word: Word) {
+        if audio.write(clip, for: word.id) { word.pronunciationAudio = nil } else { word.pronunciationAudio = clip }
     }
 
     private func fetchByID(_ id: UUID) -> Word? {
         let descriptor = FetchDescriptor<Word>(predicate: #Predicate { $0.id == id })
         return try? context.fetch(descriptor).first
     }
+}
+
+private extension String {
+    var nonEmpty: String? { isEmpty ? nil : self }
 }

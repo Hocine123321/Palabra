@@ -20,9 +20,8 @@ final class Word {
     var chatData: Data
     /// Cached pronunciation audio (a complete WAV file) from Gemini TTS, or
     /// `nil` if it hasn't been generated yet (including for words imported
-    /// from a library export, which never carry audio — see
-    /// `VocabularyLibraryExporter`). Not exported/imported: it's a local cache of
-    /// something regenerable, not learned content.
+    /// from an old JSON library export, which never carried audio). The clip is
+    /// now stored in a file (`PronunciationFileStore`); library backups include it.
     var pronunciationAudio: Data?
     /// Library organization (added in 1.1). Both are optional so existing
     /// on-device libraries migrate automatically; `nil` means "not organized yet".
