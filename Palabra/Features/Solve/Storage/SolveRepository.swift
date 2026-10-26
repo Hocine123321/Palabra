@@ -22,7 +22,7 @@ protocol SolveRepository {
 
 extension SolveRepository {
     @discardableResult
-    func save(query: String, key: String, result: SolveResult, image: Data?, now: Date) -> SolveEntry {
+    func save(query: String, key: String, result: SolveResult, now: Date) -> SolveEntry {
         save(query: query, key: key, result: result, image: nil, now: now)
     }
 }
@@ -62,7 +62,7 @@ final class SwiftDataSolveRepository: SolveRepository {
     }
 
     @discardableResult
-    func save(query: String, key: String, result: SolveResult, now: Date) -> SolveEntry {
+    func save(query: String, key: String, result: SolveResult, image: Data?, now: Date) -> SolveEntry {
         let data = (try? JSONEncoder().encode(result)) ?? Data()
         let entry: SolveEntry
         if let existing = self.entry(forKey: key) {
