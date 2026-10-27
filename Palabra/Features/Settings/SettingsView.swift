@@ -371,6 +371,9 @@ struct SettingsView: View {
                 if summary.chats > 0 {
                     Text("Chats added: \(summary.chats).")
                 }
+                if summary.exams > 0 {
+                    Text("Exams added: \(summary.exams).")
+                }
                 if summary.words.clipsRestored > 0 {
                     Text("Pronunciations restored: \(summary.words.clipsRestored).")
                 }

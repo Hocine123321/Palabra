@@ -52,6 +52,7 @@ Palabra/
       AI/               StudyPrompts, CardGenerator (notes -> card drafts via generateJSON)
       Review/           ReviewViewModel (one session over a queue), ReviewView
       Decks/            Study home, deck detail, new-deck-from-notes flow
+      Exam/             Study → Exam: Domain/ (ExamTypes, AnswerMatcher, ExamBuilder), Session/ (ExamSession), AI/ (ExamAI), Storage/ (ExamResult, ExamRepository), Speech/ (SpeechListener), Views/
     Vocabulary/         the Spanish word library
       Domain/           WordContent, WordKey, ContentValidator, Honeycomb, chat types, LibraryOrganization (tag/section cleanup)
       Organization/     LibraryOrganizer (batch AI re-organize), LibrarySections (grouping/search), sectioned view, organize sheet, organization settings
@@ -81,7 +82,7 @@ New files under `Palabra/`, `PalabraTests/` and `PalabraUITests/` are picked up 
    - `Theme` (tile tints) calls `WordKey.tintIndex`.
    - `SettingsStore.LibraryLayout` is a vocabulary UI setting stored in Core.
    - `AppEnvironment` also owns `artifacts` (`ArtifactRepository`) and `capabilities` (the `CapabilityRegistry`, built by `CapabilityProviders` in `App/`); it also owns `review` (`ReviewRepository`); `PalabraApp`'s schema also lists `Artifact`, `ArtifactVersion`, `ArtifactStateEntry`, `ReviewNeed`.
-   - `AppEnvironment` owns the `WordRepository`, the `WordQueueRepository`/`WordQueueProcessor`, the `CardRepository`, the `PronunciationService` and `requestPronunciationIfConfigured(for: Word)`; `Router.Destination` has `wordDetail`, `artifacts`, `artifactDetail` and `needReview` cases; `PalabraApp` builds the SwiftData schema from every persisted model (`Word`, `WordQueueItem`, `Deck`, `Card`, `ReviewLog`, the three artifact entities, `ReviewNeed`).
+   - `AppEnvironment` owns the `WordRepository`, the `WordQueueRepository`/`WordQueueProcessor`, the `CardRepository`, the `PronunciationService` and `requestPronunciationIfConfigured(for: Word)`; `Router.Destination` has `wordDetail`, `artifacts`, `artifactDetail` and `needReview` cases; `PalabraApp` builds the SwiftData schema from every persisted model (`Word`, `WordQueueItem`, `Deck`, `Card`, `ReviewLog`, the three artifact entities, `ReviewNeed`, `ChatConversation`, `SolveEntry`, `ExamResult`).
 3. **Errors and AI calls** return `Result<_, AIError>`; nothing in the UI should crash on a bad AI response.
 
 ## Names that must NOT be changed (they are on users' devices)
@@ -98,6 +99,7 @@ Changing any of these silently loses the user's saved words, settings or API key
 - The SwiftData entity `SolveEntry` and its stored properties (`query`, `queryKey`, `resultData`, `createdAt`, `updatedAt`; `resultData` is JSON `SolveResult` with tolerant decoding) and the UserDefaults key `wolframUsage`; the Keychain account `wolfram-app-id`.
 - The SwiftData entity `ReviewNeed` and its stored properties (including `statusRaw`); the `ReviewStatus` raw values `"open"` / `"cleared"` are append-only.
 - The library backup file: `Core/Backup/ArchiveContainer.swift` (header `PLBR`, footer `PLBE`, version byte) and the metadata `LibraryArchive` (`format: "Palabra Library"`, `version`) written by `LibraryBackupService`. New fields in `LibraryArchive`, `WordBackup`, `StudyBackup`, `ChatBackup` must be optional so older files keep reading; a layout change bumps the version. The old JSON envelope (`app: "Palabra"`, `version: 1`) is read-only in `VocabularyLibraryExporter`; old exports must keep importing.
+- The SwiftData entity `ExamResult` and its stored property names (`configData`, `questionCount`, `scoreSum`, `durationSeconds`, `recordsData`), the JSON inside `configData` / `recordsData` (`ExamConfig`, `ExamAnswerRecord`: new fields optional, decoding tolerant), the `ExamSkill` / `ExamQuestionKind` raw values (stored in records, append-only), and `ExamBackup` (inside `LibraryArchive.exams`, a property-list header: new fields optional).
 - The SwiftData entity `WordQueueItem` and its stored property names (`inputWord`, `existingWordID`, `existingCreatedAt`, `languageRaw`, `createdAt`, `statusRaw`, `attempts`, `lastErrorMessage`) — same reasoning as `Word`: a rename changes the on-device schema and loses whatever's mid-flight in someone's offline queue.
 
 It is fine — and encouraged — to rename Swift *types* and files that are not persisted (that is how `Prompts` became `VocabularyPrompts`).
@@ -176,6 +178,16 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 - Daily new-card cap: `SettingsStore.newCardsPerDay` (default 20). `studyQueue` subtracts cards first reviewed today.
 - Pronunciation on mirrored cards is injected from the app (`VocabularyCardPronunciation` in `RootView`), so Study stays free of Vocabulary types.
 - Spec: `docs/features/study-flashcards.md`.
+
+## Study → Exam
+
+- An exam asks about the person's own library words. `AppEnvironment.examWords()` (`App/AppEnvironment+Exam.swift`) is the one place that turns `Word` into the plain `ExamWord` (Study never imports `Word`, same rule as `syncVocabularyCards`).
+- **Nothing in an exam needs AI.** `ExamBuilder` (pure, generic over a `RandomNumberGenerator`; tests use `SeededGenerator`) makes every question from the words' own translations, examples, forms and similar words; wrong options come from the whole library. Kinds: meaning/reverse/similar-word choice, matching, type the Spanish/the meaning, fill the blank (cloze from an example), choose the form, put words in order, listening (the phone's own voice via `SentenceSpeaker`, free), speaking (`SpeechListening`; only offered when the recognizer is available), plus the AI-only writing kinds. `ExamCapabilities`/`ExamConfig.kinds` decide what is offered.
+- Grading is in `AnswerMatcher`/`ExamSession`, never in a view: exact 1.0, accents missing 0.75, one or two letters off 0.5 (by word length), wrong 0; matching loses a share per mistake; order scores the share of words in place. English answers may drop "to/the/a", brackets are not part of an answer.
+- **AI is optional and additive** (`ExamConfig.useAI`, needs a key and model; `AppEnvironment.examAI()` is nil otherwise). `ExamAI` uses the generic `generateJSON` through `AppEnvironment.examGenerate` (no new `AIClient` method): fresh cloze/translation sentences for exactly the words the exam will ask (same seed → `plannedWords`), grading written answers (`ExamGrading`; if the AI fails the person grades themselves), and a coach summary on the result screen. Everything it returns is parsed tolerantly, clipped (`ExamAILimits`) and shown with `Text(verbatim:)`. `StubAIClient` answers the grade and coach schemas.
+- Speaking: `SpeechListener` (SFSpeechRecognizer es-ES, on device when possible, AVAudioEngine). `project.yml` has the microphone and speech usage strings (Arabic in `InfoPlist.strings`). UI tests use `StubSpeechListener` (`-UITestSpeech <text>`).
+- Results: `ExamResult` (SwiftData, newest 100 kept) with `ExamAnswerRecord`s; `ExamRepository.wordStats` feeds "Weakest first" and the "Needs practice" list. A finished or ended-early exam is saved once (`ExamSessionView.saveOnce`). Missed words can be practised again (`ExamSource.words`) or flagged to Need Review (`AppEnvironment.flagExamMisses`). Exams travel in the backup (`LibraryArchive.exams`, `LibraryBackupService` with an optional `ExamRepository`; answers are re-pointed to the imported words' ids).
+- Routes: `StudyRoute.examSetup/.exam(ExamConfig)/.examHistory/.examResult(UUID)`. UI identifiers: `examTile`, `startExamButton`, `examSkill-<raw>`, `examOption-<n>`, `examTypedField`, `examCheckButton`, `examNextButton`, `examVerdict`, `examScoreCard`.
 
 ## Artifacts
 

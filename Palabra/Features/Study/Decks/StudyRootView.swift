@@ -15,6 +15,14 @@ struct StudyRootView: View {
                         ReviewView(deckID: deckID, cardAccessory: cardAccessory)
                     case .deck(let id):
                         DeckDetailView(deckID: id, path: $path)
+                    case .examSetup:
+                        ExamSetupView(path: $path)
+                    case .exam(let config):
+                        ExamSessionView(config: config, path: $path)
+                    case .examHistory:
+                        ExamHistoryView(path: $path)
+                    case .examResult(let id):
+                        ExamResultView(examID: id, path: $path)
                     }
                 }
         }

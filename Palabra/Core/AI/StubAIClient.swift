@@ -89,6 +89,15 @@ final class StubAIClient: AIClient {
             let blocks = #"{"type":"heading","level":1,"text":"Stub artifact"},{"type":"list","ordered":false,"items":["Same","Same"]},{"type":"table","columns":[{"title":"Word","field":"spanish"}],"bind":{"capability":"library.words","args":{"limit":10}}},{"type":"checklist","id":"c1","items":["First step","Second step"]}"#
             return .success("\(header)\n---PAYLOAD---\n{\"blocks\":[\(blocks)\(extra)]}\n---END---")
         }
+        // Exam: checking a written answer, and the coach's summary.
+        if let properties = schema?["properties"] as? [String: Any] {
+            if properties["score"] != nil, properties["corrected"] != nil {
+                return .success(#"{"score":1,"corrected":"","feedback":"Stub: well written."}"#)
+            }
+            if properties["tips"] != nil, properties["summary"] != nil {
+                return .success(#"{"summary":"Stub summary.","tips":[{"word":"palabra0","tip":"Stub tip."}],"focus":"Stub focus."}"#)
+            }
+        }
         return .success("{}")
     }
 

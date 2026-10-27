@@ -23,7 +23,7 @@ struct PalabraApp: App {
         let arguments = Self.launchArguments
         let isUITest = arguments.contains("-UITestStub")
         let persist = arguments.contains("-UITestPersist")
-        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self, ReviewNeed.self, ChatConversation.self, SolveEntry.self])
+        let schema = Schema([Word.self, WordQueueItem.self, Deck.self, Card.self, ReviewLog.self, Artifact.self, ArtifactVersion.self, ArtifactStateEntry.self, ReviewNeed.self, ChatConversation.self, SolveEntry.self, ExamResult.self])
 
         let configuration: ModelConfiguration = (isUITest && !persist)
             ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -56,6 +56,7 @@ struct PalabraApp: App {
             for need in (try? context.fetch(FetchDescriptor<ReviewNeed>())) ?? [] { context.delete(need) }
             for conversation in (try? context.fetch(FetchDescriptor<ChatConversation>())) ?? [] { context.delete(conversation) }
             for entry in (try? context.fetch(FetchDescriptor<SolveEntry>())) ?? [] { context.delete(entry) }
+            for exam in (try? context.fetch(FetchDescriptor<ExamResult>())) ?? [] { context.delete(exam) }
             Persistence.save(context)
         }
 
@@ -100,7 +101,10 @@ struct PalabraApp: App {
                 artifactRepository: SwiftDataArtifactRepository(context: sharedContext),
                 reviewRepository: SwiftDataReviewRepository(context: sharedContext),
                 chatRepository: SwiftDataChatRepository(context: sharedContext),
-                solveTool: solveTool
+                solveTool: solveTool,
+                examRepository: SwiftDataExamRepository(context: sharedContext),
+                // `-UITestSpeech <text>` is what the stub "hears" in a speaking question.
+                speech: StubSpeechListener(heard: arguments.firstIndex(of: "-UITestSpeech").flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil })
             )
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id

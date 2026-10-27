@@ -32,6 +32,10 @@ enum StudyRoute: Hashable {
     /// `nil` = every deck.
     case review(UUID?)
     case deck(UUID)
+    case examSetup
+    case exam(ExamConfig)
+    case examHistory
+    case examResult(UUID)
 }
 
 extension SRSGrade {

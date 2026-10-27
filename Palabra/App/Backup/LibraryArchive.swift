@@ -14,8 +14,10 @@ struct LibraryArchive: Codable, Equatable, Sendable {
     var words: [WordBackup]
     var study: StudyBackup?
     var chats: [ChatBackup]?
+    /// Finished exams (added in a later app version: older files have none).
+    var exams: [ExamBackup]?
 
-    init(createdAt: Date, appVersion: String?, words: [WordBackup], study: StudyBackup?, chats: [ChatBackup]?) {
+    init(createdAt: Date, appVersion: String?, words: [WordBackup], study: StudyBackup?, chats: [ChatBackup]?, exams: [ExamBackup]? = nil) {
         format = Self.formatName
         version = Self.currentVersion
         self.createdAt = createdAt
@@ -23,5 +25,6 @@ struct LibraryArchive: Codable, Equatable, Sendable {
         self.words = words
         self.study = study
         self.chats = chats
+        self.exams = exams
     }
 }

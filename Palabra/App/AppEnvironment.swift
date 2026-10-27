@@ -34,6 +34,10 @@ final class AppEnvironment {
     let chat: ChatRepository
     /// The Solve tab: Wolfram|Alpha, photo reading, saved answers and the person's App ID.
     let solve: SolveTool
+    /// Finished exams (Study → Exam).
+    let exams: ExamRepository
+    /// Hears Spanish for speaking questions.
+    @ObservationIgnored let speech: SpeechListening
     /// Everything an artifact may ask the app to do (and the AI's manual for it).
     let capabilities: CapabilityRegistry
     /// Where `ai.generate` reaches the AI; filled in at the end of `init`.
@@ -90,7 +94,9 @@ final class AppEnvironment {
         artifactRepository: ArtifactRepository? = nil,
         reviewRepository: ReviewRepository? = nil,
         chatRepository: ChatRepository? = nil,
-        solveTool: SolveTool? = nil
+        solveTool: SolveTool? = nil,
+        examRepository: ExamRepository? = nil,
+        speech: SpeechListening? = nil
     ) {
         self.rawAI = ai
         let policyBox = PolicyBox(settings.retryPolicy)
@@ -135,6 +141,8 @@ final class AppEnvironment {
         self.review = resolvedReview
         self.chat = chatRepository ?? SwiftDataChatRepository.inMemory()
         self.solve = solveTool ?? SolveTool.inMemory()
+        self.exams = examRepository ?? SwiftDataExamRepository.inMemory()
+        self.speech = speech ?? SpeechListener()
         let gateway = AIGateway()
         self.aiGateway = gateway
         let hooks = CapabilityHooks()
@@ -380,7 +388,7 @@ final class AppEnvironment {
 
     /// Exports and imports the whole library (words, clips, study progress, chats) as one file.
     func makeBackupService() -> LibraryBackupService {
-        LibraryBackupService(words: repository, cards: cards, chats: chat, afterWords: { [weak self] in self?.syncVocabularyCards() })
+        LibraryBackupService(words: repository, cards: cards, chats: chat, exams: exams, afterWords: { [weak self] in self?.syncVocabularyCards() })
     }
 
     func syncVocabularyCards() {
@@ -444,7 +452,8 @@ final class AppEnvironment {
             artifactRepository: SwiftDataArtifactRepository(context: modelContext),
             reviewRepository: SwiftDataReviewRepository(context: modelContext),
             chatRepository: SwiftDataChatRepository(context: modelContext),
-            solveTool: SolveTool.live(context: modelContext)
+            solveTool: SolveTool.live(context: modelContext),
+            examRepository: SwiftDataExamRepository(context: modelContext)
         )
     }
 }

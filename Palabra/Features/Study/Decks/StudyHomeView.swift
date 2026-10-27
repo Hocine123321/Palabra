@@ -98,6 +98,7 @@ struct StudyHomeView: View {
     @State private var rows: [DeckRow] = []
     @State private var stats = StudyStats()
     @State private var showNewDeck = false
+    @State private var lastExamPercent: Int?
 
     private var totalDue: Int { rows.reduce(0) { $0 + $1.counts.due } }
     private var totalNew: Int { rows.reduce(0) { $0 + $1.counts.new } }
@@ -113,9 +114,11 @@ struct StudyHomeView: View {
                             title: "No decks yet",
                             message: "Words you add to the library appear here automatically. You can also make a deck from your notes."
                         )
+                        examTile
                         notesTile
                     } else {
                         todayCard
+                        examTile
                         sectionTitle("Decks")
                         ForEach(rows) { row in
                             deckCard(row)
@@ -190,6 +193,36 @@ struct StudyHomeView: View {
         .buttonStyle(.primary)
         .disabled(totalDue + totalNew == 0)
         .accessibilityIdentifier("reviewAllButton")
+    }
+
+    // MARK: - Exam
+
+    private var examTile: some View {
+        Button { path.append(.examSetup) } label: {
+            GlassSurface {
+                HStack(spacing: Theme.Spacing.md) {
+                    IconTile(systemImage: "checklist", tint: Theme.tileTints[3], size: 52)
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                        Text("Exam").font(Theme.Font.heading).foregroundStyle(Theme.ink)
+                        Text("Test yourself on your words: meaning, typing, grammar, listening and more.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.inkSecondary)
+                            .multilineTextAlignment(.leading)
+                        if let lastExamPercent {
+                            Text("Last exam: \("\(lastExamPercent)%")")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.accentDeep)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.forward").font(.footnote.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
+                }
+                .padding(Theme.Spacing.md)
+                .contentShape(Rectangle())
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("examTile")
     }
 
     // MARK: - Decks
@@ -276,5 +309,6 @@ struct StudyHomeView: View {
             DeckRow(id: $0.id, name: $0.name, kind: $0.kind, counts: counts[$0.id] ?? DeckCounts())
         }
         stats = environment.cards.reviewStats(now: now)
+        lastExamPercent = environment.exams.recent(limit: 1).first.map { Int(($0.fraction * 100).rounded()) }
     }
 }

@@ -13,6 +13,7 @@ final class LibraryBackupService {
         var cards: Int
         var chats: Int
         var bytes: Int64
+        var exams = 0
     }
 
     struct ImportSummary: Equatable {
@@ -23,6 +24,7 @@ final class LibraryBackupService {
         var progress = 0
         var reviews = 0
         var chats = 0
+        var exams = 0
         /// Clips the file lists but could not be read from it (damaged or not a sound file).
         var clipsLost = 0
         /// Imported from the old JSON format.
@@ -54,6 +56,7 @@ final class LibraryBackupService {
     private let words: WordRepository
     private let cards: CardRepository
     private let chats: ChatRepository
+    private let exams: ExamRepository?
     private let directory: URL
     private let appVersion: String?
     private let now: () -> Date
@@ -64,6 +67,7 @@ final class LibraryBackupService {
         words: WordRepository,
         cards: CardRepository,
         chats: ChatRepository,
+        exams: ExamRepository? = nil,
         directory: URL = FileManager.default.temporaryDirectory,
         appVersion: String? = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
         now: @escaping () -> Date = Date.init,
@@ -72,6 +76,7 @@ final class LibraryBackupService {
         self.words = words
         self.cards = cards
         self.chats = chats
+        self.exams = exams
         self.directory = directory
         self.appVersion = appVersion
         self.now = now
@@ -99,13 +104,15 @@ final class LibraryBackupService {
             }
             let study = cards.backup()
             let conversations = chats.backupConversations()
+            let examHistory = exams?.backup() ?? []
             let archive = LibraryArchive(
                 createdAt: date, appVersion: appVersion, words: records,
-                study: study.isEmpty ? nil : study, chats: conversations.isEmpty ? nil : conversations
+                study: study.isEmpty ? nil : study, chats: conversations.isEmpty ? nil : conversations,
+                exams: examHistory.isEmpty ? nil : examHistory
             )
             try writer.finish(meta: archive)
             let bytes = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
-            return ExportSummary(url: url, words: records.count, clips: clips, cards: study.cards.count + study.vocabulary.count, chats: conversations.count, bytes: bytes)
+            return ExportSummary(url: url, words: records.count, clips: clips, cards: study.cards.count + study.vocabulary.count, chats: conversations.count, bytes: bytes, exams: examHistory.count)
         } catch {
             writer.cancel()
             throw Failure.writeFailed
@@ -179,6 +186,9 @@ final class LibraryBackupService {
         }
         if let conversations = archive.chats, !conversations.isEmpty {
             do { summary.chats = try chats.restore(conversations, wordIDMap: idMap) } catch { throw Failure.saveFailed }
+        }
+        if let history = archive.exams, !history.isEmpty, let exams {
+            do { summary.exams = try exams.restore(history, wordIDMap: idMap) } catch { throw Failure.saveFailed }
         }
         return summary
     }

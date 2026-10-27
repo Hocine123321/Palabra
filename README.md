@@ -8,6 +8,8 @@ A native iPhone study app powered by Google AI. It is growing from a Spanish-voc
 
 **Study:** flashcards with spaced repetition. Decks, a review screen, AI card generation from pasted notes; library words are mirrored into a "Vocabulary" deck.
 
+**Exam:** tests built from your own words: meaning, typing, grammar (blanks, forms, word order), listening and speaking. It works fully offline; with AI switched on it adds fresh sentences, checks written answers and coaches you on your mistakes. Results, weak words and history are kept.
+
 **Solve:** typed or photographed math problems, solved on the device first, then by Wolfram|Alpha (your own App ID, optional), then by Gemini.
 
 **Artifacts and Chat:** AI-built tables, charts, checklists and small apps that run in a locked-down web view, and an assistant that can read and (with your approval) change your library, decks and review list.

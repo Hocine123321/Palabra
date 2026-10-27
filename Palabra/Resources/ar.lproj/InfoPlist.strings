@@ -1,2 +1,5 @@
 /* The camera permission prompt, in Arabic. Keep in step with NSCameraUsageDescription in project.yml. */
 "NSCameraUsageDescription" = "يستخدم Palabra الكاميرا لقراءة مسألة رياضية من صورة. تُقرأ الصورة بواسطة Gemini باستخدام مفتاح API الخاص بك، وإن لم يكن لديك مفتاح فتُقرأ على جهازك.";
+/* Keep in step with NSMicrophoneUsageDescription and NSSpeechRecognitionUsageDescription in project.yml. */
+"NSMicrophoneUsageDescription" = "يستمع Palabra عندما تجيب عن سؤال تحدّث في اختبار. لا يُسجَّل أي شيء ولا يُحفظ.";
+"NSSpeechRecognitionUsageDescription" = "يستخدم Palabra التعرّف على الكلام للتحقق من الكلمة الإسبانية التي تنطقها في الاختبار. يعمل على جهازك عندما يدعم الهاتف ذلك.";
