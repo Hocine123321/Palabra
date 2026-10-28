@@ -17,7 +17,8 @@ protocol SpeechListening: AnyObject {
 @MainActor
 final class SpeechListener: SpeechListening {
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "es-ES"))
-    private let engine = AVAudioEngine()
+    /// Made when listening starts, so launching the app never touches the audio hardware.
+    private var engine: AVAudioEngine?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var continuation: CheckedContinuation<String?, Never>?
@@ -74,9 +75,17 @@ final class SpeechListener: SpeechListening {
         self.request = request
         latest = ""
 
+        let engine = AVAudioEngine()
+        self.engine = engine
         let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        // No microphone (a simulator, or the input is busy): installing a tap on a zero-rate format would crash.
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            teardown()
+            return nil
+        }
         input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0), block: Self.tap(into: request))
+        input.installTap(onBus: 0, bufferSize: 1024, format: format, block: Self.tap(into: request))
         engine.prepare()
         do { try engine.start() } catch {
             teardown()
@@ -130,10 +139,11 @@ final class SpeechListener: SpeechListening {
         limitTimer?.cancel()
         silenceTimer = nil
         limitTimer = nil
-        if engine.isRunning {
-            engine.stop()
+        if let engine {
+            if engine.isRunning { engine.stop() }
             engine.inputNode.removeTap(onBus: 0)
         }
+        engine = nil
         request?.endAudio()
         task?.cancel()
         request = nil

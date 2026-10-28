@@ -67,6 +67,12 @@ struct ExamSessionView: View {
         .onDisappear {
             speaker.stop()
             environment.speech.stop()
+            // Popped in the middle (the swipe back): what was answered is kept as a result. Switching to another
+            // tab also disappears this view but leaves the route on the stack, and then the exam just waits.
+            if let session, session.phase != .finished, !path.contains(.exam(config)) {
+                session.endEarly()
+                saveOnce()
+            }
         }
     }
 
@@ -100,9 +106,10 @@ struct ExamSessionView: View {
             var planner = ExamBuilder(rng: SeededGenerator(seed: seed), pool: words, capabilities: capabilities)
             var seen = Set<UUID>()
             let planned = planner.plannedWords(config: config, stats: stats).filter { seen.insert($0.id).inserted }
-            switch await ai.freshItems(for: planned) {
-            case .success(let fresh): items = fresh
-            case .failure: notice = "AI couldn't be reached, so this exam uses only your own words."
+            switch await Self.freshItems(ai, for: planned) {
+            case .success(let fresh)?: items = fresh
+            case .failure?: notice = "AI couldn't be reached, so this exam uses only your own words."
+            case nil: notice = "AI took too long, so this exam uses only your own words."
             }
         }
 
@@ -111,6 +118,22 @@ struct ExamSessionView: View {
         preparing = false
         guard !questions.isEmpty else { return }
         session = ExamSession(questions: questions, config: config, grader: config.useAI ? ai : nil)
+    }
+
+    /// The exam must not wait on a slow AI: after `aiWait` seconds it starts with the person's own words (nil = gave up).
+    nonisolated static let aiWait: Double = 15
+
+    nonisolated private static func freshItems(_ ai: ExamAI, for words: [ExamWord]) async -> Result<[UUID: ExamAIItem], AIError>? {
+        await withTaskGroup(of: Result<[UUID: ExamAIItem], AIError>?.self) { group in
+            group.addTask { await ai.freshItems(for: words) }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(aiWait))
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
     }
 
     private func saveOnce() {

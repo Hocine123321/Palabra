@@ -1,6 +1,6 @@
 import Foundation
 
-/// What the AI says after an exam: a summary, a tip per missed word, and what to practise next.
+/// What the AI says after an exam: a summary, a tip per missed word, and what to practice next.
 struct ExamCoachReport: Equatable, Sendable {
     struct Tip: Equatable, Sendable {
         let word: String
@@ -249,7 +249,7 @@ enum ExamPrompts {
         Write in \(languageName(language)).
         - "summary": two or three sentences: what went well, and what the mistakes have in common (a pattern such as accents, verb forms, false friends, gender).
         - "tips": one short tip for each of the most useful words (at most \(ExamAILimits.maxTips)): a memory trick, a contrast with a similar word, or a usage note. "word" is the Spanish word.
-        - "focus": one sentence on what to practise next.
+        - "focus": one sentence on what to practice next.
         Be specific and encouraging, never harsh. Respond with JSON only, matching the schema.
         """
     }

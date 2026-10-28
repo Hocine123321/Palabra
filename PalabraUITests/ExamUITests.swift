@@ -1,6 +1,6 @@
 import XCTest
 
-/// Study → Exam end to end with the stub app: a typing-only exam, its result, practising the missed words.
+/// Study → Exam end to end with the stub app: a typing-only exam, its result, practicing the missed words.
 final class ExamUITests: XCTestCase {
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
@@ -39,7 +39,7 @@ final class ExamUITests: XCTestCase {
         }
 
         XCTAssertTrue(element(app, "examScoreCard").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Keep practising"].exists)
+        XCTAssertTrue(app.staticTexts["Keep practicing"].exists)
         XCTAssertTrue(element(app, "examMissedRow").exists)
 
         // Flag them for review.
@@ -48,8 +48,8 @@ final class ExamUITests: XCTestCase {
         flag.tap()
         XCTAssertTrue(element(app, "flaggedLabel").waitForExistence(timeout: 5))
 
-        // Practise the missed words: a new exam starts.
-        let practise = app.buttons["practiceMissedButton"]
+        // Practice the missed words: a new exam starts.
+        let practice = app.buttons["practiceMissedButton"]
         XCTAssertTrue(practise.waitForExistence(timeout: 5))
         practise.tap()
         XCTAssertTrue(app.textFields["examTypedField"].waitForExistence(timeout: 10))

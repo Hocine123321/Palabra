@@ -35,7 +35,7 @@ struct ExamWord: Identifiable, Equatable, Sendable {
     var primaryTranslation: String { translations.first ?? "" }
 }
 
-/// What a question practises. The setup screen offers these, not the individual question kinds.
+/// What a question practices. The setup screen offers these, not the individual question kinds.
 enum ExamSkill: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case vocabulary, typing, grammar, listening, speaking, writing
 
@@ -138,7 +138,7 @@ enum ExamSource: Hashable, Codable, Sendable {
     case needReview
     case section(String)
     case tag(String)
-    /// Exactly these words (practising the ones just missed).
+    /// Exactly these words (practicing the ones just missed).
     case words([UUID])
 }
 
@@ -156,6 +156,21 @@ struct ExamConfig: Hashable, Codable, Sendable {
         ExamSkill.allCases
             .filter { skills.contains($0) && (useAI || !$0.needsAI) }
             .flatMap(\.kinds)
+    }
+}
+
+/// Stored (inside `ExamResult` and the backup), so decoding is tolerant: a field an older version did not write falls back
+/// to its default. New fields must be optional or given a default here.
+extension ExamConfig {
+    private enum CodingKeys: String, CodingKey { case source, questionCount, skills, useAI }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init()
+        source = try c.decodeIfPresent(ExamSource.self, forKey: .source) ?? .all
+        questionCount = try c.decodeIfPresent(Int.self, forKey: .questionCount) ?? 10
+        skills = try c.decodeIfPresent(Set<ExamSkill>.self, forKey: .skills) ?? [.vocabulary, .typing, .grammar]
+        useAI = try c.decodeIfPresent(Bool.self, forKey: .useAI) ?? false
     }
 }
 

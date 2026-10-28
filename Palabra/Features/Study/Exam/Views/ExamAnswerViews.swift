@@ -33,9 +33,17 @@ struct ExamChoiceView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(chosen != nil)
+                .accessibilityValue(stateLabel(index))
                 .accessibilityIdentifier("examOption-\(index)")
             }
         }
+    }
+
+    /// What the colour and icon say, for VoiceOver.
+    private func stateLabel(_ index: Int) -> Text {
+        guard chosen != nil else { return Text(verbatim: "") }
+        if index == correct { return Text("Correct answer") }
+        return index == chosen ? Text("Your answer, not right") : Text(verbatim: "")
     }
 
     private func fill(_ index: Int) -> Color {

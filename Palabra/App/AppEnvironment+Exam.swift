@@ -50,17 +50,22 @@ extension AppEnvironment {
         return result
     }
 
-    /// Puts the words an exam got wrong (fully or partly) on the Need Review list. Returns how many were flagged.
+    /// Puts the words an exam got wrong (fully or partly) on the Need Review list, with what was typed and what was
+    /// expected as the note (no words of the app's own, so it reads right in any language). Returns how many were flagged.
     @discardableResult
     func flagExamMisses(_ records: [ExamAnswerRecord]) -> Int {
-        var worst: [UUID: Double] = [:]
+        var worst: [UUID: ExamAnswerRecord] = [:]
         for record in records where !record.isCorrect {
-            for id in record.words { worst[id] = min(worst[id] ?? 1, record.score) }
+            for id in record.words where (worst[id]?.score ?? 2) > record.score { worst[id] = record }
         }
         var flags: [ReviewFlag] = []
-        for (id, score) in worst {
+        for (id, record) in worst {
             guard let word = repository.word(id: id) else { continue }
-            flags.append(ReviewFlag(wordID: id, headword: word.spanish, translation: word.translation, score: 1 - score, note: "Missed in an exam", sourceArtifactID: nil))
+            // A matching question covers several words, so there is no single answer to show for it.
+            let note = record.kind == .matchPairs || record.involvedWordIDs != nil || record.expected.isEmpty
+                ? ""
+                : (record.given.isEmpty ? record.expected : "\(record.given) → \(record.expected)")
+            flags.append(ReviewFlag(wordID: id, headword: word.spanish, translation: word.translation, score: 1 - record.score, note: note, sourceArtifactID: nil))
         }
         return review.flag(flags, now: Date())
     }

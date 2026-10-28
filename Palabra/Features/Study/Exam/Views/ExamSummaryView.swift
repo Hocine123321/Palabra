@@ -82,7 +82,7 @@ struct ExamSummaryView: View {
         case 90...: return "Excellent!"
         case 70..<90: return "Well done"
         case 50..<70: return "Getting there"
-        default: return "Keep practising"
+        default: return "Keep practicing"
         }
     }
 
@@ -188,7 +188,7 @@ struct ExamSummaryView: View {
     private var actions: some View {
         VStack(spacing: Theme.Spacing.sm) {
             Button { practiceMissed() } label: {
-                Label("Practise the Missed Words", systemImage: "arrow.counterclockwise").frame(maxWidth: .infinity)
+                Label("Practice the Missed Words", systemImage: "arrow.counterclockwise").frame(maxWidth: .infinity)
             }
             .buttonStyle(.primary)
             .accessibilityIdentifier("practiceMissedButton")

@@ -85,7 +85,7 @@ struct ExamHistoryView: View {
                 config.questionCount = min(max(weakWords.count, 1), 30)
                 path.append(.exam(config))
             } label: {
-                Label("Practise These Words", systemImage: "arrow.counterclockwise")
+                Label("Practice These Words", systemImage: "arrow.counterclockwise")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.accentDeep)
             }
@@ -123,8 +123,10 @@ struct ExamHistoryView: View {
             for record in exam.records where record.involvedWordIDs == nil { names[record.wordID] = record.headword }
         }
         let stats = environment.exams.wordStats(lastExams: 30)
+        // Words deleted from the library since are left out.
+        let existing = Set(environment.repository.wordSummaries().map(\.id))
         weakWords = stats
-            .filter { $0.value.attempts >= 2 && $0.value.accuracy < 0.7 }
+            .filter { existing.contains($0.key) && $0.value.attempts >= 2 && $0.value.accuracy < 0.7 }
             .compactMap { id, stat in
                 names[id].map { WeakWord(id: id, headword: $0, accuracy: stat.accuracy, attempts: stat.attempts) }
             }

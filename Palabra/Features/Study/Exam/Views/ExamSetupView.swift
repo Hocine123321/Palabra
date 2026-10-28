@@ -8,10 +8,9 @@ struct ExamSetupView: View {
     @State private var words: [ExamWord] = []
     @State private var loaded = false
 
-    private struct Count: Identifiable {
+    private struct Count {
         let name: String
         let count: Int
-        var id: String { name }
     }
 
     private var sections: [Count] {
@@ -97,10 +96,10 @@ struct ExamSetupView: View {
                 Text("Weakest first").tag(ExamSource.weakest)
                 Text("Recently added").tag(ExamSource.recent)
                 if needReviewCount > 0 { Text("Need Review").tag(ExamSource.needReview) }
-                ForEach(sections) { section in
+                ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
                     Text(verbatim: "\(section.name) (\(section.count))").tag(ExamSource.section(section.name))
                 }
-                ForEach(tags) { tag in
+                ForEach(Array(tags.enumerated()), id: \.offset) { _, tag in
                     Text(verbatim: "#\(tag.name) (\(tag.count))").tag(ExamSource.tag(tag.name))
                 }
             }

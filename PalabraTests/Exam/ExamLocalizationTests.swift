@@ -22,7 +22,7 @@ final class ExamLocalizationTests: XCTestCase {
         let table = try arabicTable()
         let keys = [
             "Exam", "Past Exams", "Start Exam", "Use AI", "Correct!", "Almost", "Not quite", "Mind the accents.", "Close: check the spelling.",
-            "Some pairs took more than one try.", "Excellent!", "Well done", "Getting there", "Keep practising",
+            "Some pairs took more than one try.", "Excellent!", "Well done", "Getting there", "Keep practicing",
             "%lld of %lld", "%lld of %lld right", "%lld questions", "%lld words in this exam's pool", "%lld words added to Need Review.",
             "Last exam: %@", "Exams added: %lld.", "AI isn't set up, so this exam uses only your own words.",
             "AI couldn't be reached, so this exam uses only your own words.", "Turn on AI to use this.", "Not available on this device.",

@@ -6,7 +6,7 @@ Tests the person on their own vocabulary. Spec for what exists; see AGENTS.md fo
 
 1. **Study tab → Exam tile** → setup: which words (all, weakest first, recently added, Need Review, a section, a tag), how many questions (5/10/20/30), which skills, and an "Use AI" switch.
 2. **Questions**, one at a time, with instant feedback and a Next button. "End Exam" keeps what was answered so far.
-3. **Result**: score ring, score per skill, the missed answers, AI coach (when AI is on), "Practise the Missed Words" (a new exam on just those words), "Add Them to Need Review".
+3. **Result**: score ring, score per skill, the missed answers, AI coach (when AI is on), "Practice the Missed Words" (a new exam on just those words), "Add Them to Need Review".
 4. **Past Exams**: every saved exam (newest 100) and a "Needs practice" list of words that keep going wrong.
 
 ## Skills and question kinds
