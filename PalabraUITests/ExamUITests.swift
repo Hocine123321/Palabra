@@ -50,8 +50,8 @@ final class ExamUITests: XCTestCase {
 
         // Practice the missed words: a new exam starts.
         let practice = app.buttons["practiceMissedButton"]
-        XCTAssertTrue(practise.waitForExistence(timeout: 5))
-        practise.tap()
+        XCTAssertTrue(practice.waitForExistence(timeout: 5))
+        practice.tap()
         XCTAssertTrue(app.textFields["examTypedField"].waitForExistence(timeout: 10))
 
         // Ending it before answering leaves nothing behind; Done goes back to Study, which shows the last result.

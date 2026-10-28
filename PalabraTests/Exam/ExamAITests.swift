@@ -114,10 +114,10 @@ final class ExamAITests: XCTestCase {
 
     func testCoachReportIsParsedAndLimited() {
         let tips = (0..<9).map { #"{"word":"w\#($0)","tip":"t\#($0)"}"# }.joined(separator: ",")
-        let report = ExamAI.parseCoach(#"{"summary":"You mix up accents.","tips":[\#(tips)],"focus":"Practise ser and estar."}"#)
+        let report = ExamAI.parseCoach(#"{"summary":"You mix up accents.","tips":[\#(tips)],"focus":"Practice ser and estar."}"#)
         XCTAssertEqual(report?.summary, "You mix up accents.")
         XCTAssertEqual(report?.tips.count, ExamAILimits.maxTips)
-        XCTAssertEqual(report?.focus, "Practise ser and estar.")
+        XCTAssertEqual(report?.focus, "Practice ser and estar.")
         XCTAssertNil(ExamAI.parseCoach(#"{"summary":"","tips":[],"focus":""}"#), "an empty report is not a report")
         XCTAssertNil(ExamAI.parseCoach("nope"))
     }
