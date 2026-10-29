@@ -29,6 +29,10 @@ Palabra/
   Features/
     Onboarding/         first-run screen
     Spanish/            hub page list (SpanishHomeView), the Spanish tab's stack root
+    Books/              Books tab: History and Geography textbooks read from bundled lesson JSON (no AI in the app; see "Books" below)
+      Domain/           InlineMarkup, Lesson/Block models, LessonValidator, book models + BookLibrary (loader), RecallState
+      Storage/          TextbookState (+ store), BookShelf (`environment.books`)
+      Views/            shelf and cover, book page, reader (Focus Mode, Magnifying Glass), block views, RichText
     Solve/              Solve tab: on-device nerdamer + optional Wolfram|Alpha + Gemini fallback, on-device photo OCR, saved answers (see "Solve")
     Settings/           settings + model picker (app-wide, not vocabulary-specific)
     Artifacts/          AI-built tables/charts/roadmaps/checklists, saved and versioned (Spanish hub page)
@@ -64,7 +68,7 @@ Palabra/
       AddWord/          add / regenerate flow and preview sheet (AddWordFlow has a `.queued` phase for offline)
       WordDetail/       word screen
       Chat/             follow-up chat about one word
-  Resources/            Localizable.strings (ar)
+  Resources/            Localizable.strings (ar); Books/ (textbooks.json catalogue + one lesson-<book>-<name>.json per lesson); Math/ (solver)
 PalabraTests/           unit tests; folders mirror Palabra/ (App, Core, Vocabulary, Support)
 PalabraUITests/         UI tests (stubbed AI)
 project.yml             XcodeGen project definition (the .xcodeproj is generated, never committed)
@@ -100,9 +104,14 @@ Changing any of these silently loses the user's saved words, settings or API key
 - The SwiftData entity `ReviewNeed` and its stored properties (including `statusRaw`); the `ReviewStatus` raw values `"open"` / `"cleared"` are append-only.
 - The library backup file: `Core/Backup/ArchiveContainer.swift` (header `PLBR`, footer `PLBE`, version byte) and the metadata `LibraryArchive` (`format: "Palabra Library"`, `version`) written by `LibraryBackupService`. New fields in `LibraryArchive`, `WordBackup`, `StudyBackup`, `ChatBackup` must be optional so older files keep reading; a layout change bumps the version. The old JSON envelope (`app: "Palabra"`, `version: 1`) is read-only in `VocabularyLibraryExporter`; old exports must keep importing.
 - The SwiftData entity `ExamResult` and its stored property names (`configData`, `questionCount`, `scoreSum`, `durationSeconds`, `recordsData`), the JSON inside `configData` / `recordsData` (`ExamConfig`, `ExamAnswerRecord`: new fields optional, decoding tolerant), the `ExamSkill` / `ExamQuestionKind` raw values (stored in records, append-only), and `ExamBackup` (inside `LibraryArchive.exams`, a property-list header: new fields optional).
+- The textbook files: the UserDefaults key `textbookState` (tolerant JSON: add fields, never rename), the catalogue and lesson JSON format (`docs/features/books.md`: add optional fields and new block types, never rename or repurpose one), the ids of shipped books, lessons and pages (reading progress is saved as `<lesson id>/<page id>`), and the recall tags `e` / `k` / `i`.
 - The SwiftData entity `WordQueueItem` and its stored property names (`inputWord`, `existingWordID`, `existingCreatedAt`, `languageRaw`, `createdAt`, `statusRaw`, `attempts`, `lastErrorMessage`) — same reasoning as `Word`: a rename changes the on-device schema and loses whatever's mid-flight in someone's offline queue.
 
 It is fine — and encouraged — to rename Swift *types* and files that are not persisted (that is how `Prompts` became `VocabularyPrompts`).
+
+## Books
+
+The Books tab only *reads* lessons that are already in the repository. Do not add an AI call, a lesson generator, runtime OCR or a lesson-upload screen to it. To add a lesson, follow "Adding a lesson" in `docs/features/books.md` (one JSON file plus one line in `textbooks.json`, then `python3 scripts/validate-lessons.py`). Lesson file names must be unique across the app (resources are flattened into the bundle root).
 
 ## User-visible text
 

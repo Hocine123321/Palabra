@@ -71,6 +71,8 @@ jobs:
           xcodegen --version
       - name: Check conventions
         run: bash scripts/check-conventions.sh
+      - name: Validate bundled lessons
+        run: python3 scripts/validate-lessons.py
       - name: Pick an iPhone simulator
         id: sim
         run: |

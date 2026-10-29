@@ -36,6 +36,8 @@ final class AppEnvironment {
     let solve: SolveTool
     /// Finished exams (Study → Exam).
     let exams: ExamRepository
+    /// The History and Geography books (bundled lessons) and the person's reading position.
+    let books: BookShelf
     /// Hears Spanish for speaking questions.
     @ObservationIgnored let speech: SpeechListening
     /// Everything an artifact may ask the app to do (and the AI's manual for it).
@@ -96,7 +98,8 @@ final class AppEnvironment {
         chatRepository: ChatRepository? = nil,
         solveTool: SolveTool? = nil,
         examRepository: ExamRepository? = nil,
-        speech: SpeechListening? = nil
+        speech: SpeechListening? = nil,
+        bookShelf: BookShelf? = nil
     ) {
         self.rawAI = ai
         let policyBox = PolicyBox(settings.retryPolicy)
@@ -142,6 +145,7 @@ final class AppEnvironment {
         self.chat = chatRepository ?? SwiftDataChatRepository.inMemory()
         self.solve = solveTool ?? SolveTool.inMemory()
         self.exams = examRepository ?? SwiftDataExamRepository.inMemory()
+        self.books = bookShelf ?? BookShelf.inMemory()
         self.speech = speech ?? SpeechListener()
         let gateway = AIGateway()
         self.aiGateway = gateway
@@ -453,7 +457,8 @@ final class AppEnvironment {
             reviewRepository: SwiftDataReviewRepository(context: modelContext),
             chatRepository: SwiftDataChatRepository(context: modelContext),
             solveTool: SolveTool.live(context: modelContext),
-            examRepository: SwiftDataExamRepository(context: modelContext)
+            examRepository: SwiftDataExamRepository(context: modelContext),
+            bookShelf: BookShelf()
         )
     }
 }

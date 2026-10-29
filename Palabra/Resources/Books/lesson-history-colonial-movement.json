@@ -1,0 +1,187 @@
+{
+  "id": "colonial-movement",
+  "version": 1,
+  "title": "المقطع التعلمي 01: الحركة الاستعمارية (الأسباب والأهداف)",
+  "summary": "ظروف نشأة الحركة الاستعمارية الأوروبية وأسبابها وأهدافها، مع تصحيح التقويم المرحلي.",
+  "pages": [
+    {
+      "id": "intro",
+      "title": "الإشكالية",
+      "dateLabel": "الخميس 01 أكتوبر 2026م",
+      "blocks": [
+        { "type": "keyPoint", "label": "الوحدة التعلمية 01", "text": "الاستعمار الأوروبي في إفريقيا وآسيا وسقوطه ([[1815|e]] – [[1954|e]])" },
+        { "type": "keyPoint", "label": "المقطع التعلمي 01", "text": "الحركة الاستعمارية (الأسباب والأهداف)" },
+        { "type": "heading", "level": 2, "text": "الإشكالية" },
+        { "type": "quote", "text": "ترافقت الحركة الاستعمارية الأوروبية مع ظهور [[الكشوفات الجغرافية|k]] لتبلغ ذروتها مع قيام [[الثورة الصناعية|k]]، وكان لهذه الحركة الاستعمارية عدة أسباب وأهداف، فيما تتمثل ذلك؟" }
+      ]
+    },
+    {
+      "id": "conditions",
+      "title": "ظروف نشأة الحركة الاستعمارية",
+      "dateLabel": "2026/10/05",
+      "blocks": [
+        {
+          "type": "causeEffect",
+          "title": "ظروف نشأة الحركة الاستعمارية",
+          "stages": [
+            {
+              "label": "الظروف",
+              "nodes": [
+                "[[النهضة الأوروبية|k]] وما رافقها من تطور في مختلف المجالات.",
+                "[[الكشوفات الجغرافية|k]] التي أدت إلى اكتشاف مناطق جديدة.",
+                "[[الثورة الصناعية|k]] ونتائجها الاقتصادية والعسكرية.",
+                "[[الصراع الحضاري الديني|k]] بين الشرق الإسلامي والغرب المسيحي، خاصة بعد التراجع الريادي للعالم الإسلامي."
+              ]
+            },
+            { "nodes": ["الحركة الاستعمارية الأوروبية"] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "causes",
+      "title": "أسباب الحركة الاستعمارية",
+      "blocks": [
+        {
+          "type": "list",
+          "items": [
+            "تطور [[الثورة الصناعية|k]] وحاجتها الموجودة في إفريقيا.",
+            "وجود [[فائض في الإنتاج|k]] مما أدى للبحث عن {{الأسواق|markets}} الخارجية.",
+            "البحث عن مجال [[الاستثمار ورؤوس الأموال|k]]."
+          ]
+        },
+        { "type": "heading", "level": 2, "text": "البشرية" },
+        {
+          "type": "list",
+          "items": [
+            "البحث عن مناطق [[تصريف الفائض|k]].",
+            "[[إبعاد المجرمين والمعارضين|i]] والتخلص منهم عن طريق الهجرة."
+          ]
+        },
+        { "type": "heading", "level": 2, "text": "الاستراتيجية" },
+        {
+          "type": "list",
+          "items": [
+            "نشر [[القواعد العسكرية|k]] في المناطق الاستراتيجية في إفريقيا وآسيا.",
+            "تأمين [[طرق مواصلاتها|k]] مع المستعمرات."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "aims",
+      "title": "أهداف الحركة الاستعمارية",
+      "blocks": [
+        {
+          "type": "comparison",
+          "corner": "الهدف",
+          "columns": ["المضمون"],
+          "rows": [
+            {
+              "label": "[[الاقتصادية|k]]",
+              "cells": ["[[استنزاف خيرات وثروات الشعوب|k]] (الباطنية والسطحية).\nاستغلال هذه الخيرات في [[مشاريع استعمارية|i]].\nترويج [[سلعها الفائضة|i]] لهذه البلدان."]
+            },
+            {
+              "label": "[[الاستراتيجية|k]]",
+              "cells": ["[[السيطرة والهيمنة|k]] على المعاملات المالية وكذلك [[تأمين البلدان المستعمرة|i]]."]
+            },
+            {
+              "label": "[[الحضارية|k]]",
+              "cells": ["[[نشر المسيحية|k]] بمختلف مذاهبها و[…] اللغات لدى الشعوب المستعمرة.\n[[محاربة اللغات والثقافات المحلية|k]]."]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quiz",
+      "title": "تقويم مرحلي",
+      "blocks": [
+        {
+          "type": "list",
+          "ordered": true,
+          "items": [
+            "اشرح المصطلحات التالية: الإمبريالية، الأسواق، مناطق النفوذ، المجال الحيوي، الموارد الأولية.",
+            "ما هو الفرق بين الاستعمار والحركة الاستعمارية؟",
+            "بيّن العلاقة بين الثورة الصناعية والحركة الاستعمارية.",
+            "ما هي الأهداف الاجتماعية والدينية؟"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "answer-terms",
+      "title": "تصحيح التقويم المرحلي (1): تعريف المصطلحات",
+      "dateLabel": "2026/10/06",
+      "blocks": [
+        {
+          "type": "definitions",
+          "definitions": [
+            {
+              "id": "imperialism",
+              "term": "[[الإمبريالية|k]]",
+              "definition": "هي توسع الدول الكبرى وسيطرتها وهيمنتها على [[الدول الضعيفة|i]]."
+            },
+            {
+              "id": "markets",
+              "term": "[[الأسواق|k]]",
+              "definition": "هي أماكن يتم فيها [[تبادل وبيع وشراء|i]] السلع والخدمات بين البائعين والمشترين."
+            },
+            {
+              "id": "spheres-of-influence",
+              "term": "[[مناطق النفوذ|k]]",
+              "definition": "مناطق تخضع لتأثير وسيطرة دولة معينة سياسيا أو اقتصاديا دون أن تكون بالضرورة [[مستعمرة بشكل مباشر|i]]."
+            },
+            {
+              "id": "vital-space",
+              "term": "[[المجال الحيوي|k]]",
+              "definition": "هو المجال الجغرافي الذي تعتبره الدولة ضروريا [[لتوسعها|i]] وتحقيق مصالحها الاقتصادية والسياسية والعسكرية."
+            },
+            {
+              "id": "raw-materials",
+              "term": "[[الموارد الأولية|k]]",
+              "definition": "موارد طبيعية تستخرج من الطبيعة وتستخدم في الصناعة، مثل [[الحديد، النفط، الفحم والقطن|i]]."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "answer-relation",
+      "title": "تصحيح التقويم المرحلي (3): علاقة الثورة الصناعية بالحركة الاستعمارية",
+      "dateLabel": "2026/10/06",
+      "blocks": [
+        {
+          "type": "causeEffect",
+          "title": "علاقة الثورة الصناعية بالحركة الاستعمارية الأوروبية",
+          "stages": [
+            { "nodes": ["[[الثورة الصناعية|k]]"] },
+            {
+              "nodes": [
+                "[[انتعاش الصناعة|k]] بأوروبا وفتح أبواب الاستيراد للمواد الأولية، خاصة إذا علمنا مدى نقصها في هذه القارة.",
+                "وجود [[فائض في السلع|k]] جعل أوروبا تبحث عن {{أسواق|markets}} جديدة من أجل تسويقها.",
+                "تنامي [[رأس المال الأوروبي|k]] الذي أصبح بحاجة إلى الاستثمار."
+              ]
+            },
+            { "nodes": ["الحركة الاستعمارية الأوروبية"] }
+          ]
+        }
+      ]
+    }
+  ],
+  "transcriptionNotes": [
+    "Unit title: the first year is handwritten unclearly and read as 1815; the second is 1954.",
+    "Pages were ordered 01/10 (problem, conditions, reasons), then the continuation (reasons, aims, interim evaluation), then the 06/10 correction pages.",
+    "Problem statement: ends with «فيما تتمثل ذلك؟», transcribed exactly as written.",
+    "Conditions, item 1: the word «من» in «وما رافقها من تطور» is inferred; the handwriting is unclear.",
+    "Reasons, item 1: «وحاجتها الموجودة في إفريقيا» looks like it is missing a word (probably «للمواد الأولية»). Transcribed as written.",
+    "Reasons: the notebook labels only «البشرية» and «الاستراتيجية». The first group has no heading, so none is added.",
+    "Human reasons, item 2: «المجرمين» is the best reading of an unclear word.",
+    "Strategic reasons, item 1: a word before «إفريقيا» is covered with correction fluid and omitted.",
+    "Strategic reasons, item 2: green hatching crosses out «وذلك عن طريق الممرات»; treated as deleted and omitted.",
+    "Strategic aim: «المعاملات المالية» is the best reading; please confirm.",
+    "Civilizational aim, item 1: a word before «اللغات» is covered with correction fluid; shown as […].",
+    "Interim evaluation: the photos contain answers for questions 1 and 3 only (06/10). Questions 2 and 4 have no answer in the photos.",
+    "Relation answer (question 3): the last bullet ends at the bottom of the photographed page; there may be more on a page not photographed."
+  ]
+}

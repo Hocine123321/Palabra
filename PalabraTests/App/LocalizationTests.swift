@@ -77,6 +77,19 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveBooksKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Books", "History", "Geography", "No books available", "No lessons yet", "No lessons in this chapter yet.",
+            "Lessons are added to the app in updates.", "Some lessons couldn't be loaded.",
+            "%lld lessons · %lld pages", "%lld of %lld pages read", "Start reading", "Continue reading", "Transcription notes (%lld)",
+            "Contents", "Focus Mode", "Exit Focus Mode", "Magnifying Glass", "Text Size", "Smaller", "Default", "Larger", "Largest",
+            "Essential", "Key facts", "Intensive", "Recall level", "Tap a hidden answer to reveal it.", "Reveal all", "Hide all",
+            "Page %lld of %lld", "Previous page", "Next page", "Image not found", "This content needs a newer version of Palabra.",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
     func testArabicStringsHaveNeedReviewKeys() throws {
         let table = try arabicTable()
         let keys = ["Need Review", "Needs review", "Mark as learned", "Nothing to review", "Words your artifacts flag will show up here."]

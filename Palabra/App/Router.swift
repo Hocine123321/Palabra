@@ -5,6 +5,7 @@ enum AppTab: Hashable {
     case spanish
     case study
     case solve
+    case books
     case settings
 }
 

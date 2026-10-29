@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "books": [
+    {
+      "id": "history",
+      "subject": "history",
+      "title": "التاريخ",
+      "language": "ar",
+      "chapters": [
+        {
+          "id": "unit-1",
+          "title": "الوحدة التعلمية 01: الاستعمار الأوروبي في إفريقيا وآسيا وسقوطه (1815 – 1954)",
+          "lessons": [
+            { "id": "colonial-movement", "file": "lesson-history-colonial-movement" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geography",
+      "subject": "geography",
+      "title": "الجغرافيا",
+      "language": "ar",
+      "chapters": []
+    }
+  ]
+}

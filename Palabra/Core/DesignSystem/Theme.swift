@@ -99,6 +99,46 @@ enum Theme {
         /// Capsules: chips, buttons, bars. Larger than any control height.
         static let pill: CGFloat = 100
     }
+
+    /// The two textbooks (Books tab). Each is a page of its own: History is warm archive paper with oxblood ink accents and a
+    /// serif face; Geography is a cool atlas sheet with a teal accent. Both stay readable in light and dark appearance.
+    enum Textbook {
+        struct Palette {
+            let paper: Color
+            let paperEdge: Color
+            let ink: Color
+            let inkSecondary: Color
+            /// Titles, markers, links and highlights. At least 4.5:1 on `paper` in both appearances.
+            let accent: Color
+            /// Hairlines and borders.
+            let rule: Color
+            let design: SwiftUI.Font.Design
+
+            func font(_ style: SwiftUI.Font.TextStyle, weight: SwiftUI.Font.Weight = .regular) -> SwiftUI.Font {
+                .system(style, design: design).weight(weight)
+            }
+        }
+
+        static let history = Palette(
+            paper: Color(lightHex: 0xF4EBD9, darkHex: 0x2A2520),
+            paperEdge: Color(lightHex: 0xE6D8BC, darkHex: 0x3A322A),
+            ink: Color(lightHex: 0x2B2218, darkHex: 0xEFE6D4),
+            inkSecondary: Color(lightHex: 0x6B5B45, darkHex: 0xB9AA92),
+            accent: Color(lightHex: 0x8B2E22, darkHex: 0xE08A78),
+            rule: Color(lightHex: 0xC9B88F, darkHex: 0x5A4E3C),
+            design: .serif
+        )
+
+        static let geography = Palette(
+            paper: Color(lightHex: 0xEEF3F0, darkHex: 0x1E2624),
+            paperEdge: Color(lightHex: 0xD5E2DC, darkHex: 0x2E3A37),
+            ink: Color(lightHex: 0x1B2926, darkHex: 0xE6EFEC),
+            inkSecondary: Color(lightHex: 0x4F6560, darkHex: 0xA9BDB7),
+            accent: Color(lightHex: 0x1F6F78, darkHex: 0x6CC1C9),
+            rule: Color(lightHex: 0xB5CBC3, darkHex: 0x40504C),
+            design: .default
+        )
+    }
 }
 
 extension Color {
