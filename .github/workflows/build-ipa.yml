@@ -57,6 +57,29 @@ jobs:
           name: archive-log
           path: build/archive.log
 
+  # The 3D scene (web/books3d) is built into one HTML file that the app bundles. Test it, rebuild it, and fail when the
+  # committed bundle is not what the sources produce (so the app never ships a stale scene).
+  scene:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/books3d
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/books3d/package-lock.json
+      - run: npm ci
+      - name: Scene tests
+        run: npm test
+      - name: Rebuild the bundle
+        run: npm run build
+      - name: Bundle is current
+        working-directory: .
+        run: git diff --exit-code -- Palabra/Resources/Books3D/books3d.html
+
   tests:
     runs-on: macos-26
     steps:

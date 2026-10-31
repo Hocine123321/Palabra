@@ -1,0 +1,16 @@
+{
+  "name": "palabra-books3d",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The 3D textbook scene of Palabra's Books tab (Three.js), bundled into one offline HTML file.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0",
+    "three": "0.170.0",
+    "@fontsource/amiri": "5.1.0"
+  }
+}

@@ -15,7 +15,7 @@ final class BookShelf {
     private(set) var library: BookLibrary
     var state: TextbookState { didSet { store.value = state } }
     @ObservationIgnored private let store: TextbookStateStore
-    @ObservationIgnored private let source: BookContentSource
+    @ObservationIgnored let source: BookContentSource
 
     init(source: BookContentSource = BundleBookSource(), store: TextbookStateStore = TextbookStateStore()) {
         self.source = source
@@ -62,6 +62,14 @@ final class BookShelf {
         progress.visitedPageIDs.insert(pageID)
         state.progress[bookID] = progress
     }
+
+    func setBookmark(bookID: String, pageID: String?) {
+        var progress = state.progress[bookID] ?? BookProgress()
+        progress.bookmarkPageID = pageID
+        state.progress[bookID] = progress
+    }
+
+    func bookmarkPageID(bookID: String) -> String? { state.progress[bookID]?.bookmarkPageID }
 
     func resetProgress(bookID: String) {
         state.progress[bookID] = nil

@@ -7,27 +7,67 @@ in the book.
 
 Everything works offline: lessons are bundled with the app, reading position and preferences are saved on the device.
 
-## What the reader does
+## The 3D desk (what the person sees)
 
-- **Bookshelf** (`BooksRootView`): one cover per book (its own paper, ornament and type), with reading progress.
-- **Book page** (`BookDetailView`): Continue / Start reading, chapters, lessons with pages-read counts, and the lesson's
-  *transcription notes* (what the author could not read or had to decide).
-- **Reader** (`BookReaderView`): numbered pages you swipe through (previous / next buttons, "3 / 7" indicator, contents
-  sheet to jump to any page). The book's language sets the reading direction (an Arabic book is right-to-left, so the
-  next page is a swipe to the left). Reduced Motion is respected (all animation goes through `Motion`).
-- **Focus Mode**: hides the navigation bar, tab bar, status bar and home indicator and gives text one step more size. The
-  page controls and the exit button stay.
-- **Highlighted terms**: `{{text|id}}` in lesson text is underlined; tapping opens a compact definition card above the
-  controls (also reachable from VoiceOver's Links rotor). Not hover-dependent.
-- **Magnifying Glass** (active recall): the toolbar magnifier turns it on. Recall targets (`[[text|level]]`) are replaced
-  by a same-sized placeholder; tap to reveal, tap again to hide, **Reveal all / Hide all** for the page. Levels:
-  *Essential* (dates, figures), *Key facts* (also names and terms), *Intensive* (everything the author marked). A hidden
-  answer is not in the text at all (nothing to copy or read aloud), and turning the mode off shows the original text.
-  Reveals are never saved; turning the mode on or changing the level starts hidden again.
-- **Text size**: smaller / default / larger / largest, relative to the system size.
+The Books tab is a real 3D scene (Three.js / WebGL), not flat artwork: a desk, a lamp, two physical books (History in
+oxblood leather, Geography as a teal atlas) with covers, spine, a page block you can see the thickness of, and individually
+animated leaves. The scene runs in a `WKWebView` (`BooksSceneView`) from one offline file, `Resources/Books3D/books3d.html`;
+SwiftUI draws the 2D layer over it (`SceneHUD`). Lessons are laid out onto the 3D pages as crisp canvas textures at runtime
+from the same JSON the app validates.
 
-The app target is iPhone-only and portrait-only (`project.yml`), so there is no two-page spread and no hover reveal. The
-reader does have left / right arrow-key shortcuts for the page buttons (direction follows the book).
+- **Menu**: both books lie on the desk under a perspective camera with lighting and shadows. Tap a book (or its button, which
+  is what VoiceOver and the UI tests use) and the camera flies in while the cover swings open. Geography has no lessons yet,
+  and says so.
+- **Page turning**: real leaf deformation around the binding (lift, curl, front/back faces, settle). Drag a page edge or
+  swipe to turn it; release past halfway (or with speed) to complete. The arrows turn pages too. Right-to-left books
+  (Arabic) are the same model mirrored, so the next page turns toward the left.
+- **Tools on the desk**: a **magnifying glass** (wood handle, brass rim, glass lens), a **bookmark** (card with a cord) and a
+  **ruler**. Picking one flies it from the desk to the page; putting it back flies it home.
+  - *Magnifying glass*: the lens shader samples the actual page along the real view ray and magnifies it. With
+    **Memorize** on, the lens shows the concealed answers that are under it, and every other target stays hidden.
+  - *Ruler*: dims the page outside a band, so one line at a time is lit.
+  - *Bookmark*: tap the page to place it; it is saved and put back on the right page next time.
+- **Focus Mode**: the desk and tools fade away, the camera frames the page, and only a way out and the Magnifying Glass remain.
+- **Memorize** (active recall): recall targets (`[[text|level]]`) are blotted out on the page itself (the answer is not drawn
+  at all). Tap a target to reveal it, or use the eye button to reveal the whole page. Levels: *Essential* (dates, figures),
+  *Key facts* (also names and terms), *Intensive* (everything the author marked). Reveals are never saved.
+- **Highlighted terms**: `{{text|id}}` is underlined; tap it and a definition card opens above the controls.
+- **Text size**: smaller / default / larger / largest. The pages are re-laid-out (a long page continues on the next leaf; no
+  content is ever dropped).
+- **Appearance and motion**: light is daylight, dark is a lamp-lit desk. Reduce Motion turns the flights and page turns into
+  jumps.
+- **Read as text**: a plain SwiftUI reader (`BookDetailView`, `BookReaderView`) is one tap away (the button at the top of the
+  desk) and is what shows if the 3D view can't start (no WebGL, web content process killed).
+
+The app target is iPhone-only and portrait-only (`project.yml`).
+
+## The bridge (Swift <-> scene)
+
+`Features/Books/Scene/BooksBridge.swift` defines both directions as plain data:
+
+- scene -> Swift (`SceneMessage`): `ready`, `state`, `visit`, `term`, `termClose`, `bookmark`, `preference`, `empty`, `error`.
+  `BooksSceneModel` saves `visit` / `bookmark` / `preference` into `BookShelf` (`TextbookState`).
+- Swift -> scene (`SceneCommand`): `openBook`, `closeBook`, `next`, `prev`, `goto`, `setRecall`, `setLevel`,
+  `togglePageReveal`, `setTool`, `setFocus`, `setTextSize`, `setInsets`, `setAppearance`, `closeTerm`. The names are matched in
+  `web/books3d/src/app.js`; a unit test checks that the scene still knows each one.
+- `BooksScenePayload` hands the scene the raw catalogue, the lesson files, the saved progress, bookmarks and preferences.
+
+Nothing here talks to the network. The hard rule still stands: **no AI, no OCR, no upload, no chat, no lesson generator.**
+
+## Building the scene
+
+The scene's sources are in `web/books3d/` (Three.js, plain JS, esbuild). The result is committed as
+`Palabra/Resources/Books3D/books3d.html`, because the iOS build has no Node step. After changing anything in `web/books3d`:
+
+```
+cd web/books3d
+npm ci          # once
+npm test        # page layout never drops a block, recall rules, resume rules, bundled lessons load
+npm run build   # rewrites Palabra/Resources/Books3D/books3d.html (single file, fonts inlined)
+```
+
+CI (`scene` job) runs the tests, rebuilds, and fails when the committed bundle differs from what the sources produce.
+`web/books3d/dev/` has a standalone harness for looking at a rendered page without the app.
 
 ## Where things live
 
@@ -38,7 +78,11 @@ Palabra/Resources/Books/
 Palabra/Features/Books/
   Domain/    InlineMarkup, LessonModels (Lesson, Block...), LessonValidator, BookModels, BookLibrary (loader), RecallState
   Storage/   TextbookState (+ store), BookShelf (observable, on AppEnvironment as `books`)
-  Views/     BooksRootView (shelf, cover), BookDetailView, BookReaderView, ReaderChrome, BookPageView, BlockViews, RichText
+  Scene/     BooksBridge (messages, commands, payload), BooksSceneModel, BooksSceneView (WKWebView)
+  Views/     BooksRootView, BooksSceneScreen, SceneHUD (the 2D layer), then the text reader: BookshelfView, BookDetailView,
+             BookReaderView, ReaderChrome, BookPageView, BlockViews, RichText
+Palabra/Resources/Books3D/books3d.html   the built 3D scene (do not edit by hand)
+web/books3d/                             the scene's sources, tests and build
 scripts/validate-lessons.py      the same validation rules, run by CI before the build
 ```
 

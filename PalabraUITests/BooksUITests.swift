@@ -1,6 +1,7 @@
 import XCTest
 
-/// The Books tab with the lessons bundled in the app (no network, no AI).
+/// The Books tab: a 3D desk drawn by WebGL in a web view, with SwiftUI controls over it. The 3D books can't be queried, so the
+/// tests drive the controls the app puts over the scene (they do exactly what tapping the books does).
 final class BooksUITests: XCTestCase {
     private func launch() -> XCUIApplication {
         let app = XCUIApplication()
@@ -13,16 +14,15 @@ final class BooksUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// Opens the History book and its reader on the first page.
-    private func openHistoryReader(_ app: XCUIApplication) {
+    /// Opens the History book from the desk and waits for the page indicator.
+    private func openHistory(_ app: XCUIApplication) {
         app.tabBars.buttons["Books"].tap()
         let cover = element(app, "bookCover.history")
-        XCTAssertTrue(cover.waitForExistence(timeout: 10), "the History book is on the shelf")
+        XCTAssertTrue(cover.waitForExistence(timeout: 10), "the History book is on the desk")
+        // The scene needs a moment to build its page textures before it accepts a book.
+        XCTAssertTrue(element(app, "booksLoading").waitForNonExistence(timeout: 30), "the scene finished loading")
         cover.tap()
-        let start = element(app, "bookStart")
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
-        start.tap()
-        XCTAssertTrue(element(app, "pageIndicator").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "pageIndicator").waitForExistence(timeout: 20))
     }
 
     private func waitForTabBar(_ app: XCUIApplication, visible: Bool) {
@@ -31,75 +31,75 @@ final class BooksUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [wait], timeout: 5), .completed)
     }
 
-    func testShelfShowsBothBooksAndGeographyIsEmpty() {
+    private func waitForLabel(_ element: XCUIElement, _ label: String) {
+        let wait = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", label), object: element)
+        XCTAssertEqual(XCTWaiter().wait(for: [wait], timeout: 10), .completed, "expected \(label), got \(element.label)")
+    }
+
+    func testTheDeskOffersBothBooksAndGeographyIsEmpty() {
         let app = launch()
         app.tabBars.buttons["Books"].tap()
         XCTAssertTrue(element(app, "bookCover.history").waitForExistence(timeout: 10))
         let geography = element(app, "bookCover.geography")
         XCTAssertTrue(geography.exists)
+        XCTAssertTrue(element(app, "booksLoading").waitForNonExistence(timeout: 30))
         geography.tap()
-        XCTAssertTrue(app.staticTexts["No lessons yet"].waitForExistence(timeout: 10), "an empty book says so")
-        XCTAssertFalse(element(app, "bookStart").exists)
+        XCTAssertTrue(element(app, "booksNotice").waitForExistence(timeout: 10), "an empty book says so")
+        XCTAssertFalse(element(app, "pageIndicator").exists)
     }
 
     func testTurningPagesUpdatesTheIndicator() {
         let app = launch()
-        openHistoryReader(app)
+        openHistory(app)
         let indicator = element(app, "pageIndicator")
-        XCTAssertEqual(indicator.label, "Page 1 of 7")
+        waitForLabel(indicator, "Page 1 of 7")
         XCTAssertFalse(app.buttons["pagePrevious"].isEnabled, "no page before the first")
         app.buttons["pageNext"].tap()
-        XCTAssertEqual(indicator.label, "Page 2 of 7")
+        waitForLabel(indicator, "Page 2 of 7")
         app.buttons["pagePrevious"].tap()
-        XCTAssertEqual(indicator.label, "Page 1 of 7")
+        waitForLabel(indicator, "Page 1 of 7")
     }
 
     func testFocusModeHidesTheTabBarAndExits() {
         let app = launch()
-        openHistoryReader(app)
-        app.buttons["focusButton"].tap()
+        openHistory(app)
         waitForTabBar(app, visible: false)
+        app.buttons["focusButton"].tap()
+        XCTAssertTrue(element(app, "focusExit").waitForExistence(timeout: 5))
         XCTAssertTrue(element(app, "pageIndicator").exists, "page navigation stays in Focus Mode")
         app.buttons["focusExit"].tap()
-        waitForTabBar(app, visible: true)
+        XCTAssertTrue(element(app, "focusButton").waitForExistence(timeout: 5))
     }
 
-    func testMagnifyingGlassHidesAndRevealsADate() {
+    func testMemorizeShowsLevelsAndTheToolsCanBePicked() {
         let app = launch()
-        openHistoryReader(app)
-        let withDate = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "1815")).firstMatch
-        XCTAssertTrue(withDate.waitForExistence(timeout: 5), "the date is shown normally")
-
+        openHistory(app)
         element(app, "recallToggle").tap()
         XCTAssertTrue(element(app, "recallLevel").waitForExistence(timeout: 5))
-        XCTAssertFalse(withDate.exists, "Essential hides the dates")
-
-        app.buttons["recallRevealAll"].tap()
-        XCTAssertTrue(withDate.waitForExistence(timeout: 5), "Reveal all shows them again")
-
+        XCTAssertTrue(element(app, "recallReveal").exists)
+        app.buttons["toolLens"].tap()
+        XCTAssertTrue(app.buttons["toolLens"].isSelected, "the magnifying glass is in use")
+        app.buttons["toolLens"].tap()
+        XCTAssertFalse(app.buttons["toolLens"].isSelected, "tapping again puts it back on the desk")
         element(app, "recallToggle").tap()
-        XCTAssertTrue(withDate.waitForExistence(timeout: 5))
         XCTAssertFalse(element(app, "recallLevel").exists, "turning the mode off removes its controls")
     }
 
-    func testContentsJumpsToAPage() {
+    func testBackReturnsToTheDeskAndTheTabBar() {
         let app = launch()
-        openHistoryReader(app)
-        app.buttons["contentsButton"].tap()
-        let page = element(app, "contentsPage.5")
-        XCTAssertTrue(page.waitForExistence(timeout: 10))
-        page.tap()
-        XCTAssertTrue(element(app, "pageIndicator").waitForExistence(timeout: 10))
-        XCTAssertEqual(element(app, "pageIndicator").label, "Page 5 of 7")
+        openHistory(app)
+        app.buttons["bookBack"].tap()
+        XCTAssertTrue(element(app, "bookCover.history").waitForExistence(timeout: 10))
+        waitForTabBar(app, visible: true)
     }
 
-    func testTheSavedPageIsOfferedAfterLeavingTheReader() {
+    func testReadAsTextStillWorks() {
         let app = launch()
-        openHistoryReader(app)
-        app.buttons["pageNext"].tap()
-        app.navigationBars.buttons.firstMatch.tap()
-        let start = element(app, "bookStart")
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
-        XCTAssertEqual(start.label, "Continue reading")
+        openHistory(app)
+        app.buttons["bookBack"].tap()
+        XCTAssertTrue(element(app, "readAsText").waitForExistence(timeout: 10))
+        element(app, "readAsText").tap()
+        app.buttons["التاريخ"].firstMatch.tap()
+        XCTAssertTrue(element(app, "bookStart").waitForExistence(timeout: 10), "the lesson list is one tap away")
     }
 }

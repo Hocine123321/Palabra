@@ -50,4 +50,11 @@ final class TextbookStateTests: XCTestCase {
         defaults.set(Data("not json".utf8), forKey: TextbookStateStore.defaultsKey)
         XCTAssertEqual(TextbookStateStore(defaults: defaults).value, TextbookState())
     }
+
+    func testBookmarkIsKeptAndOlderSavesWithoutOneStillLoad() throws {
+        let withMark = try decode(#"{"progress":{"history":{"lastPageID":"a/b","bookmarkPageID":"a/c"}}}"#)
+        XCTAssertEqual(withMark.progress["history"]?.bookmarkPageID, "a/c")
+        let without = try decode(#"{"progress":{"history":{"lastPageID":"a/b"}}}"#)
+        XCTAssertNil(without.progress["history"]?.bookmarkPageID)
+    }
 }

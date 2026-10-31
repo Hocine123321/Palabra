@@ -726,3 +726,16 @@
 "Next page" = "الصفحة التالية";
 "Image not found" = "الصورة غير موجودة";
 "This content needs a newer version of Palabra." = "يحتاج هذا المحتوى إلى إصدار أحدث من Palabra.";
+
+/* Books: 3D desk */
+"Read as text" = "القراءة كنص";
+"Back to the shelf" = "العودة إلى الرفّ";
+"Text size" = "حجم الخط";
+"Memorize" = "احفظ";
+"Level" = "المستوى";
+"Magnifying glass tool" = "أداة العدسة المكبّرة";
+"Bookmark" = "فاصل الكتاب";
+"Ruler" = "المسطرة";
+"Show answers on this page" = "إظهار الإجابات في هذه الصفحة";
+"Hide answers on this page" = "إخفاء الإجابات في هذه الصفحة";
+"%lld pages" = "%lld صفحة";

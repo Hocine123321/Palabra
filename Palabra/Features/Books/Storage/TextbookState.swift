@@ -28,6 +28,8 @@ struct BookProgress: Codable, Equatable {
     var lastPageID: String?
     /// Every page that was opened. Ids of pages that no longer exist are ignored when counting.
     var visitedPageIDs: Set<String> = []
+    /// The page the bookmark sits on (`lesson/page`), if the person placed one.
+    var bookmarkPageID: String?
 
     init() {}
 
@@ -35,6 +37,7 @@ struct BookProgress: Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         lastPageID = try c.decodeIfPresent(String.self, forKey: .lastPageID)
         visitedPageIDs = try c.decodeIfPresent(Set<String>.self, forKey: .visitedPageIDs) ?? []
+        bookmarkPageID = try c.decodeIfPresent(String.self, forKey: .bookmarkPageID)
     }
 }
 

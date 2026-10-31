@@ -29,7 +29,7 @@ Palabra/
   Features/
     Onboarding/         first-run screen
     Spanish/            hub page list (SpanishHomeView), the Spanish tab's stack root
-    Books/              Books tab: History and Geography textbooks read from bundled lesson JSON (no AI in the app; see "Books" below)
+    Books/              Books tab: History and Geography textbooks read from bundled lesson JSON (a 3D desk drawn by Three.js in a WKWebView; no AI in the app; see "Books" below)
       Domain/           InlineMarkup, Lesson/Block models, LessonValidator, book models + BookLibrary (loader), RecallState
       Storage/          TextbookState (+ store), BookShelf (`environment.books`)
       Views/            shelf and cover, book page, reader (Focus Mode, Magnifying Glass), block views, RichText
@@ -112,6 +112,9 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 ## Books
 
 The Books tab only *reads* lessons that are already in the repository. Do not add an AI call, a lesson generator, runtime OCR or a lesson-upload screen to it. To add a lesson, follow "Adding a lesson" in `docs/features/books.md` (one JSON file plus one line in `textbooks.json`, then `python3 scripts/validate-lessons.py`). Lesson file names must be unique across the app (resources are flattened into the bundle root).
+
+The Books tab is a real 3D scene (`web/books3d`, Three.js) shown in a `WKWebView`; SwiftUI only draws the 2D controls over it. Rules: (1) never edit `Palabra/Resources/Books3D/books3d.html` by hand: change `web/books3d/src`, then `npm test && npm run build` there and commit both (CI fails if the bundle is stale); (2) the Swift/JS bridge names in `Features/Books/Scene/BooksBridge.swift` must match `web/books3d/src/app.js` (a test checks the commands); (3) the scene lays pages out itself from the lesson JSON, so a new block type needs the same change in `LessonModels.swift`, `scripts/validate-lessons.py` and `web/books3d/src/pagetex.js`; (4) the accessibility ids `bookCover.<id>`, `bookBack`, `pageNext`, `pagePrevious`, `pageIndicator`, `focusButton`, `focusExit`, `recallToggle`, `recallLevel`, `recallReveal`, `toolLens`, `toolBookmark`, `toolRuler`, `readAsText` are used by the UI tests; keep them.
+
 
 ## User-visible text
 
