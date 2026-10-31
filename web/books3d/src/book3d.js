@@ -311,9 +311,9 @@ export class Book3D {
     const rows = 13;
     for (let r = 0; r < rows; r++) {
       const t = r / (rows - 1);
-      const z = lerp(-PH * 0.46, PH * 0.5 + 0.34, t);
+      const z = lerp(-PH * 0.46, PH * 0.5 + 0.16, t);
       const over = Math.max(0, z - PH / 2);
-      const y = over > 0 ? lerp(topY + 0.004, 0.0, smooth(0, 0.34, over)) + 0.002 : topY + 0.004;
+      const y = over > 0 ? lerp(topY + 0.004, 0.0, smooth(0, 0.16, over)) + 0.002 : topY + 0.004;
       for (let c = 0; c < 2; c++) {
         const k = r * 2 + c;
         pos.setXYZ(k, 0.02 + c * 0.014, y, z);

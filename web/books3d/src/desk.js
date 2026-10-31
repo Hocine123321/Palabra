@@ -32,7 +32,7 @@ function woodTextures(aniso) {
   for (let p = 0; p < planks; p++) { bg.fillStyle = 'rgba(0,0,0,0.9)'; bg.fillRect((p * W) / planks, 0, 4, H); }
   const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace;
   const bump = new THREE.CanvasTexture(b);
-  for (const t of [map, bump]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 1.6); t.anisotropy = aniso; }
+  for (const t of [map, bump]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3.4); t.anisotropy = aniso; }
   return { map, bump };
 }
 
@@ -49,8 +49,8 @@ export class Room {
     this.props = new THREE.Group();   // things that vanish in Focus Mode
     const wood = woodTextures(maxAniso);
     this.woodMat = new THREE.MeshStandardMaterial({ map: wood.map, bumpMap: wood.bump, bumpScale: 1.4, roughness: 0.62 });
-    const top = new THREE.Mesh(new RoundedBoxGeometry(12, 0.3, 9, 4, 0.06), this.woodMat);
-    top.position.set(0, -0.15, -0.6); top.receiveShadow = true; top.castShadow = true;
+    const top = new THREE.Mesh(new RoundedBoxGeometry(18, 0.3, 20, 4, 0.06), this.woodMat);
+    top.position.set(0, -0.15, -6.1); top.receiveShadow = true; top.castShadow = true;
     this.group.add(top);
 
     // Felt mat with a stitched leather edge
@@ -103,7 +103,7 @@ export class Room {
     this.bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff1c8, emissive: 0xffd48a, emissiveIntensity: 0, roughness: 0.4 });
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 16), this.bulbMat); bulb.position.set(0.98, 1.55, 0);
     lamp.add(base, stem, arm, joint, shade, bulb);
-    lamp.position.set(-1.9, 0.016, -2.3); lamp.rotation.y = 0.5;
+    lamp.position.set(-4.6, 0.016, -2.6); lamp.rotation.y = 0.5;
     lamp.userData.bulbWorld = new THREE.Vector3();
     this.lamp = lamp; this.props.add(lamp);
   }

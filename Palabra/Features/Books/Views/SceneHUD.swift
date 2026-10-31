@@ -35,7 +35,7 @@ struct SceneHUD: View {
         .animation(Motion.reduced(Motion.quick), value: state.isReading)
         .animation(Motion.reduced(Motion.quick), value: state.focus)
         .animation(Motion.reduced(Motion.quick), value: state.recall)
-        .environment(\.layoutDirection, state.isReading && state.isRightToLeft ? .rightToLeft : .leftToRight)
+        .environment(\.layoutDirection, .leftToRight)
         .overlay(alignment: .top) { noticeBanner }
     }
 
@@ -49,8 +49,11 @@ struct SceneHUD: View {
         VStack {
             HStack {
                 Text("Books")
-                    .font(.largeTitle.weight(.bold))
+                    .font(.title2.weight(.bold))
                     .foregroundStyle(Theme.accentDeep)
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .frame(height: 44)
+                    .glassCapsule()
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
                 textModeMenu
@@ -58,13 +61,13 @@ struct SceneHUD: View {
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.top, safeTop + Theme.Spacing.sm)
             Spacer()
-            VStack(spacing: Theme.Spacing.sm) {
+            HStack(spacing: Theme.Spacing.sm) {
                 ForEach(shelfBooks) { book in
                     shelfButton(book)
                 }
             }
             .padding(.horizontal, Theme.Spacing.md)
-            .padding(.bottom, Theme.Spacing.md)
+            .padding(.bottom, Theme.Spacing.sm)
         }
     }
 
@@ -81,39 +84,36 @@ struct SceneHUD: View {
         return Button {
             model.send(.openBook(id: info.id, pageID: nil))
         } label: {
-            HStack(spacing: Theme.Spacing.md) {
-                Image(systemName: info.subject == "geography" ? "globe.europe.africa" : "building.columns")
-                    .font(.title3)
-                    .foregroundStyle(Theme.accentDeep)
-                    .frame(width: 32)
-                VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                HStack(spacing: Theme.Spacing.sm) {
+                    Image(systemName: info.subject == "geography" ? "globe.europe.africa" : "building.columns")
+                        .font(.body)
+                        .foregroundStyle(Theme.accentDeep)
                     Text(verbatim: info.title)
                         .font(.headline)
                         .foregroundStyle(.primary)
-                    if info.pages == 0 {
-                        Text("No lessons yet")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("\(info.pages) pages")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                if info.pages == 0 {
+                    Text("No lessons yet")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("\(info.pages) pages")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
                 if let progress, progress.total > 0 {
                     ProgressView(value: progress.fraction)
                         .tint(Theme.accent)
-                        .frame(width: 56)
                         .accessibilityLabel(Text("\(progress.read) of \(progress.total) pages read"))
+                } else {
+                    Color.clear.frame(height: 4)
                 }
-                Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.vertical, Theme.Spacing.sm + 2)
-            .frame(minHeight: 56)
+            .padding(Theme.Spacing.md - 2)
+            .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
             .glassCard(cornerRadius: Theme.Radius.medium)
             .contentShape(Rectangle())
         }
@@ -177,14 +177,6 @@ struct SceneHUD: View {
                     model.send(.closeBook)
                 }
                 Spacer(minLength: 0)
-                Text(verbatim: state.title ?? "")
-                    .font(.headline)
-                    .lineLimit(1)
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .frame(height: 44)
-                    .glassCapsule()
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 0)
                 textSizeMenu
                 hudButton("arrow.up.left.and.arrow.down.right", label: "Focus Mode", id: "focusButton", active: false) {
                     model.send(.setFocus(true))
@@ -209,31 +201,31 @@ struct SceneHUD: View {
 
     private var bottomBar: some View {
         HStack(spacing: Theme.Spacing.xs) {
-            pageButton(next: false)
+            pageButton(next: state.isRightToLeft, onLeft: true)
             Text(verbatim: "\u{2066}\(state.page) / \(state.pageCount)\u{2069}")
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
                 .frame(minWidth: 56)
                 .accessibilityLabel(Text("Page \(state.page) of \(state.pageCount)"))
                 .accessibilityIdentifier("pageIndicator")
-            pageButton(next: true)
+            pageButton(next: !state.isRightToLeft, onLeft: false)
             if !state.focus {
-                Spacer(minLength: Theme.Spacing.xs)
+                Spacer(minLength: 0)
                 toolButton("magnifyingglass", tool: "lens", label: "Magnifying glass tool", id: "toolLens")
                 toolButton(state.bookmarkPageID == state.basePageID && state.basePageID != nil ? "bookmark.fill" : "bookmark", tool: "bookmark", label: "Bookmark", id: "toolBookmark")
                 toolButton("ruler", tool: "ruler", label: "Ruler", id: "toolRuler")
                 Button {
                     model.send(.setRecall(!state.recall))
                 } label: {
-                    Text("Memorize")
-                        .font(.subheadline.weight(.semibold))
+                    Image(systemName: "brain")
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(state.recall ? Color.white : Color.primary)
-                        .padding(.horizontal, Theme.Spacing.md)
-                        .frame(height: 44)
-                        .background(state.recall ? Theme.accent : Color.clear, in: Capsule())
-                        .contentShape(Capsule())
+                        .frame(width: 44, height: 44)
+                        .background(state.recall ? Theme.accent : Color.clear, in: Circle())
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Memorize")
                 .accessibilityAddTraits(state.recall ? .isSelected : [])
                 .accessibilityIdentifier("recallToggle")
             }
@@ -242,14 +234,13 @@ struct SceneHUD: View {
         .glassCapsule()
     }
 
-    private func pageButton(next: Bool) -> some View {
-        // "Next" points the way the book reads: right in English, left in Arabic.
-        let forward = next != state.isRightToLeft
+    /// The arrows stay where the thumbs expect them; which one is "next" follows the book (Arabic turns toward the left).
+    private func pageButton(next: Bool, onLeft: Bool) -> some View {
         let label: LocalizedStringKey = next ? "Next page" : "Previous page"
         return Button {
             model.send(next ? .next : .previous)
         } label: {
-            Image(systemName: forward ? "chevron.right" : "chevron.left")
+            Image(systemName: onLeft ? "chevron.left" : "chevron.right")
                 .font(.system(size: 18, weight: .semibold))
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())

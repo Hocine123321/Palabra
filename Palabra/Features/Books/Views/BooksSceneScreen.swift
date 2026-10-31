@@ -86,6 +86,6 @@ private struct InsetKey: Equatable {
 
     var bottomInset: Double {
         if reading { return Double(bottom) + (focus ? 76 : (recall ? 150 : 92)) }
-        return Double(bottom) + 150
+        return Double(bottom) + 120
     }
 }
