@@ -75,6 +75,7 @@ final class BooksBridgeTests: XCTestCase {
         XCTAssertEqual(SceneCommand.setTextSize(.smaller).dictionary["size"] as? Int, -1)
         XCTAssertEqual(SceneCommand.setInsets(top: 10, bottom: 20).dictionary["bottom"] as? Double, 20)
         XCTAssertEqual(SceneCommand.setAppearance(dark: true).dictionary["dark"] as? Bool, true)
+        XCTAssertEqual(SceneCommand.setQuality(.saver).dictionary["quality"] as? String, "saver")
     }
 
     func testCommandNamesMatchTheScene() throws {
@@ -83,7 +84,7 @@ final class BooksBridgeTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("web/books3d/src/app.js")
         guard let source = try? String(contentsOf: url, encoding: .utf8) else { return } // the web sources are not on the test device
-        for name in ["openBook", "closeBook", "next", "prev", "goto", "setRecall", "setLevel", "togglePageReveal", "setTool", "setFocus", "setTextSize", "setInsets", "setAppearance", "closeTerm"] {
+        for name in ["openBook", "closeBook", "next", "prev", "goto", "setRecall", "setLevel", "togglePageReveal", "setTool", "setFocus", "setTextSize", "setInsets", "setAppearance", "setQuality", "closeTerm"] {
             XCTAssertTrue(source.contains("case '\(name)'"), "the scene doesn't know \(name)")
         }
     }
@@ -113,9 +114,10 @@ final class BooksBridgeTests: XCTestCase {
         XCTAssertNotNil(lessons["lesson-empires"])
         XCTAssertNotNil(lessons["lesson-revolutions"])
         XCTAssertNil(lessons["lesson-rivers"], "a missing lesson is left out, not fatal")
-        let preferences = try XCTUnwrap(json["preferences"] as? [String: Int])
-        XCTAssertEqual(preferences["recallLevel"], 3)
-        XCTAssertEqual(preferences["textSize"], 1)
+        let preferences = try XCTUnwrap(json["preferences"] as? [String: Any])
+        XCTAssertEqual(preferences["recallLevel"] as? Int, 3)
+        XCTAssertEqual(preferences["textSize"] as? Int, 1)
+        XCTAssertEqual(preferences["sceneQuality"] as? String, "standard")
         let saved = try XCTUnwrap((json["progress"] as? [String: Any])?["history"] as? [String: Any])
         XCTAssertEqual(saved["lastPageID"] as? String, "empires/p1")
         XCTAssertEqual(saved["visitedPageIDs"] as? [String], ["empires/p1"])

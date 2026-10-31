@@ -10,12 +10,12 @@ export const FONT = 'Amiri, "Geeza Pro", "Noto Naskh Arabic", Georgia, serif';
 
 export const PALETTES = {
   history: {
-    paper: '#f3e8cd', paperShade: '#e6d5ae', ink: '#2b1d12', inkDim: '#6a5a46', accent: '#7a1f2b',
+    paper: '#f3e8cd', paperShade: '#e6d5ae', ink: '#2b1d12', inkDim: '#5b4b38', accent: '#7a1f2b',
     rule: '#b79f73', card: 'rgba(122,31,43,0.07)', cardEdge: 'rgba(122,31,43,0.35)', blot: '#34261a',
     mark: ['', 'rgba(242,184,75,0.62)', 'rgba(242,184,75,0.40)', 'rgba(242,184,75,0.22)'],
   },
   geography: {
-    paper: '#eef0e4', paperShade: '#d9e0d0', ink: '#16272a', inkDim: '#4e6360', accent: '#1f6f78',
+    paper: '#eef0e4', paperShade: '#d9e0d0', ink: '#16272a', inkDim: '#41575a', accent: '#1f6f78',
     rule: '#a9bdb4', card: 'rgba(31,111,120,0.08)', cardEdge: 'rgba(31,111,120,0.38)', blot: '#1e3a3f',
     mark: ['', 'rgba(242,184,75,0.62)', 'rgba(242,184,75,0.40)', 'rgba(242,184,75,0.22)'],
   },
@@ -529,6 +529,8 @@ export function drawPage(canvas, phys, opts) {
         g.fillStyle = col;
         const tx = ox + (rtl ? f.x + f.w : f.x);
         g.fillText(f.text, tx, base);
+        // A hair of stroke thickens Amiri's thin hairlines so small text stays legible when the page is far from the eye.
+        g.strokeStyle = col; g.lineWidth = f.font.includes('700') ? 1.1 : 1.5; g.lineJoin = 'round'; g.strokeText(f.text, tx, base);
         if (f.kind === 'term') {
           g.strokeStyle = P.accent; g.lineWidth = 3; g.setLineDash([2, 7]); g.lineCap = 'round';
           g.beginPath(); g.moveTo(ox + f.x, base + 12); g.lineTo(ox + f.x + f.w, base + 12); g.stroke(); g.setLineDash([]);
@@ -582,11 +584,13 @@ export function drawPage(canvas, phys, opts) {
   const align = rtl ? 'right' : 'left';
   const hx = rtl ? left + CONTENT_W : left;
   g.direction = rtl ? 'rtl' : 'ltr'; g.textAlign = align;
-  g.font = fontOf(30, 700); g.fillStyle = P.accent;
-  g.fillText(phys.lessonTitle, hx, MARGIN.top + 26);
+  let lessonSize = 38;
+  while (lessonSize > 26 && opts.measure(phys.lessonTitle, fontOf(lessonSize, 700)) > CONTENT_W) lessonSize -= 2;
+  g.font = fontOf(lessonSize, 700); g.fillStyle = P.accent;
+  g.fillText(phys.lessonTitle, hx, MARGIN.top + 30);
   g.font = fontOf(H.size, 700); g.fillStyle = P.ink;
   H.lines.forEach((ln, i) => g.fillText(ln, hx, H.titleY + i * H.size * 1.3));
-  if (H.dateY) { g.font = fontOf(30, 400); g.fillStyle = P.inkDim; g.fillText(phys.dateLabel, hx, H.dateY); }
+  if (H.dateY) { g.font = fontOf(36, 400); g.fillStyle = P.inkDim; g.fillText(phys.dateLabel, hx, H.dateY); }
   const ry = H.ruleY;
   const ax = rtl ? left + CONTENT_W - 120 : left;
   g.fillStyle = P.rule; g.fillRect(left, ry + 2, CONTENT_W, 2);
@@ -606,7 +610,7 @@ export function drawPage(canvas, phys, opts) {
   }
 
   // Folio (page number)
-  g.font = fontOf(34, 400); g.fillStyle = P.inkDim; g.textAlign = 'center'; g.direction = 'ltr';
+  g.font = fontOf(40, 400); g.fillStyle = P.inkDim; g.textAlign = 'center'; g.direction = 'ltr';
   g.fillText(`— ${phys.number} —`, PAGE_W / 2, PAGE_H - 62);
   return hits;
 }

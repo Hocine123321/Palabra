@@ -10,9 +10,27 @@ enum ReaderTextSize: Int, Codable, CaseIterable, Identifiable, Sendable {
     var id: Int { rawValue }
 }
 
+/// How the Books tab shows the books: the 3D desk (default) or the original flat pages.
+enum BooksViewStyle: String, Codable, CaseIterable, Identifiable, Sendable {
+    case desk
+    case classic
+
+    var id: String { rawValue }
+}
+
+/// How hard the 3D desk works: `saver` lowers the pixel density and drops shadows to spare the battery.
+enum SceneQuality: String, Codable, CaseIterable, Identifiable, Sendable {
+    case standard
+    case saver
+
+    var id: String { rawValue }
+}
+
 struct ReaderPreferences: Codable, Equatable {
     var recallLevel: RecallLevel = .essential
     var textSize: ReaderTextSize = .standard
+    var viewStyle: BooksViewStyle = .desk
+    var sceneQuality: SceneQuality = .standard
 
     init() {}
 
@@ -21,6 +39,8 @@ struct ReaderPreferences: Codable, Equatable {
         let defaults = ReaderPreferences()
         recallLevel = (try? c.decodeIfPresent(RecallLevel.self, forKey: .recallLevel)) ?? defaults.recallLevel
         textSize = (try? c.decodeIfPresent(ReaderTextSize.self, forKey: .textSize)) ?? defaults.textSize
+        viewStyle = (try? c.decodeIfPresent(BooksViewStyle.self, forKey: .viewStyle)) ?? defaults.viewStyle
+        sceneQuality = (try? c.decodeIfPresent(SceneQuality.self, forKey: .sceneQuality)) ?? defaults.sceneQuality
     }
 }
 

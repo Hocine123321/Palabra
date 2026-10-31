@@ -739,3 +739,22 @@
 "Show answers on this page" = "إظهار الإجابات في هذه الصفحة";
 "Hide answers on this page" = "إخفاء الإجابات في هذه الصفحة";
 "%lld pages" = "%lld صفحة";
+
+/* Books: settings */
+"Books Settings" = "إعدادات الكتب";
+"3D desk" = "المكتب ثلاثي الأبعاد";
+"Classic pages" = "الصفحات الكلاسيكية";
+"The books lie on a 3D desk. Turn real pages, pick up a magnifying glass, a ruler and a bookmark. Uses more battery." = "الكتب موضوعة على مكتب ثلاثي الأبعاد. اقلب صفحات حقيقية وامسك العدسة المكبّرة والمسطرة وفاصل الكتاب. يستهلك بطارية أكثر.";
+"Flat pages in a plain list, the way the Books tab used to look. Lighter on the battery." = "صفحات مسطّحة في قائمة بسيطة، كما كان تبويب الكتب سابقًا. أخفّ على البطارية.";
+"Standard" = "عادية";
+"Battery saver" = "توفير البطارية";
+"View" = "العرض";
+"Quality" = "الجودة";
+"Battery saver draws the desk with fewer pixels and no shadows." = "يرسم توفير البطارية المكتب بعدد أقل من البكسلات ودون ظلال.";
+"Reading" = "القراءة";
+"Memorize level" = "مستوى الحفظ";
+"Reading progress" = "تقدّم القراءة";
+"Reset progress: %@" = "إعادة ضبط التقدّم: %@";
+"Clears the pages marked as read and the bookmark. The lessons are not touched." = "يمسح الصفحات المعلَّمة كمقروءة وفاصل الكتاب. الدروس نفسها لا تتغيّر.";
+"Reset reading progress?" = "إعادة ضبط تقدّم القراءة؟";
+"Reset" = "إعادة ضبط";

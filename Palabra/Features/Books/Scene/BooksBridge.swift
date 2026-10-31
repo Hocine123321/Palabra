@@ -132,6 +132,7 @@ enum SceneCommand: Equatable {
     case setTextSize(ReaderTextSize)
     case setInsets(top: Double, bottom: Double)
     case setAppearance(dark: Bool)
+    case setQuality(SceneQuality)
     case closeTerm
 
     var dictionary: [String: Any] {
@@ -152,6 +153,7 @@ enum SceneCommand: Equatable {
         case .setTextSize(let size): return ["name": "setTextSize", "size": size.rawValue]
         case .setInsets(let top, let bottom): return ["name": "setInsets", "top": top, "bottom": bottom]
         case .setAppearance(let dark): return ["name": "setAppearance", "dark": dark]
+        case .setQuality(let quality): return ["name": "setQuality", "quality": quality.rawValue]
         case .closeTerm: return ["name": "closeTerm"]
         }
     }
@@ -191,7 +193,11 @@ enum BooksScenePayload {
         let payload: [String: Any] = [
             "catalogue": try JSONSerialization.jsonObject(with: catalogueData),
             "lessons": lessons,
-            "preferences": ["recallLevel": state.preferences.recallLevel.rawValue, "textSize": state.preferences.textSize.rawValue],
+            "preferences": [
+                "recallLevel": state.preferences.recallLevel.rawValue,
+                "textSize": state.preferences.textSize.rawValue,
+                "sceneQuality": state.preferences.sceneQuality.rawValue,
+            ] as [String: Any],
             "progress": progress,
             "bookmarks": bookmarks,
         ]

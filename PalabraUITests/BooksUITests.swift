@@ -31,6 +31,11 @@ final class BooksUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [wait], timeout: 5), .completed)
     }
 
+    /// "Page 1 of N" -> N, so the tests don't depend on how many pages the lesson lays out to.
+    private func pageCount(_ indicator: XCUIElement) -> Int {
+        Int(indicator.label.components(separatedBy: " ").last ?? "") ?? 0
+    }
+
     private func waitForLabel(_ element: XCUIElement, _ label: String) {
         let wait = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", label), object: element)
         XCTAssertEqual(XCTWaiter().wait(for: [wait], timeout: 10), .completed, "expected \(label), got \(element.label)")
@@ -52,12 +57,14 @@ final class BooksUITests: XCTestCase {
         let app = launch()
         openHistory(app)
         let indicator = element(app, "pageIndicator")
-        waitForLabel(indicator, "Page 1 of 7")
+        let count = pageCount(indicator)
+        XCTAssertGreaterThan(count, 1)
+        waitForLabel(indicator, "Page 1 of \(count)")
         XCTAssertFalse(app.buttons["pagePrevious"].isEnabled, "no page before the first")
         app.buttons["pageNext"].tap()
-        waitForLabel(indicator, "Page 2 of 7")
+        waitForLabel(indicator, "Page 2 of \(count)")
         app.buttons["pagePrevious"].tap()
-        waitForLabel(indicator, "Page 1 of 7")
+        waitForLabel(indicator, "Page 1 of \(count)")
     }
 
     func testFocusModeHidesTheTabBarAndExits() {
@@ -101,5 +108,23 @@ final class BooksUITests: XCTestCase {
         element(app, "readAsText").tap()
         app.buttons["التاريخ"].firstMatch.tap()
         XCTAssertTrue(element(app, "bookStart").waitForExistence(timeout: 10), "the lesson list is one tap away")
+    }
+
+    func testClassicPagesCanBeTurnedOnInSettings() {
+        let app = launch()
+        app.tabBars.buttons["Settings"].tap()
+        let link = element(app, "booksSettingsLink")
+        var scrolls = 0
+        while !link.waitForExistence(timeout: 2), scrolls < 8 { app.swipeUp(); scrolls += 1 }
+        XCTAssertTrue(link.exists, "Books Settings is in the Settings list")
+        link.tap()
+        element(app, "Classic pages").tap()
+        app.navigationBars.buttons.firstMatch.tap()
+        app.tabBars.buttons["Books"].tap()
+        let cover = element(app, "bookCover.history")
+        XCTAssertTrue(cover.waitForExistence(timeout: 10))
+        cover.tap()
+        XCTAssertTrue(element(app, "bookStart").waitForExistence(timeout: 10), "the flat shelf opens the lesson list")
+        XCTAssertFalse(element(app, "booksLoading").exists, "no 3D desk in classic mode")
     }
 }

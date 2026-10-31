@@ -13,6 +13,8 @@ final class BookShelf {
     }
 
     private(set) var library: BookLibrary
+    /// Changes whenever reading progress is cleared, so a 3D desk that is already loaded knows to start over.
+    private(set) var resetToken = 0
     var state: TextbookState { didSet { store.value = state } }
     @ObservationIgnored private let store: TextbookStateStore
     @ObservationIgnored let source: BookContentSource
@@ -73,5 +75,6 @@ final class BookShelf {
 
     func resetProgress(bookID: String) {
         state.progress[bookID] = nil
+        resetToken += 1
     }
 }

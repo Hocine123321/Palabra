@@ -174,6 +174,19 @@ struct SettingsView: View {
             }
             .themedSection()
 
+            Section("Books") {
+                NavigationLink {
+                    BooksSettingsView()
+                } label: {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "books.vertical", tint: Theme.tileTints[1], size: 30)
+                        Text("Books Settings")
+                    }
+                }
+                .accessibilityIdentifier("booksSettingsLink")
+            }
+            .themedSection()
+
             Section("Study") {
                 Stepper(value: newCardsBinding, in: 0...100, step: 5) {
                     Text("New cards per day: \(environment.newCardsPerDay)")

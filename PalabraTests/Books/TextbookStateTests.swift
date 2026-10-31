@@ -57,4 +57,18 @@ final class TextbookStateTests: XCTestCase {
         let without = try decode(#"{"progress":{"history":{"lastPageID":"a/b"}}}"#)
         XCTAssertNil(without.progress["history"]?.bookmarkPageID)
     }
+
+    func testTheDeskIsTheDefaultAndSettingsSurviveUnknownValues() throws {
+        let fresh = try decode("{}")
+        XCTAssertEqual(fresh.preferences.viewStyle, .desk)
+        XCTAssertEqual(fresh.preferences.sceneQuality, .standard)
+        let saved = try decode(#"{"preferences":{"viewStyle":"classic","sceneQuality":"saver","textSize":1}}"#)
+        XCTAssertEqual(saved.preferences.viewStyle, .classic)
+        XCTAssertEqual(saved.preferences.sceneQuality, .saver)
+        XCTAssertEqual(saved.preferences.textSize, .larger)
+        let odd = try decode(#"{"preferences":{"viewStyle":"hologram","sceneQuality":7,"textSize":1}}"#)
+        XCTAssertEqual(odd.preferences.viewStyle, .desk, "an unknown style falls back instead of losing the other settings")
+        XCTAssertEqual(odd.preferences.sceneQuality, .standard)
+        XCTAssertEqual(odd.preferences.textSize, .larger)
+    }
 }

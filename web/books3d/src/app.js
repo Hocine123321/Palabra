@@ -9,7 +9,7 @@ import { Book3D, PW, PH, COVER_T } from './book3d.js';
 import { Room } from './desk.js';
 import { Magnifier, Bookmark, Ruler } from './tools.js';
 
-const TEXT_SCALE = { '-1': 0.88, '0': 1, '1': 1.14, '2': 1.28 };
+const TEXT_SCALE = { '-1': 0.96, '0': 1.1, '1': 1.26, '2': 1.42 };
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -24,7 +24,7 @@ export class App {
       canNext: false, canPrev: false, revealed: false, problems: [],
     };
     this.recall = new RecallState(1);
-    this.insets = { top: 0, bottom: 0 };
+    this.insets = { top: 0, bottom: 0 }; this.pan = -99; this._panLimit = 0; this._pxPerZ = 1;
     this.reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     this.lowPower = /iPhone|iPad|Android/i.test(navigator.userAgent) || (navigator.hardwareConcurrency || 8) <= 4;
     this.entries = [];           // per book: {data, book3d, pages:[phys], textures, hits}
@@ -47,7 +47,7 @@ export class App {
     this.renderer = renderer;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.lowPower ? 2 : 2.5));
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+    renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.0;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
@@ -94,10 +94,10 @@ export class App {
     this.scene.background = new THREE.Color(dark ? 0x141311 : 0xe9e4d8);
     this.hemi.intensity = dark ? 0.16 : 0.42;
     this.hemi.color.set(dark ? 0x9fb0d0 : 0xfff3dd);
-    this.sun.intensity = dark ? 0.35 : 2.1; this.sun.color.set(dark ? 0x8aa0cc : 0xfff0d4);
-    this.lampLight.intensity = dark ? 55 : 0; this.lampLight.visible = dark; this.lampLight.castShadow = dark;
+    this.sun.intensity = dark ? 0.35 : 2.1; this.sun.color.set(dark ? 0x8aa0cc : 0xfff7ea);
+    this.lampLight.intensity = dark ? 34 : 0; this.lampLight.visible = dark; this.lampLight.castShadow = dark && this.quality !== 'saver';
     this.scene.environmentIntensity = dark ? 0.22 : 0.55;
-    this.renderer.toneMappingExposure = dark ? 1.15 : 0.95;
+    this.renderer.toneMappingExposure = dark ? 1.1 : 0.92;
     this.invalidate(); this.emit();
   }
 
@@ -117,6 +117,7 @@ export class App {
     this.state.level = this.recall.level;
     this.progress = payload.progress || {};
     this.bookmarks = payload.bookmarks || {};
+    if (payload.preferences && payload.preferences.sceneQuality) this.setQuality(payload.preferences.sceneQuality);
     this._rebuild();
     this.state.loading = false; this.state.ready = true;
     this._menuLayout(false);
@@ -219,8 +220,14 @@ export class App {
 
   // -------------------------------------------------------------------------------------------
   // Menu
+  _isWide() { return this.size.w / this.size.h > 1.15; }
+
   _menuLayout() {
-    const slots = [
+    const wide = this._menuWide = this._isWide();
+    const slots = wide ? [
+      { x: -0.82, z: 0.1, ry: 0.12 },   // first book: left
+      { x: 0.86, z: -0.05, ry: -0.1 },  // second book: right
+    ] : [
       { x: -0.2, z: 0.85, ry: 0.10 },   // first book: near
       { x: 0.25, z: -1.05, ry: -0.08 }, // second book: behind
     ];
@@ -263,7 +270,7 @@ export class App {
   }
 
   frameMenu(animate = true) {
-    const t = this._frameRect(0.0, -0.1, 1.55, 1.95, 56);
+    const t = this._isWide() ? this._frameRect(0.0, 0.05, 2.1, 1.2, 52) : this._frameRect(0.0, -0.1, 1.55, 1.95, 56);
     this.moveCamera(t, animate ? 1.1 : 0);
   }
 
@@ -271,12 +278,26 @@ export class App {
     const e = this.cur; const rtlSign = e.data.rtl ? -1 : 1;
     const onRight = i % 2 === 0;
     const cx = rtlSign * (onRight ? PW / 2 : -PW / 2);
-    const aspect = this.size.w / this.size.h;
-    const spread = aspect > 1.15;
     const y = e.book.surfaceY(onRight ? 1 : -1);
-    if (spread) return this._frameRect(0, 0, PW + 0.06, PH / 2 + 0.05, focus ? 66 : 58, y);
+    const pitch = focus ? 66 : 58;
+    if (this._isWide()) {
+      // Landscape is short, so a whole page would be tiny: fill about half the width with the page (the neighbouring page
+      // stays visible beside it) and let the reader scroll down it.
+      const frac = focus ? 0.56 : 0.5;
+      const hw = (PW / 2 + 0.03) / frac;
+      const t0 = this._frameRect(cx, 0, hw, 0.05, pitch, y);
+      const fov = THREE.MathUtils.degToRad(this.fov);
+      const usable = clamp(1 - (this.insets.top + this.insets.bottom) / this.size.h, 0.35, 1);
+      const d = t0.pos.distanceTo(t0.look);
+      const halfZ = (d * Math.tan(fov / 2) * usable) / Math.sin(THREE.MathUtils.degToRad(pitch));
+      this._panLimit = Math.max(0, PH / 2 - halfZ + 0.06);
+      this._pxPerZ = (this.size.h * usable) / (2 * halfZ);
+      this.pan = clamp(this.pan, -this._panLimit, this._panLimit);
+      return this._frameRect(cx, this.pan, hw, 0.05, pitch, y);
+    }
+    this._panLimit = 0; this.pan = 0;
     const fit = focus ? 0.5 * 1.02 : 0.5 * 1.1;
-    return this._frameRect(cx, 0, fit, PH / 2 + 0.02, focus ? 68 : 58, y);
+    return this._frameRect(cx, 0, fit, PH / 2 + 0.02, pitch, y);
   }
 
   moveCamera(target, duration = 0.9) {
@@ -305,8 +326,20 @@ export class App {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
     if (this.state.mode === 'reading' && this.cur) this.moveCamera(this._readTarget(this.state.page), 0);
-    else if (this.state.mode === 'menu') this.frameMenu(false);
+    else if (this.state.mode === 'menu') { if (this._isWide() !== this._menuWide) this._menuLayout(); this.frameMenu(false); }
     this._applyCamera();
+  }
+
+  /** 'standard' or 'saver' (lower pixel density, no shadows: easier on the battery). */
+  setQuality(q) {
+    this.quality = q === 'saver' ? 'saver' : 'standard';
+    const saver = this.quality === 'saver';
+    this.renderer.setPixelRatio(saver ? 1.25 : Math.min(window.devicePixelRatio || 1, this.lowPower ? 2 : 2.5));
+    this.renderer.shadowMap.enabled = !saver;
+    this.sun.castShadow = !saver;
+    if (saver) this.lampLight.castShadow = false; else this.lampLight.castShadow = !!this.state.dark;
+    this.scene.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); });
+    this.resize(); this.invalidate();
   }
 
   setInsets(top, bottom) {
@@ -406,7 +439,7 @@ export class App {
     const curF = e.book.leaves.filter((l) => l.p >= 0.5).length;
     const dir = wantF > curF ? 1 : -1;
     const diff = Math.abs(wantF - curF);
-    this.state.page = target;
+    this.state.page = target; this.pan = -99;
     this._ensureTextures(e, target);
     if (diff > 0) {
       const stagger = Math.min(0.1, 0.55 / Math.max(1, diff));
@@ -642,6 +675,7 @@ export class App {
     c.addEventListener('pointerdown', (e) => { c.setPointerCapture(e.pointerId); move(e); this._down(e); });
     c.addEventListener('pointermove', (e) => { move(e); this._move(e); });
     c.addEventListener('pointerup', (e) => { move(e); this._up(e); });
+    c.addEventListener('wheel', (e) => { if (this._panLimit > 0 && this.state.mode === 'reading') { e.preventDefault(); this._panBy(this.pan + e.deltaY / (this._pxPerZ || 1)); } }, { passive: false });
     c.addEventListener('pointercancel', (e) => { this._cancel(e); });
     c.addEventListener('pointerleave', () => { this.pointer.inside = false; this._hover(null); });
     c.addEventListener('keydown', (e) => this._key(e)); c.tabIndex = 0;
@@ -728,10 +762,18 @@ export class App {
     if (d.mode === 'lens') { this._moveLens(d.touch); return; }
     if (d.mode === 'ruler') { this._moveRuler(); return; }
     if (d.mode === 'turn') { this._dragTurn(); return; }
+    if (d.mode === 'pan') { this._panBy(d.pan0 - dy / (this._pxPerZ || 1)); return; }
     if (d.moved && !d.mode && !d.tool) {
       const horizontal = Math.abs(dx) > Math.abs(dy) * 1.1;
+      if (!d.edge && !horizontal && this._panLimit > 0 && this.state.tool !== 'lens') { d.mode = 'pan'; d.pan0 = this.pan; return; }
       if (d.edge || (horizontal && this.state.tool !== 'lens')) this._beginTurn(dx);
     }
+  }
+
+  _panBy(z) {
+    if (!this.cur || this.state.mode !== 'reading') return;
+    this.pan = clamp(z, -this._panLimit, this._panLimit);
+    this.moveCamera(this._readTarget(this.state.page), 0);
   }
 
   _hoverMove(ev) {
@@ -905,6 +947,7 @@ export class App {
       case 'setTextSize': this.setTextSize(c.size); break;
       case 'setInsets': this.setInsets(c.top, c.bottom); break;
       case 'setAppearance': this.setAppearance(!!c.dark); break;
+      case 'setQuality': this.setQuality(c.quality); break;
       case 'closeTerm': this._closeTerm(); break;
       case 'hoverBook': break;
       default: break;

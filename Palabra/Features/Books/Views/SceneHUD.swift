@@ -6,8 +6,6 @@ import SwiftUI
 struct SceneHUD: View {
     let model: BooksSceneModel
     @Binding var path: [BooksRoute]
-    let safeTop: CGFloat
-    let safeBottom: CGFloat
 
     @Environment(AppEnvironment.self) private var environment
 
@@ -25,8 +23,9 @@ struct SceneHUD: View {
                     Spacer()
                     TermCard(term: term) { model.closeTerm() }
                         .environment(\.bookPalette, palette)
+                        .frame(maxWidth: 560)
                         .padding(.horizontal, Theme.Spacing.md)
-                        .padding(.bottom, Double(safeBottom) + (state.focus ? 84 : 160))
+                        .padding(.bottom, state.focus ? 76 : (state.recall ? 150 : 90))
                         .transition(.opacity)
                 }
             }
@@ -59,13 +58,14 @@ struct SceneHUD: View {
                 textModeMenu
             }
             .padding(.horizontal, Theme.Spacing.md)
-            .padding(.top, safeTop + Theme.Spacing.sm)
+            .padding(.top, Theme.Spacing.sm)
             Spacer()
             HStack(spacing: Theme.Spacing.sm) {
                 ForEach(shelfBooks) { book in
                     shelfButton(book)
                 }
             }
+            .frame(maxWidth: 560)
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.bottom, Theme.Spacing.sm)
         }
@@ -143,14 +143,15 @@ struct SceneHUD: View {
         VStack(spacing: 0) {
             topBar
                 .padding(.horizontal, Theme.Spacing.md)
-                .padding(.top, safeTop + Theme.Spacing.xs)
+                .padding(.top, Theme.Spacing.xs)
             Spacer()
             VStack(spacing: Theme.Spacing.sm) {
                 if state.recall && !state.focus { recallBar }
                 bottomBar
             }
+            .frame(maxWidth: 560)
             .padding(.horizontal, Theme.Spacing.md)
-            .padding(.bottom, max(safeBottom, Theme.Spacing.md))
+            .padding(.bottom, Theme.Spacing.sm)
         }
     }
 
@@ -306,7 +307,7 @@ struct SceneHUD: View {
                 .padding(.horizontal, Theme.Spacing.md)
                 .padding(.vertical, Theme.Spacing.sm)
                 .glassCapsule()
-                .padding(.top, safeTop + 64)
+                .padding(.top, 64)
                 .transition(.opacity)
                 .task {
                     try? await Task.sleep(nanoseconds: 2_200_000_000)

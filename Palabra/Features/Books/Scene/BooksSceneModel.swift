@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// Connects the 3D scene to the rest of the app: keeps the scene's state for the HUD, saves what the scene reports into the
 /// `BookShelf`, and sends the scene commands. The web view itself only provides `run` (evaluate a line of JavaScript).
@@ -18,6 +19,8 @@ final class BooksSceneModel {
     @ObservationIgnored var run: ((String) -> Void)?
     @ObservationIgnored private var queued: [SceneCommand] = []
     @ObservationIgnored private var started = false
+    @ObservationIgnored private let selection = UISelectionFeedbackGenerator()
+    @ObservationIgnored private let impact = UIImpactFeedbackGenerator(style: .light)
 
     init(shelf: BookShelf) {
         self.shelf = shelf
@@ -63,6 +66,9 @@ final class BooksSceneModel {
             queued = []
             waiting.forEach { run?($0.javaScript) }
         case .state(let next):
+            // A small tick when the page or the tool in hand changes, the way a real page would click into place.
+            if next.isReading, state.isReading, next.basePageID != state.basePageID || next.page != state.page { selection.selectionChanged() }
+            if next.tool != state.tool, next.tool != nil { impact.impactOccurred() }
             state = next
             if !next.isReading { activeTerm = nil }
         case .visit(let bookID, let pageID):

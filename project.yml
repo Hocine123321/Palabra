@@ -28,6 +28,8 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         ITSAppUsesNonExemptEncryption: false
         NSCameraUsageDescription: Palabra uses the camera to read a math problem from a photo. The photo is read by Gemini with your own API key; with no key it is read on your device.
         NSMicrophoneUsageDescription: Palabra listens when you answer a speaking question in an exam. Nothing is recorded or kept.

@@ -39,7 +39,17 @@ from the same JSON the app validates.
 - **Read as text**: a plain SwiftUI reader (`BookDetailView`, `BookReaderView`) is one tap away (the button at the top of the
   desk) and is what shows if the 3D view can't start (no WebGL, web content process killed).
 
-The app target is iPhone-only and portrait-only (`project.yml`).
+The app target is iPhone-only and rotates (portrait and both landscapes, `project.yml`). In landscape the camera fills about
+half the width with the current page (the neighbouring page stays visible beside it) and a vertical drag (or the mouse wheel)
+scrolls down the page, so text stays as large as in portrait.
+
+## Settings (Settings > Books > Books Settings)
+
+- **View**: *3D desk* (default) or *Classic pages* (the original flat shelf, detail page and reader; `BookshelfView`). The
+  choice is saved in `TextbookState.preferences.viewStyle`.
+- **3D desk quality**: *Standard* or *Battery saver* (lower pixel density, no shadows). Sent to the scene as `setQuality`.
+- **Reading**: text size and Memorize level (the same values the reader's own controls change).
+- **Reading progress**: reset a book's read pages and bookmark. Lessons are never touched.
 
 ## The bridge (Swift <-> scene)
 
@@ -67,7 +77,9 @@ npm run build   # rewrites Palabra/Resources/Books3D/books3d.html (single file, 
 ```
 
 CI (`scene` job) runs the tests, rebuilds, and fails when the committed bundle differs from what the sources produce.
-`web/books3d/dev/` has a standalone harness for looking at a rendered page without the app.
+`web/books3d/dev/` has a standalone harness for looking at a rendered page without the app. `npm run preview` writes
+`web/books3d/dist/palabra-desk.html`: the scene plus the bundled lessons and a browser version of the controls, one file you can open
+in any browser (then run `npm run build` again so the app bundle is the one committed).
 
 ## Where things live
 

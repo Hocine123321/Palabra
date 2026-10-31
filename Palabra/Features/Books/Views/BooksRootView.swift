@@ -6,15 +6,25 @@ enum BooksRoute: Hashable {
     case reader(bookID: String, pageID: String?)
 }
 
-/// The Books tab: its own navigation stack, independent of the Spanish `Router`. The root is the 3D desk; the text reader and
-/// the lesson list stay behind "Read as text" (and are what shows if the 3D view can't start).
+/// The Books tab: its own navigation stack, independent of the Spanish `Router`. The root is the 3D desk by default; the
+/// classic flat shelf is an option in Settings (and is what shows if the 3D view can't start). The text reader and the
+/// lesson list stay behind "Read as text" on the desk.
 struct BooksRootView: View {
+    @Environment(AppEnvironment.self) private var environment
     @State private var path: [BooksRoute] = []
 
     var body: some View {
         NavigationStack(path: $path) {
-            BooksSceneScreen(path: $path)
-                .navigationDestination(for: BooksRoute.self) { route in
+            Group {
+                switch environment.books.preferences.viewStyle {
+                case .desk:
+                    BooksSceneScreen(path: $path)
+                        .id(environment.books.resetToken)
+                case .classic:
+                    BookshelfView()
+                }
+            }
+            .navigationDestination(for: BooksRoute.self) { route in
                     switch route {
                     case .book(let id):
                         BookDetailView(bookID: id)

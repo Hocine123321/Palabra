@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "preview": "node scripts/preview.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.0",
