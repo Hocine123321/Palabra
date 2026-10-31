@@ -170,16 +170,16 @@ struct SceneHUD: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("focusExit")
                 Spacer()
-                hudButton(state.recall ? "magnifyingglass.circle.fill" : "magnifyingglass", label: "Magnifying Glass", id: "recallToggleFocus", active: state.recall) {
+                hudControl(state.recall ? "magnifyingglass.circle.fill" : "magnifyingglass", label: "Magnifying Glass", id: "recallToggleFocus", active: state.recall) {
                     model.send(.setRecall(!state.recall))
                 }
             } else {
-                hudButton("chevron.backward", label: "Back to the shelf", id: "bookBack", active: false) {
+                hudControl("chevron.backward", label: "Back to the shelf", id: "bookBack", active: false) {
                     model.send(.closeBook)
                 }
                 Spacer(minLength: 0)
                 textSizeMenu
-                hudButton("arrow.up.left.and.arrow.down.right", label: "Focus Mode", id: "focusButton", active: false) {
+                hudControl("arrow.up.left.and.arrow.down.right", label: "Focus Mode", id: "focusButton", active: false) {
                     model.send(.setFocus(true))
                 }
             }
@@ -202,19 +202,19 @@ struct SceneHUD: View {
 
     private var bottomBar: some View {
         HStack(spacing: Theme.Spacing.xs) {
-            pageButton(next: state.isRightToLeft, onLeft: true)
+            pageControl(next: state.isRightToLeft, onLeft: true)
             Text(verbatim: "\u{2066}\(state.page) / \(state.pageCount)\u{2069}")
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
                 .frame(minWidth: 56)
                 .accessibilityLabel(Text("Page \(state.page) of \(state.pageCount)"))
                 .accessibilityIdentifier("pageIndicator")
-            pageButton(next: !state.isRightToLeft, onLeft: false)
+            pageControl(next: !state.isRightToLeft, onLeft: false)
             if !state.focus {
                 Spacer(minLength: 0)
-                toolButton("magnifyingglass", tool: "lens", label: "Magnifying glass tool", id: "toolLens")
-                toolButton(state.bookmarkPageID == state.basePageID && state.basePageID != nil ? "bookmark.fill" : "bookmark", tool: "bookmark", label: "Bookmark", id: "toolBookmark")
-                toolButton("ruler", tool: "ruler", label: "Ruler", id: "toolRuler")
+                toolControl("magnifyingglass", tool: "lens", label: "Magnifying glass tool", id: "toolLens")
+                toolControl(state.bookmarkPageID == state.basePageID && state.basePageID != nil ? "bookmark.fill" : "bookmark", tool: "bookmark", label: "Bookmark", id: "toolBookmark")
+                toolControl("ruler", tool: "ruler", label: "Ruler", id: "toolRuler")
                 Button {
                     model.send(.setRecall(!state.recall))
                 } label: {
@@ -236,7 +236,7 @@ struct SceneHUD: View {
     }
 
     /// The arrows stay where the thumbs expect them; which one is "next" follows the book (Arabic turns toward the left).
-    private func pageButton(next: Bool, onLeft: Bool) -> some View {
+    private func pageControl(next: Bool, onLeft: Bool) -> some View {
         let label: LocalizedStringKey = next ? "Next page" : "Previous page"
         return Button {
             model.send(next ? .next : .previous)
@@ -252,7 +252,7 @@ struct SceneHUD: View {
         .accessibilityIdentifier(next ? "pageNext" : "pagePrevious")
     }
 
-    private func toolButton(_ symbol: String, tool: String, label: LocalizedStringKey, id: String) -> some View {
+    private func toolControl(_ symbol: String, tool: String, label: LocalizedStringKey, id: String) -> some View {
         let active = state.tool == tool
         return Button {
             model.send(.setTool(tool))
@@ -326,7 +326,7 @@ struct SceneHUD: View {
             .contentShape(Circle())
     }
 
-    private func hudButton(_ symbol: String, label: LocalizedStringKey, id: String, active: Bool, action: @escaping () -> Void) -> some View {
+    private func hudControl(_ symbol: String, label: LocalizedStringKey, id: String, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) { hudIcon(symbol, active: active) }
             .buttonStyle(.plain)
             .accessibilityLabel(label)

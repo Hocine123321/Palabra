@@ -9,7 +9,8 @@ final class BookLibraryTests: XCTestCase {
 
     func testBooksChaptersAndPagesAreResolvedInOrder() throws {
         let library = library()
-        XCTAssertEqual(library.problems, [])
+        // The only complaint is the fixture's deliberate unknown "hologram" block; the lesson itself still loads.
+        XCTAssertEqual(library.problems, ["geography/rivers: page p1, block 5: unknown block type \"hologram\""])
         let history = try XCTUnwrap(library.book(id: "history"))
         XCTAssertEqual(history.subject, .history)
         XCTAssertEqual(history.lessonCount, 2)

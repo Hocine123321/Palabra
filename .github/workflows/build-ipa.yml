@@ -82,6 +82,8 @@ jobs:
 
   tests:
     runs-on: macos-26
+    permissions:
+      contents: write   # to publish the Books tour recording on the ci-recordings branch
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
@@ -158,7 +160,7 @@ jobs:
         run: |
           xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
             -destination "id=${{ steps.sim.outputs.udid }}" \
-            -only-testing:PalabraUITests -resultBundlePath build/ui.xcresult \
+            -only-testing:PalabraUITests -skip-testing:PalabraUITests/BooksTourUITests -resultBundlePath build/ui.xcresult \
             | tee build/ui.log | tail -n 80
       - name: UI test summary
         if: always()
@@ -186,6 +188,49 @@ jobs:
                   chunk = chunk.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                   print('::notice title=UI failure detail %d::%s' % (shown, chunk))
           PY
+      - name: Books tour (recorded)
+        # A scripted walk through the Books tab with the simulator screen recorded. Evidence, not a gate: it never fails the run.
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          TEST_RUNNER_TOUR_DIR: ${{ github.workspace }}/build/tour
+        run: |
+          set +e +o pipefail
+          mkdir -p build/tour
+          UDID="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$UDID" 2>/dev/null
+          xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force build/tour/tour.mp4 > build/rec.log 2>&1 &
+          REC=$!
+          sleep 3
+          xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
+            -destination "id=$UDID" \
+            -only-testing:PalabraUITests/BooksTourUITests -resultBundlePath build/tour.xcresult \
+            > build/tour.log 2>&1
+          echo "xcodebuild exit code: $?" > build/tour/result.txt
+          sleep 2
+          kill -INT $REC 2>/dev/null
+          wait $REC 2>/dev/null
+          grep -v 'CoreData:' build/tour.log | tail -n 120 > build/tour/xcodebuild-tail.log
+          ls -la build/tour | head -60
+          exit 0
+      - name: Publish the tour
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d build/tour ] || exit 0
+          cd build/tour
+          printf 'commit %s\nrun %s\n' "${{ github.sha }}" "${{ github.run_id }}" > meta.txt
+          git init -q -b ci-recordings
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -qm "Books tour: run ${{ github.run_id }}, commit ${{ github.sha }}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-recordings 2>&1 | tail -3
       - name: Export UI screenshots
         if: always()
         continue-on-error: true

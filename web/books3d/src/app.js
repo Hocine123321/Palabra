@@ -374,7 +374,7 @@ export class App {
     this.tweens.add({
       duration: 1.15, delay: 0.55, ease: ease.inOut,
       onUpdate: (t) => { entry.book.setCoverOpen(t); this.invalidate(); },
-      onDone: () => { this.state.mode = 'reading'; this.state.page = startPage; this._afterNavigate(true); },
+      onDone: () => { this.state.mode = 'reading'; this.state.page = startPage; this._afterNavigate(true); if (this._closeAfterOpen) { this._closeAfterOpen = false; this.closeBook(); } },
     });
     this.moveCameraDelayed(this._readTarget(startPage, false), 0.55, 1.2);
     this.emit();
@@ -383,6 +383,8 @@ export class App {
   moveCameraDelayed(target, delay, duration) { this.tweens.add({ duration: 0.0001, delay, onUpdate: () => {}, onDone: () => this.moveCamera(target, duration) }); }
 
   closeBook() {
+    // Back pressed while the cover is still opening: close as soon as it has finished opening.
+    if (this.state.mode === 'opening') { this._closeAfterOpen = true; return; }
     if (this.state.mode !== 'reading' || !this.cur) return;
     const entry = this.cur;
     this._returnTools();

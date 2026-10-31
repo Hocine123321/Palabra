@@ -36,6 +36,11 @@ final class BooksUITests: XCTestCase {
         Int(indicator.label.components(separatedBy: " ").last ?? "") ?? 0
     }
 
+    private func waitForSelected(_ element: XCUIElement, _ selected: Bool, _ message: String) {
+        let wait = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isSelected == %@", NSNumber(value: selected)), object: element)
+        XCTAssertEqual(XCTWaiter().wait(for: [wait], timeout: 10), .completed, message)
+    }
+
     private func waitForLabel(_ element: XCUIElement, _ label: String) {
         let wait = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", label), object: element)
         XCTAssertEqual(XCTWaiter().wait(for: [wait], timeout: 10), .completed, "expected \(label), got \(element.label)")
@@ -85,9 +90,9 @@ final class BooksUITests: XCTestCase {
         XCTAssertTrue(element(app, "recallLevel").waitForExistence(timeout: 5))
         XCTAssertTrue(element(app, "recallReveal").exists)
         app.buttons["toolLens"].tap()
-        XCTAssertTrue(app.buttons["toolLens"].isSelected, "the magnifying glass is in use")
+        waitForSelected(app.buttons["toolLens"], true, "the magnifying glass is in use")
         app.buttons["toolLens"].tap()
-        XCTAssertFalse(app.buttons["toolLens"].isSelected, "tapping again puts it back on the desk")
+        waitForSelected(app.buttons["toolLens"], false, "tapping again puts it back on the desk")
         element(app, "recallToggle").tap()
         XCTAssertFalse(element(app, "recallLevel").exists, "turning the mode off removes its controls")
     }
