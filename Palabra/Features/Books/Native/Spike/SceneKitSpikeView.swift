@@ -20,13 +20,13 @@ struct SceneKitSpikeView: UIViewRepresentable {
 
     private static func makeScene() -> SCNScene {
         let scene = SCNScene()
-        scene.background.contents = UIColor(white: 0.9, alpha: 1)
+        scene.background.contents = UIColor(red: 0.12, green: 0.14, blue: 0.2, alpha: 1)
 
         let floor = SCNFloor()
         floor.reflectivity = 0
         let floorMaterial = SCNMaterial()
         floorMaterial.lightingModel = .physicallyBased
-        floorMaterial.diffuse.contents = UIColor(white: 0.85, alpha: 1)
+        floorMaterial.diffuse.contents = UIColor(white: 0.55, alpha: 1)
         floorMaterial.roughness.contents = 0.9
         floorMaterial.metalness.contents = 0.0
         floor.materials = [floorMaterial]
@@ -48,20 +48,23 @@ struct SceneKitSpikeView: UIViewRepresentable {
 
         let sun = SCNLight()
         sun.type = .directional
-        sun.intensity = 1600
+        sun.intensity = 900
         sun.castsShadow = true
-        sun.shadowMode = .deferred
+        // `-SpikeForward` tests forward shadows (what spot lights and some setups need); the default is deferred.
+        sun.shadowMode = ProcessInfo.processInfo.arguments.contains("-SpikeForward") ? .forward : .deferred
         sun.shadowRadius = 4
         sun.shadowSampleCount = 8
         sun.shadowColor = UIColor(white: 0, alpha: 0.5)
         let sunNode = SCNNode()
         sunNode.light = sun
-        sunNode.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 5, 0)
+        // Up and to the left-behind, so the shadow falls to the right and toward the viewer, in plain sight.
+        sunNode.position = SCNVector3(-3, 5, -1)
+        sunNode.constraints = [SCNLookAtConstraint(target: boxNode)]
         scene.rootNode.addChildNode(sunNode)
 
         let ambient = SCNLight()
         ambient.type = .ambient
-        ambient.intensity = 300
+        ambient.intensity = 250
         let ambientNode = SCNNode()
         ambientNode.light = ambient
         scene.rootNode.addChildNode(ambientNode)

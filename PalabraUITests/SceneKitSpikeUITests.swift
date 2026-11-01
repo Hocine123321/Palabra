@@ -5,17 +5,23 @@ import UIKit
 /// run; start it with the workflow's review job (`review_test=PalabraUITests/SceneKitSpikeUITests`).
 final class SceneKitSpikeUITests: XCTestCase {
     func testRenders() throws {
+        try render(variant: "deferred", extra: [])
+        try render(variant: "forward", extra: ["-SpikeForward"])
+    }
+
+    private func render(variant: String, extra: [String]) throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-UITestStub", "-UITestSceneKitSpike"]
+        app.launchArguments = ["-UITestStub", "-UITestSceneKitSpike"] + extra
         app.launch()
+        defer { app.terminate() }
         let spike = app.descendants(matching: .any).matching(identifier: "sceneKitSpike").firstMatch
         XCTAssertTrue(spike.waitForExistence(timeout: 15), "the spike view did not appear")
         Thread.sleep(forTimeInterval: 2)
         let first = XCUIScreen.main.screenshot()
         Thread.sleep(forTimeInterval: 0.9)
         let second = XCUIScreen.main.screenshot()
-        save(first, name: "spike-a")
-        save(second, name: "spike-b")
+        save(first, name: "spike-\(variant)-a")
+        save(second, name: "spike-\(variant)-b")
         XCTAssertNotEqual(first.pngRepresentation, second.pngRepresentation, "nothing moved: the shader modifier or the view is not running")
         let stats = luminanceStats(first.image)
         XCTAssertGreaterThan(stats.spread, 0.05, "the frame is flat (black or one colour): SceneKit probably did not draw")
