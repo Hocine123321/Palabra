@@ -26,9 +26,13 @@ web-view performance and more can be added to it later. The rebuilt scene must l
 7. **Immersion and detail beyond the web scene**, added only after parity is accepted, in a separate tier (see "Enhancement
    tier"). Parity comes first so the owner can tell a regression from a deliberate change.
 
+8. **Free view.** The person can move the camera with their fingers: pinch to zoom out and in smoothly, drag to move the view
+   (for example when the book sits low behind the controls), in the menu and while reading. It is an option in Books Settings
+   and part of parity sign-off, not the later tier (see "Free view").
+
 ## Non-goals
 
-- No new lesson block types, no lesson format change, no scene features outside the Enhancement tier below.
+- No new lesson block types, no lesson format change, no scene features outside Free view and the Enhancement tier below.
 - No change to Classic pages (`BookshelfView` and the reader), which stay the fallback.
 - No AI, OCR or upload in Books (existing rule).
 
@@ -160,7 +164,8 @@ could not start", and still drops the screen to the Classic shelf.
 2. Fonts (with the glyph-coverage test), `PageRenderer`, `CoverArt` (bitmaps visible in a debug waypoint).
 3. Scene shell: `SCNView` host, desk, books closed, camera, menu, tap to open, cover opening.
 4. Reading: leaves, page turns (buttons, then drag), textures window, resume, text size relayout.
-5. Tools, Focus, Memorize, definitions, bookmark, landscape pan.
+5. Tools, Focus, Memorize, definitions, bookmark, landscape pan, and Free view (the `FreeView` maths and its tests can start
+   at step 1, the gesture layer joins here).
 6. Lighting, shadows, environment, tone pass; tune against the baseline screenshots; dark mode lamp.
 7. Make the native scene the default (the engine switch below flips); update tests and docs. The web scene is removed only
    after the owner accepts (see Cleanup).
@@ -172,6 +177,45 @@ Engine switch while both exist: from step 3 on, Books Settings has a temporary "
 saved next to the other Books preferences, so the owner can compare on a device (launch arguments do not work in an installed
 build). It defaults to Original until step 7, then to Native, and is deleted in Cleanup. The screenshot test picks the engine
 through a debug launch argument. The `scene` CI job stays until Cleanup.
+
+### Free view (move, zoom out, zoom in)
+
+A layer on top of the framed camera, not a replacement for it. The scripted framing (menu, cover, page, Focus, landscape
+half-page) still decides the base pose and all its flights; the person's view is an offset applied after it: a zoom factor
+and a pan, kept in `FreeView` (pure Swift, unit-tested; no SceneKit types).
+
+- **Gestures.** Pinch zooms about the point between the fingers (that point on the desk/page stays under the fingers).
+  Two-finger drag pans at any time. When zoomed in (above 1.05x), a one-finger drag on the page also pans, except a drag that
+  starts on the outer 22% edge of a page (which still grabs the leaf to turn it) and except while the lens or ruler is held.
+  Swipe-to-turn from the page body is therefore off while zoomed in; the arrows, edge drag and VoiceOver actions still turn
+  pages. At 1x or below everything behaves as in the web scene (including the landscape one-finger vertical pan, which
+  becomes the same pan with the same limits). Tapping terms, recall blots, books and tools works at any zoom because picking
+  is done on rays.
+- **Range.** 0.55x (the whole desk or both pages with room around them) to 3x in the reading pose and 2.5x in the menu. A
+  rubber-band resists past either limit and eases back. Pan is clamped so the book, or in reading the current page, can never
+  be fully pushed off screen (at least 30% of it stays inside the area not covered by the controls).
+- **Smoothness.** Targets move through a critically damped spring (about 0.18 s), so pinching and dragging feel direct but
+  never jump; releasing a pan or a fast pinch continues with inertia (deceleration like a scroll view). Reduce Motion: no
+  spring, no inertia, the view follows the fingers exactly.
+- **Resetting.** A double tap on the page or desk body (not on a term, blot, book or tool) animates back to the framed pose. A
+  small round "Recenter view" HUD button (`viewReset`) appears whenever the view is off its framed pose and goes away when it is
+  reset. Closing a book, opening another, and changing text size reset the view. Turning a page keeps the zoom but re-centres
+  the pan on the new page, so a zoomed-in reader keeps reading at the same size.
+- **Interaction with the rest.** The camera inset shift for the controls is applied before the offset, so "a little bit down"
+  is fixable by one drag. Focus Mode, tools and Memorize work unchanged; the lens and ruler follow the finger in world space
+  and ignore the zoom. The `-1..2` text size and the camera tween code do not know about the offset.
+- **Readability.** The current page's high-density bitmap is chosen by on-screen size, not a fixed 1.5x: up to 2.5x
+  (2560x3640) when zoomed in, capped by the memory budget, redrawn once the zoom settles and swapped in without a pop; texture
+  filtering is trilinear with maximum anisotropy so zooming out stays clean. Effects that blur (depth of field) are off whenever
+  the person has moved the view.
+- **Option.** Books Settings, View section: "Free view" switch, on by default, saved as `TextbookState.preferences.freeView`
+  (tolerant decoder; a missing value means on). Off disables the gestures and hides the recenter button; the framed camera is
+  then exactly the web scene's. Sent to the scene as `SceneCommand.setFreeView(Bool)`; state exposes `viewOffset` (moved or
+  not) so the HUD can show the recenter button.
+- **Tests.** Unit tests for the maths: zoom clamp and rubber band, focal-point invariance (the world point under the pinch
+  centre is the same before and after), pan clamp for several insets, inertia decay, reset. UI tests use the XCUITest `pinch` and
+  `swipe` to zoom and pan, check `pageIndicator` is unchanged, `viewReset` appears and disappears, and add zoomed-in and
+  zoomed-out waypoints to the screenshot set (with the readability measurements on the zoomed-in crop).
 
 ### Readability (applies to parity and to every enhancement)
 
@@ -244,8 +288,13 @@ code; keep the Classic shelf. Rewrite the Books sections of `AGENTS.md` (rules 1
 - Step 0 is a rendering feasibility spike; SceneKit on the CI simulator is unconfirmed.
 - Owner asked for "as immersive and detailed" plus essential readability: parity is built first, the enhancements follow as a
   separate tier, and readability has measurable gates. Where immersion and readability conflict, readability wins.
-- Higher-density redraw of the current page, eased gutter dip while reading, VoiceOver page text, and pan inertia are
-  deliberate differences from the web scene made for readability; they are the only changes allowed before parity sign-off.
+- Higher-density redraw of the current page, eased gutter dip while reading, VoiceOver page text, pan inertia and Free view
+  (pinch, drag, recenter, setting) are deliberate differences from the web scene; they are the only changes allowed before
+  parity sign-off.
+- Free view is on by default, with the Settings switch as the option you asked for; the zoom range, the one-finger pan rule while
+  zoomed in, double-tap to reset and the recenter button are my choices.
+- While zoomed in, swiping the page body does not turn pages (it pans); edge drag and arrows still turn. Say if you would
+  rather keep swipe-to-turn and use only two fingers to pan.
 - No sound effects (cannot be auditioned here); haptics only.
 - Work is verified on a separate branch (`native-books`) pushed with the provided token and run through CI by manual
   dispatch; `main` is not touched and nothing is merged. The result is delivered as a zip.
