@@ -80,8 +80,7 @@ jobs:
         working-directory: .
         run: git diff --exit-code -- Palabra/Resources/Books3D/books3d.html
 
-  # One job, one build. The default run is every unit test plus a short UI smoke set (launch, persistence, and the whole Books
-  # reading flow). The full UI suite (about 30 launches, ~20 min) runs only on request: start the workflow by hand, or put
+  # One job, one build. The default run is every unit test plus a short UI smoke set (launch and persistence; [books] adds the 3D Books reading flow). The full UI suite (about 30 launches, ~20 min) runs only on request: start the workflow by hand, or put
   # [ui] in the commit message. Keeps the job around 10 minutes and the Actions usage low.
   tests:
     runs-on: macos-26
@@ -90,6 +89,7 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
       HOMEBREW_NO_ENV_HINTS: "1"
+      COMMIT_MSG: ${{ github.event.head_commit.message }}
       HAS_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
       FULL_UI: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ui]')) && '1' || '0' }}
     steps:
@@ -131,8 +131,9 @@ jobs:
           if [ "$FULL_UI" = "1" ]; then
             ARGS="$ARGS -only-testing:PalabraUITests -skip-testing:PalabraUITests/BooksTourUITests"
           else
-            ARGS="$ARGS -only-testing:PalabraUITests/LaunchUITests -only-testing:PalabraUITests/SmokeUITests"
-            ARGS="$ARGS -only-testing:PalabraUITests/PersistenceUITests -only-testing:PalabraUITests/BooksUITests/testReadingFlow"
+            ARGS="$ARGS -only-testing:PalabraUITests/LaunchUITests -only-testing:PalabraUITests/PersistenceUITests"
+            # The 3D Books reading flow is the slowest UI test (~2 min); add it with [books] in the commit message.
+            case "$COMMIT_MSG" in *"[books]"*) ARGS="$ARGS -only-testing:PalabraUITests/BooksUITests/testReadingFlow";; esac
           fi
           xcodebuild test-without-building -project Palabra.xcodeproj -scheme Palabra \
             -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build/dd \

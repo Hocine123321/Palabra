@@ -10,10 +10,11 @@ ROOT='#/Users/runner/work/Palabra/Palabra/##'
 {
   echo "$LABEL: passed cases: $(grep -cE "^Test Case .* passed" "$CLEAN")  failed cases: $(grep -cE "^Test Case .* failed" "$CLEAN")"
   grep -E "^Test Suite '[A-Za-z]+Tests' failed" "$CLEAN" | sed -E "s/ at [0-9-]+ [0-9:.]+\.?//" | awk '!seen[$0]++'
-  grep -E "Test Case .* failed|TEST FAILED|TEST EXECUTE FAILED|: error:|XCTAssert|Failing tests|crashed|timed out|Executed [0-9]+ tests" "$CLEAN" \
+  grep -E "Test Case .* failed|TEST FAILED|TEST EXECUTE FAILED|: error:|XCTAssert|Failing tests|crashed|timed out" "$CLEAN" \
     | sed "s$ROOT" | cut -c1-300 | awk '!seen[$0]++' | head -40
   echo "--- slowest test cases:"
   grep -E "^Test Case .* passed \(" "$CLEAN" | sed -E "s/^Test Case '-\[([^]]*)\]' passed \(([0-9.]+) seconds\)\./\2 \1/" | sort -rn | head -12
+  grep -E "^\s*Executed [0-9]+ tests" "$CLEAN" | tail -1
   echo "--- last 25 log lines:"
   tail -n 25 "$CLEAN" | cut -c1-240
 } > "${LOG%.log}-summary.txt"
