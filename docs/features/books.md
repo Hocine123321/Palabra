@@ -203,4 +203,4 @@ plus the reader preferences (recall level, text size). Lessons are never stored 
 
 `PalabraTests/Books/`: markup parsing, block decoding, validation, library loading (missing / broken lessons), resuming
 and progress across lesson updates, recall state, saved-state decoding, and `BundledBooksTests` (the shipped lessons load
-with no problems). `PalabraUITests/BooksUITests` covers the shelf, page turning, Focus Mode, Magnifying Glass and contents.
+with no problems). `PalabraUITests/BooksUITests` covers the desk, then one reading flow (page turning, Focus Mode, Memorize, tools, back, read as text) and the settings switch.

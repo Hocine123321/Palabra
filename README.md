@@ -28,7 +28,7 @@ The IPA is **unsigned by design**. It cannot be installed until a sideload tool 
 
 ## Tests
 
-The `tests` job runs unit tests, UI tests (with screenshots uploaded as the `test-results` artifact) and packages nothing. To also run the live Google API smoke test, add a repository secret named `GEMINI_API_KEY`.
+The `tests` job runs as four parallel shards (one build each, unit tests in the `core` shard; failure screenshots go to the `test-results-<shard>` artifact) and packages nothing. The recorded Books tour is the `tour` job: run the workflow by hand or put `[tour]` in the commit message. To also run the live Google API smoke test, add a repository secret named `GEMINI_API_KEY`.
 
 ## Data safety
 

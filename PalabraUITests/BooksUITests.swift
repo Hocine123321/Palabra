@@ -21,8 +21,13 @@ final class BooksUITests: XCTestCase {
         XCTAssertTrue(cover.waitForExistence(timeout: 10), "the History book is on the desk")
         // The scene needs a moment to build its page textures before it accepts a book.
         XCTAssertTrue(element(app, "booksLoading").waitForNonExistence(timeout: 30), "the scene finished loading")
-        cover.tap()
-        XCTAssertTrue(element(app, "pageIndicator").waitForExistence(timeout: 20))
+        // On a cold start the scene can still be settling when the first tap lands, so tap again if nothing opened.
+        var opened = false
+        for _ in 0..<3 where !opened {
+            cover.tap()
+            opened = element(app, "pageIndicator").waitForExistence(timeout: 12)
+        }
+        XCTAssertTrue(opened, "the book opened")
     }
 
     private func waitForTabBar(_ app: XCUIApplication, visible: Bool) {
@@ -58,9 +63,14 @@ final class BooksUITests: XCTestCase {
         XCTAssertFalse(element(app, "pageIndicator").exists)
     }
 
-    func testTurningPagesUpdatesTheIndicator() {
+    /// One launch walks the whole reading flow (every launch costs ~30 s of CI time): pages, Focus Mode, Memorize and the
+    /// tools, back to the desk, then "Read as text".
+    func testReadingFlow() {
         let app = launch()
         openHistory(app)
+        waitForTabBar(app, visible: false)
+
+        // Pages.
         let indicator = element(app, "pageIndicator")
         let count = pageCount(indicator)
         XCTAssertGreaterThan(count, 1)
@@ -70,22 +80,15 @@ final class BooksUITests: XCTestCase {
         waitForLabel(indicator, "Page 2 of \(count)")
         app.buttons["pagePrevious"].tap()
         waitForLabel(indicator, "Page 1 of \(count)")
-    }
 
-    func testFocusModeHidesTheTabBarAndExits() {
-        let app = launch()
-        openHistory(app)
-        waitForTabBar(app, visible: false)
+        // Focus Mode.
         app.buttons["focusButton"].tap()
         XCTAssertTrue(element(app, "focusExit").waitForExistence(timeout: 5))
         XCTAssertTrue(element(app, "pageIndicator").exists, "page navigation stays in Focus Mode")
         app.buttons["focusExit"].tap()
         XCTAssertTrue(element(app, "focusButton").waitForExistence(timeout: 5))
-    }
 
-    func testMemorizeShowsLevelsAndTheToolsCanBePicked() {
-        let app = launch()
-        openHistory(app)
+        // Memorize and the tools.
         element(app, "recallToggle").tap()
         XCTAssertTrue(element(app, "recallLevel").waitForExistence(timeout: 5))
         XCTAssertTrue(element(app, "recallReveal").exists)
@@ -95,20 +98,13 @@ final class BooksUITests: XCTestCase {
         waitForSelected(app.buttons["toolLens"], false, "tapping again puts it back on the desk")
         element(app, "recallToggle").tap()
         XCTAssertFalse(element(app, "recallLevel").exists, "turning the mode off removes its controls")
-    }
 
-    func testBackReturnsToTheDeskAndTheTabBar() {
-        let app = launch()
-        openHistory(app)
+        // Back to the desk and the tab bar.
         app.buttons["bookBack"].tap()
         XCTAssertTrue(element(app, "bookCover.history").waitForExistence(timeout: 10))
         waitForTabBar(app, visible: true)
-    }
 
-    func testReadAsTextStillWorks() {
-        let app = launch()
-        openHistory(app)
-        app.buttons["bookBack"].tap()
+        // "Read as text" is still there.
         XCTAssertTrue(element(app, "readAsText").waitForExistence(timeout: 10))
         element(app, "readAsText").tap()
         app.buttons["التاريخ"].firstMatch.tap()

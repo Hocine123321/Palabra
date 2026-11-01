@@ -80,24 +80,120 @@ jobs:
         working-directory: .
         run: git diff --exit-code -- Palabra/Resources/Books3D/books3d.html
 
+  # Tests run as four parallel shards (plus the IPA job = the five macOS jobs a free account may run at once). Each shard builds
+  # once (build-for-testing, no index store), boots the simulator while it builds, then runs its slice of the suites.
+  # Shard "core" also runs every unit test and the live smoke test.
   tests:
+    name: tests (${{ matrix.name }})
     runs-on: macos-26
-    permissions:
-      contents: write   # to publish the Books tour recording on the ci-recordings branch
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            unit: true
+            ui: "LaunchUITests SmokeUITests PersistenceUITests VocabularyLibraryUITests"
+          - name: books
+            ui: "BooksUITests StudyUITests SolveUITests"
+          - name: artifacts
+            ui: "ArtifactsUITests ChatUITests"
+          - name: exam
+            ui: "ExamUITests ReviewUITests"
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ENV_HINTS: "1"
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
       - name: Generate project
         run: xcodegen generate
-      - name: Tool versions
+      - name: Check conventions and lessons
+        if: matrix.unit
         run: |
-          xcodebuild -version
-          xcodegen --version
-      - name: Check conventions
-        run: bash scripts/check-conventions.sh
-      - name: Validate bundled lessons
-        run: python3 scripts/validate-lessons.py
+          bash scripts/check-conventions.sh
+          python3 scripts/validate-lessons.py
+      - name: Pick an iPhone simulator and boot it while building
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)['devices']
+          c = sorted((rt, x['udid']) for rt, ds in d.items() if 'iOS' in rt for x in ds if x['name'].startswith('iPhone'))
+          print(c[-1][1])")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          (xcrun simctl boot "$UDID" && xcrun simctl bootstatus "$UDID" -b) >/dev/null 2>&1 &
+      - name: Build for testing
+        shell: bash
+        run: |
+          mkdir -p build
+          xcodebuild build-for-testing -project Palabra.xcodeproj -scheme Palabra \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build/dd \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | tee build/build.log | tail -n 20
+      - name: Surface build errors as annotations
+        if: failure()
+        run: bash scripts/ci-summary.sh build/build.log "build (${{ matrix.name }})"
+      - name: Tests
+        id: tests
+        shell: bash
+        run: |
+          # No secrets here: only the live smoke test below gets the API key.
+          ARGS=""
+          if [ "${{ matrix.unit }}" = "true" ]; then
+            ARGS="-only-testing:PalabraTests -skip-testing:PalabraTests/LiveSmokeTests"
+          fi
+          for c in ${{ matrix.ui }}; do ARGS="$ARGS -only-testing:PalabraUITests/$c"; done
+          xcodebuild test-without-building -project Palabra.xcodeproj -scheme Palabra \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build/dd \
+            $ARGS -resultBundlePath build/tests.xcresult \
+            | tee build/tests.log | tail -n 60
+      - name: Test summary
+        if: always()
+        run: bash scripts/ci-summary.sh build/tests.log "tests (${{ matrix.name }})"
+      - name: Live smoke test
+        if: matrix.unit && always()
+        shell: bash
+        env:
+          TEST_RUNNER_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          xcodebuild test-without-building -project Palabra.xcodeproj -scheme Palabra \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build/dd \
+            -only-testing:PalabraTests/LiveSmokeTests \
+            -resultBundlePath build/live.xcresult \
+            | tee build/live.log | tail -n 40
+      - name: Export screenshots of failures
+        if: failure()
+        continue-on-error: true
+        run: |
+          mkdir -p build/screenshots
+          xcrun xcresulttool export attachments --path build/tests.xcresult --output-path build/screenshots
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ matrix.name }}
+          path: |
+            build/tests.xcresult
+            build/live.xcresult
+            build/screenshots
+          retention-days: 14
+
+  # A scripted walk through the Books tab with the simulator screen recorded, published on the ci-recordings branch.
+  # Evidence, not a gate, and off the normal path: run it by hand (workflow_dispatch) or put [tour] in the commit message.
+  tour:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[tour]')
+    runs-on: macos-26
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
       - name: Pick an iPhone simulator
         id: sim
         run: |
@@ -107,90 +203,7 @@ jobs:
           c = sorted((rt, x['udid']) for rt, ds in d.items() if 'iOS' in rt for x in ds if x['name'].startswith('iPhone'))
           print(c[-1][1])")
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-      - name: Unit tests
-        shell: bash
-        run: |
-          mkdir -p build
-          # No secrets here: only the live smoke test below gets the API key.
-          xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
-            -only-testing:PalabraTests -skip-testing:PalabraTests/LiveSmokeTests \
-            -resultBundlePath build/unit.xcresult \
-            | tee build/unit.log | tail -n 80
-      - name: Live smoke test
-        shell: bash
-        env:
-          TEST_RUNNER_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
-            -only-testing:PalabraTests/LiveSmokeTests \
-            -resultBundlePath build/live.xcresult \
-            | tee -a build/unit.log | tail -n 40
-      - name: Surface unit-test failures as annotations
-        if: failure()
-        shell: bash
-        run: |
-          # CoreData/simulator logging is extremely noisy; drop it so real failures show.
-          grep -v 'CoreData:' build/unit.log > build/unit-clean.log || true
-          {
-            echo "Unit test failures:"
-            grep -E "Test Case .* failed|Failing tests|TEST FAILED|TEST EXECUTE FAILED|Crash|crashed|timed out|Executed [0-9]+ tests|XCTAssert|: error: -\\[|: error:" build/unit-clean.log | sed 's#/Users/runner/work/Palabra/Palabra/##' | awk '!seen[$0]++' | head -60 || true
-            echo "--- last 40 log lines (CoreData noise removed):"
-            tail -n 40 build/unit-clean.log | cut -c1-300 | sed 's#/Users/runner/work/Palabra/Palabra/##' || true
-          } > build/unit-errors.txt || true
-          MSG=$(python3 -c "print(open('build/unit-errors.txt').read().replace('%','%25').replace('\\r','%0D').replace('\\n','%0A'))")
-          echo "::error title=Unit test errors::$MSG"
-      - name: Unit test summary
-        if: always()
-        shell: bash
-        run: |
-          # One line per suite (passed/failed counts), so the result is readable without downloading logs.
-          {
-            echo "## Unit test suites"
-            grep -E "^Test Suite '[A-Za-z]+Tests' (passed|failed)" build/unit.log | sed -E "s/ at [0-9-]+ [0-9:.]+\.?//" | awk '!seen[$0]++'
-            echo "passed cases: $(grep -cE "^Test Case .* passed" build/unit.log)  failed cases: $(grep -cE "^Test Case .* failed" build/unit.log)"
-          } | tee build/unit-summary.txt >> "$GITHUB_STEP_SUMMARY" || true
-          MSG=$(python3 -c "print(open('build/unit-summary.txt').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
-          echo "::notice title=Unit test summary::$MSG"
-      - name: UI tests
-        # Runs even after a unit failure, and fails the job when a UI test fails (the summary steps below still run).
-        if: always()
-        shell: bash
-        run: |
-          xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
-            -only-testing:PalabraUITests -skip-testing:PalabraUITests/BooksTourUITests -resultBundlePath build/ui.xcresult \
-            | tee build/ui.log | tail -n 80
-      - name: UI test summary
-        if: always()
-        shell: bash
-        run: |
-          # Say plainly what happened (logs are not downloadable).
-          grep -v 'CoreData:' build/ui.log > build/ui-clean.log || true
-          {
-            echo "UI tests: passed cases: $(grep -cE "^Test Case .* passed" build/ui-clean.log)  failed cases: $(grep -cE "^Test Case .* failed" build/ui-clean.log)"
-            grep -E "Test Case .* failed|TEST FAILED|TEST EXECUTE FAILED|: error:|XCTAssert|Failing tests|crashed|Executed [0-9]+ tests" build/ui-clean.log | sed 's#/Users/runner/work/Palabra/Palabra/##' | cut -c1-300 | awk '!seen[$0]++' | head -40 || true
-            echo "--- last 25 log lines:"
-            tail -n 25 build/ui-clean.log | cut -c1-240 || true
-          } > build/ui-summary.txt || true
-          MSG=$(python3 -c "print(open('build/ui-summary.txt').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
-          echo "::notice title=UI test summary::$MSG"
-          # Why a lookup failed: the elements the app really showed at that moment (first four failures).
-          python3 - <<'PY'
-          import re
-          lines = open('build/ui-clean.log', errors='replace').read().split('\n')
-          shown = 0
-          for i, line in enumerate(lines):
-              if ('No matches found' in line or 'Failed to' in line) and ': error:' in line and shown < 4:
-                  shown += 1
-                  chunk = '\n'.join(l[:200] for l in lines[i:i + 45])
-                  chunk = chunk.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-                  print('::notice title=UI failure detail %d::%s' % (shown, chunk))
-          PY
-      - name: Books tour (recorded)
-        # A scripted walk through the Books tab with the simulator screen recorded. Evidence, not a gate: it never fails the run.
-        if: always()
+      - name: Record the tour
         continue-on-error: true
         shell: bash
         env:
@@ -205,7 +218,7 @@ jobs:
           REC=$!
           sleep 3
           xcodebuild test -project Palabra.xcodeproj -scheme Palabra \
-            -destination "id=$UDID" \
+            -destination "id=$UDID" COMPILER_INDEX_STORE_ENABLE=NO \
             -only-testing:PalabraUITests/BooksTourUITests -resultBundlePath build/tour.xcresult \
             > build/tour.log 2>&1
           echo "xcodebuild exit code: $?" > build/tour/result.txt
@@ -222,7 +235,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          [ -d build/tour ] || exit 0
+          [ -d build/tour ] || { echo "::warning title=tour::no build/tour directory"; exit 0; }
           cd build/tour
           printf 'commit %s\nrun %s\n' "${{ github.sha }}" "${{ github.run_id }}" > meta.txt
           git init -q -b ci-recordings
@@ -230,20 +243,6 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add -A
           git commit -qm "Books tour: run ${{ github.run_id }}, commit ${{ github.sha }}"
-          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-recordings 2>&1 | tail -3
-      - name: Export UI screenshots
-        if: always()
-        continue-on-error: true
-        run: |
-          mkdir -p build/screenshots
-          xcrun xcresulttool export attachments --path build/ui.xcresult --output-path build/screenshots
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: |
-            build/unit.xcresult
-            build/live.xcresult
-            build/ui.xcresult
-            build/screenshots
-          retention-days: 14
+          OUT=$(git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-recordings 2>&1 | tail -5)
+          echo "::notice title=tour publish::$(echo "$OUT" | tr '\n' ' ' | sed "s/${GH_TOKEN}/***/g")"
+          echo "files: $(ls | tr '\n' ' ')"
