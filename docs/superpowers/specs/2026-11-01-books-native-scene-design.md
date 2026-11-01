@@ -111,10 +111,13 @@ could not start", and still drops the screen to the Classic shelf.
   within 3 (same windows as `_ensureTextures`), with mipmaps and anisotropy 8.
 - Rendering is on demand: the view runs only while a tween is active or the scene is dirty (same as the `dirty` flag), and
   pauses when the app is inactive. Quality "Battery saver" = no shadows, lower pixel scale (1.25 vs device scale up to 2.5).
-- Fonts: Amiri 400 and 700 (Arabic and Latin), converted from the repo's woff2 files to TTF (fonttools, lossless) and
-  registered at launch; layout measures with the same sizes and the same line-wrapping algorithm as JS, computing every
-  word and fragment position itself (only glyph shaping inside one fragment is left to CoreText), including the thin
-  stroke added over Amiri text.
+- Fonts: Amiri 400 and 700, the same four files the web build inlines (`@fontsource/amiri@5.1.0`: Arabic and Latin subsets;
+  they live in `node_modules`, not in the repo, so they are installed with npm and converted woff2 to TTF with fonttools,
+  lossless, then committed under `Resources/Fonts`). Registered at launch. The font stack keeps JS's fallback order
+  (Amiri, Geeza Pro, Georgia) as a CoreText cascade list. Layout uses the same sizes and the same line-wrapping algorithm
+  as JS, computing every word and fragment position itself (only glyph shaping inside one fragment is left to CoreText),
+  including the thin stroke added over Amiri text. A unit test checks that every character in the bundled lessons has a
+  glyph in the Amiri subsets (so no silent fallback changes widths).
 - Touch: one `UIView` subclass over the `SCNView` handles touches with the JS decision tree ported literally: 8 pt move
   threshold, press on the outer 22% of a page to grab a leaf, horizontal-vs-vertical ratio 1.1, release completes a turn at
   p > .42 forward / p < .58 back or velocity beyond 0.9, lens held 0.38 above a finger, landscape pan limits. Picking uses
@@ -131,17 +134,33 @@ could not start", and still drops the screen to the Classic shelf.
    deterministic), lens, ruler, bookmark, Focus, Memorize hidden and revealed, a Reduce-Motion run. It uses only the HUD, so
    it runs against both the old web scene (baseline, from the current `main`) and the new scene. CI uploads both sets, a
    script prints a per-waypoint difference number, and the images are pulled and looked at to tune lighting.
-3. Existing unit and UI tests keep running.
+3. **Page breaks.** The fake-measure fixtures prove the algorithm, not CoreText's widths. The waypoint test also records the
+   `pageIndicator` text (page count) for every text size in both scenes; the page counts must match, and any difference is
+   investigated as a measuring problem before it is blamed on lighting. Individual line breaks may differ by a word where a
+   CoreText advance differs from the browser's by a fraction of a pixel; that is accepted, page ids are unaffected.
+4. **Proof the native scene ran.** The scene host carries its own accessibility id (`booksSceneNative`; the Classic fallback
+   keeps `booksFallback`). The waypoint test and a smoke test fail if the fallback shows when the native scene is selected,
+   so green tests cannot mean "the scene never started".
+5. Existing unit and UI tests keep running.
 
 ### Delivery order (each step ends on a CI run)
 
+0. Feasibility spike (throwaway, own CI run): a bare `SCNView` with a lit box, a shadow and a shader modifier, screenshotted in
+   the macos-26 simulator. If SceneKit does not render there, stop and bring the owner a decision (screenshots would then
+   come from a device or another route) before any other work.
 1. Fixtures from JS; `Tweens`, `BookNode` maths, `PageLayout`/pagination with their tests.
-2. Fonts, `PageRenderer`, `CoverArt` (bitmaps visible in a debug waypoint).
+2. Fonts (with the glyph-coverage test), `PageRenderer`, `CoverArt` (bitmaps visible in a debug waypoint).
 3. Scene shell: `SCNView` host, desk, books closed, camera, menu, tap to open, cover opening.
 4. Reading: leaves, page turns (buttons, then drag), textures window, resume, text size relayout.
 5. Tools, Focus, Memorize, definitions, bookmark, landscape pan.
 6. Lighting, shadows, environment, tone pass; tune against the baseline screenshots; dark mode lamp.
-7. Switch the Books tab to the native scene; remove the web scene (see Cleanup); update tests and docs.
+7. Make the native scene the default (the engine switch below flips); update tests and docs. The web scene is removed only
+   after the owner accepts (see Cleanup).
+
+Engine switch while both exist: from step 3 on, Books Settings has a temporary "Scene engine" picker (Native / Original),
+saved next to the other Books preferences, so the owner can compare on a device (launch arguments do not work in an installed
+build). It defaults to Original until step 7, then to Native, and is deleted in Cleanup. The screenshot test picks the engine
+through a debug launch argument. The `scene` CI job stays until Cleanup.
 
 ### Cleanup when approved as done
 
@@ -160,7 +179,12 @@ code; keep the Classic shelf. Rewrite the Books sections of `AGENTS.md` (rules 1
 - Parity is "exact numbers for geometry/layout/animation, visually matched shading", checked by golden fixtures plus CI
   screenshots, not claimed beyond that.
 - Bump and tone: bump maps become normal maps; tone mapping is a custom Neutral pass.
-- Old web scene stays in the repo, unused by default, until the owner accepts the new one; then it is deleted.
+- Old web scene stays in the repo, selectable through a temporary Settings picker (see "Engine switch"), until the owner
+  accepts the new one; then it and the picker are deleted. The picker is a migration aid, not a feature.
+- Amiri comes from the npm package the web build already uses (subsets, converted to TTF); the repo has no woff2 files.
+- Page breaks need the same page count as the web scene, not identical line breaks everywhere.
+- The scene host exposes `booksSceneNative` so tests can prove the native scene (not the fallback) was running.
+- Step 0 is a rendering feasibility spike; SceneKit on the CI simulator is unconfirmed.
 - Work is verified on a separate branch (`native-books`) pushed with the provided token and run through CI by manual
   dispatch; `main` is not touched and nothing is merged. The result is delivered as a zip.
 - Rounded boxes use `SCNBox` chamfer, cutouts use `SCNShape`, lathe/half-pipe/arc-torus use small custom geometry builders.
