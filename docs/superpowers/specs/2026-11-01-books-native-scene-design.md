@@ -1,0 +1,178 @@
+# Books 3D scene: native SceneKit rewrite
+
+Date: 2026-11-01. Status: draft, waiting for approval. Size: project.
+
+## Intent
+
+The Books tab is a Three.js scene running in a `WKWebView` (`web/books3d`, ~2.7k lines of JS, bundled into
+`Resources/Books3D/books3d.html`). The owner wants it rebuilt entirely in native iOS code so the scene stops being limited by
+web-view performance and more can be added to it later. The rebuilt scene must look and behave like the current one.
+
+## Goals
+
+1. Same pictures: desk, felt mat, cutouts, lamp, props, both books (covers, spine bands, page blocks, ribbon, leaves), tools,
+   light and dark looks, both orientations. Geometry, page layout, text, colours, camera framing and timings match the JS
+   numbers exactly. Shading (lighting, shadows, tone) is tuned until a side-by-side is visually indistinguishable at normal
+   viewing size (see "Parity method"). Bit-identical shading is not possible in any native engine and is not promised.
+2. Same behaviour: every interaction rule in `app.js` (tap a book, cover opening, drag/tap page turns with the same
+   thresholds, edge peek, tools and their flights, Focus Mode, Memorize, definitions, text size relayout, bookmarks,
+   resume page, landscape pan, Reduce Motion, quality setting, right-to-left mirroring) is reproduced.
+3. The SwiftUI layer (`SceneHUD`, `BooksSceneScreen`, Settings), the accessibility ids, `TextbookState`, `BookShelf`, lesson
+   JSON and the catalogue stay as they are. The UI tests keep passing unchanged.
+4. Steady 60 fps on a modern iPhone, and no main-thread stalls while pages are drawn.
+5. After this change, adding scene content means adding Swift nodes. No JS, no Node build, no bundle step.
+
+## Non-goals
+
+- No new scene features, no new lesson block types, no lesson format change.
+- No change to Classic pages (`BookshelfView` and the reader), which stay the fallback.
+- No AI, OCR or upload in Books (existing rule).
+
+## Anti-goals (a failure even if it compiles)
+
+- A scene that looks "close" but turns pages differently, frames the page differently, or loses Arabic text shaping.
+- Anything that renames or breaks persisted state: `textbookState`, page and lesson ids, the saved bookmark, resume page.
+- Text clipped or content dropped by the new layout (the JS test "pagination never drops or reorders a block" must hold).
+- Claiming the look is verified without CI screenshots to show it.
+
+## Constraints
+
+- Nothing can be compiled or run where this work is done. GitHub Actions (macOS runner) is the only compiler, so everything
+  is written to compile by eye and checked by CI. Every report says so.
+- Deployment target iOS 17. `SWIFT_VERSION 5.0`, `SWIFT_STRICT_CONCURRENCY targeted`. iPhone only, portrait and landscape.
+- `scripts/check-conventions.sh` rules apply (no `withAnimation` / `.animation(`, no `try? context.save()`, no hardcoded
+  `Color(hex:)`, no numeric corner radii). Scene art colours that must equal the JS values live in one palette file that
+  the check is told about, rather than being scattered.
+- AGENTS.md "names that must not change" applies: textbook state, ids, catalogue and lesson formats, the accessibility ids
+  `bookCover.<id>`, `bookBack`, `pageNext`, `pagePrevious`, `pageIndicator`, `focusButton`, `focusExit`, `recallToggle`,
+  `recallLevel`, `recallReveal`, `toolLens`, `toolBookmark`, `toolRuler`, `readAsText`.
+- Delivery to the owner is a zip of the full repo (or labelled changed files), not a PR (owner works on mobile).
+
+## Approaches considered
+
+| | SceneKit | RealityKit | Raw Metal |
+|---|---|---|---|
+| Fit to the Three.js scene graph | Nodes, materials, lights, shadows map one to one | Entity/component model, different shape | None, all written by hand |
+| Dynamic page curl | `SCNGeometrySource` rebuilt per frame | `LowLevelMesh` is iOS 18+, target is 17 | Full control |
+| Lens (view-ray magnifier) | Shader modifier | Custom Metal material | Full control |
+| Compile-blind risk | Medium | High | Highest (a PBR renderer from scratch) |
+| Long-term | Apple lists it as maintenance-only, still works on iOS 26 | Apple's direction | Always valid |
+
+**Chosen: SceneKit** (owner approved the recommendation). Reasons: closest model to the existing scene, runs on iOS 17,
+smallest compile-blind surface. Accepted cost: Apple may later retire it; the scene logic (tweens, input, layout, geometry
+math, page drawing) is written in plain Swift/CoreGraphics so only the thin node/material layer would change.
+
+## Design
+
+### Module map (JS to Swift)
+
+New folder `Palabra/Features/Books/Native/` (Books stays self-contained; Core is not touched).
+
+| JS | Swift | Notes |
+|---|---|---|
+| `app.js` `App` | `BookSceneController` (+ extensions per concern) | State machine menu/opening/reading/closing, owns the `SCNScene`, tweens, camera, tools, focus, recall, input dispatch |
+| `tween.js` | `Tweens` | Same easings (`inOut`, `out`, `inOutSine`, `outBack`, `linear`), delay, `scale` for Reduce Motion; stepped from the renderer delegate |
+| `book3d.js` | `BookNode` | Same constants (PW 1, COVER_T .04, OVER_X/Z, SX 28, SZ 8, BLOCK_COLS 14, GUTTER_DIP .03), same `_deform` maths, `_restY`, `_placeBlock`, ribbon; mirrored body for RTL |
+| `desk.js` | `DeskNode` | Desk slab, felt mat, cutouts, lamp, inkwell, pencil |
+| `tools.js` | `LensTool`, `BookmarkTool`, `RulerTool` | Rest and use poses copied |
+| lens GLSL | `LensShader` (SceneKit shader modifier) | Same view-ray maths and uniforms |
+| `cover.js` | `CoverArt` | CoreGraphics, same seeded generator (LCG 16807) so grain matches |
+| `pagetex.js` layout | `PageLayout` | `layoutRich`, `layoutBlock`, `headerLayout`, `paginate`, `GAP`, margins; works from the Swift `Lesson`/`Block` models and `InlineMarkup` directly (no JSON round trip) |
+| `pagetex.js` `drawPage` | `PageRenderer` | CoreGraphics + CoreText into a 1280x1820 bitmap; returns hit regions |
+| `pagetex.js` `RecallState` | existing `RecallState.swift` | Already mirrors it |
+| `data.js` | `BookLibrary` (existing) + a small adapter | Page numbering, glossary, resume index |
+| `hud.js`, `main.js`, `markup.js` | not needed | HUD is SwiftUI; markup is `InlineMarkup.swift` |
+| WKWebView host | `BooksSceneView` rewritten around `SCNView` | Same `UIViewRepresentable` name and call site |
+
+### Bridge
+
+`BooksSceneModel` keeps its public surface: `state: SceneState`, `isReady`, `activeTerm`, `failure`, `notice`, `send(_:)`.
+`SceneCommand` stays (HUD unchanged) but loses its JavaScript form. The controller calls the model directly instead of
+posting dictionaries, so `SceneMessage`, `BooksScenePayload` and the JS command strings are removed, and
+`BooksBridgeTests` is rewritten to test command handling and state decoding that remain. `failure` now means "no Metal / scene
+could not start", and still drops the screen to the Classic shelf.
+
+### Rendering decisions
+
+- World units, handedness (Y up), and camera parameters are the Three.js ones (vertical FOV 32, near .05, far 40). The
+  `setViewOffset` content shift for the HUD insets is reproduced as an off-centre projection so framing is identical.
+- Materials use SceneKit's physically based model: albedo, roughness, metalness, clear coat. Bump maps are converted once to
+  normal maps. Gold foil keeps its metal mask.
+- Lighting reproduces the rig: hemisphere (as ambient plus ground bounce), directional sun with the same shadow frustum and
+  map size, the dark-mode spot "lamp" and emissive bulb, and an image-based environment standing in for Three's
+  `RoomEnvironment` at the same intensities (built procedurally once).
+- Tone: Three uses Khronos PBR Neutral with exposure .92 (light) / 1.1 (dark). SceneKit has no equal, so a small full-screen
+  `SCNTechnique` pass implements the Neutral curve and exposure.
+- Page leaves are two meshes (front, back) sharing one dynamic position/normal source, 29x9 vertices, normals recomputed on
+  the CPU only for leaves whose progress/peek changed (same dirty rules as JS).
+- The ruler band dim is a fragment shader modifier on leaf materials (same `uBand` maths). The lens is a shader modifier on
+  the glass disc, fed a 2048-wide fully revealed page bitmap (same as JS).
+- Page bitmaps are 1280x1820 `CGImage`s drawn off the main thread, kept for pages within 6 of the current one, assigned for
+  within 3 (same windows as `_ensureTextures`), with mipmaps and anisotropy 8.
+- Rendering is on demand: the view runs only while a tween is active or the scene is dirty (same as the `dirty` flag), and
+  pauses when the app is inactive. Quality "Battery saver" = no shadows, lower pixel scale (1.25 vs device scale up to 2.5).
+- Fonts: Amiri 400 and 700 (Arabic and Latin), converted from the repo's woff2 files to TTF (fonttools, lossless) and
+  registered at launch; layout measures with the same sizes and the same line-wrapping algorithm as JS, computing every
+  word and fragment position itself (only glyph shaping inside one fragment is left to CoreText), including the thin
+  stroke added over Amiri text.
+- Touch: one `UIView` subclass over the `SCNView` handles touches with the JS decision tree ported literally: 8 pt move
+  threshold, press on the outer 22% of a page to grab a leaf, horizontal-vs-vertical ratio 1.1, release completes a turn at
+  p > .42 forward / p < .58 back or velocity beyond 0.9, lens held 0.38 above a finger, landscape pan limits. Picking uses
+  `SCNView.hitTest` and ray/plane maths shared with the shader code.
+
+### Parity method (how "pixel perfect" is checked without Xcode)
+
+1. **Golden numbers from the JS.** A Node script (runs here, `three` is already a dev dependency) writes fixtures:
+   leaf vertex positions for sample (p, peek, grabZ) values, block vertices, `_frameRect` camera poses for several
+   screen sizes and insets, `paginate` splits using a fixed measure function, tween values. Swift unit tests assert equality
+   within 1e-5. This makes geometry, framing, pagination and animation curves exact rather than eyeballed.
+2. **Screenshots at fixed waypoints.** One new UI test drives the real HUD (ids above) and attaches a screenshot at each
+   waypoint: menu portrait and landscape (light, dark), cover just opened, page 1 and page 2, mid-menu hover is skipped (not
+   deterministic), lens, ruler, bookmark, Focus, Memorize hidden and revealed, a Reduce-Motion run. It uses only the HUD, so
+   it runs against both the old web scene (baseline, from the current `main`) and the new scene. CI uploads both sets, a
+   script prints a per-waypoint difference number, and the images are pulled and looked at to tune lighting.
+3. Existing unit and UI tests keep running.
+
+### Delivery order (each step ends on a CI run)
+
+1. Fixtures from JS; `Tweens`, `BookNode` maths, `PageLayout`/pagination with their tests.
+2. Fonts, `PageRenderer`, `CoverArt` (bitmaps visible in a debug waypoint).
+3. Scene shell: `SCNView` host, desk, books closed, camera, menu, tap to open, cover opening.
+4. Reading: leaves, page turns (buttons, then drag), textures window, resume, text size relayout.
+5. Tools, Focus, Memorize, definitions, bookmark, landscape pan.
+6. Lighting, shadows, environment, tone pass; tune against the baseline screenshots; dark mode lamp.
+7. Switch the Books tab to the native scene; remove the web scene (see Cleanup); update tests and docs.
+
+### Cleanup when approved as done
+
+Delete `web/books3d`, `Resources/Books3D`, the `scene` CI job and the bundle-current check, the WKWebView host and bridge
+code; keep the Classic shelf. Rewrite the Books sections of `AGENTS.md` (rules 1 to 3 now point at the Swift files; rule 3's
+"new block type" list becomes `LessonModels.swift`, `scripts/validate-lessons.py`, `PageLayout`/`PageRenderer`) and
+`docs/features/books.md`. Keep the old scene until the owner has seen the new one and accepts it.
+
+## Decisions by the owner
+
+- Rebuild the Books 3D landscape entirely native; SceneKit; aim for pixel parity and correct behaviour.
+
+## Calls I made (change any of them)
+
+- Keep all UI-facing names, ids and the `BooksSceneModel` API so the HUD, tests and settings do not change.
+- Parity is "exact numbers for geometry/layout/animation, visually matched shading", checked by golden fixtures plus CI
+  screenshots, not claimed beyond that.
+- Bump and tone: bump maps become normal maps; tone mapping is a custom Neutral pass.
+- Old web scene stays in the repo, unused by default, until the owner accepts the new one; then it is deleted.
+- Work is verified on a separate branch (`native-books`) pushed with the provided token and run through CI by manual
+  dispatch; `main` is not touched and nothing is merged. The result is delivered as a zip.
+- Rounded boxes use `SCNBox` chamfer, cutouts use `SCNShape`, lathe/half-pipe/arc-torus use small custom geometry builders.
+
+## Left to the builder
+
+File-level breakdown inside `Native/`, exact shader code, the procedural environment map, per-material tuning, memory
+budget for page bitmaps, the screenshot comparison script, and how to split the CI waypoints across jobs.
+
+## Risks
+
+- Compile-blind Swift against SceneKit and CoreText APIs: expect several CI round trips per step.
+- SceneKit shader modifiers and `SCNTechnique` are the least forgiving parts; the lens and tone pass are the first to verify.
+- SceneKit shadow softness and Three's `PCFSoftShadowMap` will not match exactly; tuned by eye from screenshots.
+- Simulator rendering (software GL in the old scene, Metal in the new) may differ slightly from a device.
