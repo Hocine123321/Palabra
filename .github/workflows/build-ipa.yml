@@ -80,30 +80,18 @@ jobs:
         working-directory: .
         run: git diff --exit-code -- Palabra/Resources/Books3D/books3d.html
 
-  # Tests run as four parallel shards (plus the IPA job = the five macOS jobs a free account may run at once). Each shard builds
-  # once (build-for-testing, no index store), boots the simulator while it builds, then runs its slice of the suites.
-  # Shard "core" also runs every unit test and the live smoke test.
+  # One job, one build. The default run is every unit test plus a short UI smoke set (launch, persistence, and the whole Books
+  # reading flow). The full UI suite (about 30 launches, ~20 min) runs only on request: start the workflow by hand, or put
+  # [ui] in the commit message. Keeps the job around 10 minutes and the Actions usage low.
   tests:
-    name: tests (${{ matrix.name }})
     runs-on: macos-26
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: core
-            unit: true
-            ui: "LaunchUITests SmokeUITests PersistenceUITests VocabularyLibraryUITests"
-          - name: books
-            ui: "BooksUITests StudyUITests SolveUITests"
-          - name: artifacts
-            ui: "ArtifactsUITests ChatUITests"
-          - name: exam
-            ui: "ExamUITests ReviewUITests"
+    timeout-minutes: 30
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
       HOMEBREW_NO_ENV_HINTS: "1"
+      HAS_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
+      FULL_UI: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ui]')) && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
@@ -111,7 +99,6 @@ jobs:
       - name: Generate project
         run: xcodegen generate
       - name: Check conventions and lessons
-        if: matrix.unit
         run: |
           bash scripts/check-conventions.sh
           python3 scripts/validate-lessons.py
@@ -135,26 +122,28 @@ jobs:
             | tee build/build.log | tail -n 20
       - name: Surface build errors as annotations
         if: failure()
-        run: bash scripts/ci-summary.sh build/build.log "build (${{ matrix.name }})"
+        run: bash scripts/ci-summary.sh build/build.log "build"
       - name: Tests
-        id: tests
         shell: bash
         run: |
           # No secrets here: only the live smoke test below gets the API key.
-          ARGS=""
-          if [ "${{ matrix.unit }}" = "true" ]; then
-            ARGS="-only-testing:PalabraTests -skip-testing:PalabraTests/LiveSmokeTests"
+          ARGS="-only-testing:PalabraTests -skip-testing:PalabraTests/LiveSmokeTests"
+          if [ "$FULL_UI" = "1" ]; then
+            ARGS="$ARGS -only-testing:PalabraUITests -skip-testing:PalabraUITests/BooksTourUITests"
+          else
+            ARGS="$ARGS -only-testing:PalabraUITests/LaunchUITests -only-testing:PalabraUITests/SmokeUITests"
+            ARGS="$ARGS -only-testing:PalabraUITests/PersistenceUITests -only-testing:PalabraUITests/BooksUITests/testReadingFlow"
           fi
-          for c in ${{ matrix.ui }}; do ARGS="$ARGS -only-testing:PalabraUITests/$c"; done
           xcodebuild test-without-building -project Palabra.xcodeproj -scheme Palabra \
             -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build/dd \
             $ARGS -resultBundlePath build/tests.xcresult \
             | tee build/tests.log | tail -n 60
       - name: Test summary
         if: always()
-        run: bash scripts/ci-summary.sh build/tests.log "tests (${{ matrix.name }})"
+        run: bash scripts/ci-summary.sh build/tests.log "tests (full UI ${FULL_UI})"
       - name: Live smoke test
-        if: matrix.unit && always()
+        # Only when the API key secret exists; skipped otherwise.
+        if: always() && env.HAS_KEY == 'true'
         shell: bash
         env:
           TEST_RUNNER_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -173,12 +162,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-results-${{ matrix.name }}
+          name: test-results
           path: |
             build/tests.xcresult
             build/live.xcresult
             build/screenshots
-          retention-days: 14
+          retention-days: 7
 
   # A scripted walk through the Books tab with the simulator screen recorded, published on the ci-recordings branch.
   # Evidence, not a gate, and off the normal path: run it by hand (workflow_dispatch) or put [tour] in the commit message.
