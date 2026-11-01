@@ -21,10 +21,14 @@ web-view performance and more can be added to it later. The rebuilt scene must l
    JSON and the catalogue stay as they are. The UI tests keep passing unchanged.
 4. Steady 60 fps on a modern iPhone, and no main-thread stalls while pages are drawn.
 5. After this change, adding scene content means adding Swift nodes. No JS, no Node build, no bundle step.
+6. **Readability is a gate, not a preference.** The page text must be at least as sharp, as high-contrast and as evenly lit as
+   in the web scene in every pose, and no atmosphere effect may trade it away (see "Readability").
+7. **Immersion and detail beyond the web scene**, added only after parity is accepted, in a separate tier (see "Enhancement
+   tier"). Parity comes first so the owner can tell a regression from a deliberate change.
 
 ## Non-goals
 
-- No new scene features, no new lesson block types, no lesson format change.
+- No new lesson block types, no lesson format change, no scene features outside the Enhancement tier below.
 - No change to Classic pages (`BookshelfView` and the reader), which stay the fallback.
 - No AI, OCR or upload in Books (existing rule).
 
@@ -134,6 +138,10 @@ could not start", and still drops the screen to the Classic shelf.
    deterministic), lens, ruler, bookmark, Focus, Memorize hidden and revealed, a Reduce-Motion run. It uses only the HUD, so
    it runs against both the old web scene (baseline, from the current `main`) and the new scene. CI uploads both sets, a
    script prints a per-waypoint difference number, and the images are pulled and looked at to tune lighting.
+2b. **Readability measurements** from the same waypoint screenshots (crop the text area of the page): contrast ratio between ink
+   and paper pixels, average page luminance, and edge sharpness (variance of the Laplacian of the crop). Each must be equal to
+   or better than the web baseline at the same waypoint, light and dark, portrait and landscape, all four text sizes, with
+   Memorize off and on. A regression fails the comparison script, not just the eye test.
 3. **Page breaks.** The fake-measure fixtures prove the algorithm, not CoreText's widths. The waypoint test also records the
    `pageIndicator` text (page count) for every text size in both scenes; the page counts must match, and any difference is
    investigated as a measuring problem before it is blamed on lighting. Individual line breaks may differ by a word where a
@@ -157,10 +165,59 @@ could not start", and still drops the screen to the Classic shelf.
 7. Make the native scene the default (the engine switch below flips); update tests and docs. The web scene is removed only
    after the owner accepts (see Cleanup).
 
+8. Enhancement tier (below), one item per CI run with before/after screenshots, readability measurements rerun each time.
+9. Performance pass on a real frame budget (below), then the cleanup.
+
 Engine switch while both exist: from step 3 on, Books Settings has a temporary "Scene engine" picker (Native / Original),
 saved next to the other Books preferences, so the owner can compare on a device (launch arguments do not work in an installed
 build). It defaults to Original until step 7, then to Native, and is deleted in Cleanup. The screenshot test picks the engine
 through a debug launch argument. The `scene` CI job stays until Cleanup.
+
+### Readability (applies to parity and to every enhancement)
+
+- **Sharpness.** A page bitmap is drawn at 1280x1820 for leaves in the window (as in the web scene). The page being read is
+  additionally redrawn at higher density (1.5x, 1920x2730) as soon as the camera settles on it, and again in Focus Mode and under
+  the lens, then swapped in with no pop. Mipmaps stay on and anisotropic filtering goes to the device maximum (16 where
+  available, the web scene used 8). Bitmaps are drawn with subpixel positioning and the same hairline thickening as the web scene.
+- **Gutter.** Text sits inside the zone where resting leaves dip into the binding (`GUTTER_DIP`). While a page is being read
+  the dip over the text area is eased to 40% (0% in Focus Mode) and returns when the leaf turns, so lines near the spine do not
+  bend away. Parity pose without reading (menu, opening) keeps the original curve.
+- **Light on the page.** Reading poses add a soft fill that evens the page and keeps cast shadows (the other page, the HUD
+  band, the turning leaf) from darkening text. Paper keeps roughness .92 so there is no specular glare on the text. In dark mode
+  the lamp lights the page and the desk falls off around it; a page is never darker than the measured baseline.
+- **Contrast and tone.** Ink and paper colours stay the web values (already above 7:1). The tone pass must not lift blacks or
+  crush the paper: checked by the contrast measurement above.
+- **Depth effects off the text.** Depth of field, bloom and particles never apply to the page being read (see below).
+- **Size and layout.** The four text sizes and the page-count rule stay. Framing keeps the page as large as in the web scene in
+  portrait, and in landscape the half-width framing with vertical pan, now with inertia and edge resistance instead of a hard stop.
+- **Accessibility.** The scene host exposes the current page's plain text and title to VoiceOver as one element (the web scene hid
+  the whole scene), with the existing HUD buttons unchanged. "Read as text" remains.
+
+### Enhancement tier (after parity is accepted)
+
+Every item below is staged separately, can be turned off, and is dropped or reduced if it costs readability or frame time.
+Reduce Motion removes anything that moves by itself (sway, drift, flicker, dust). "Battery saver" removes depth of field,
+ambient occlusion, bloom, particles and motion sway, as it already removes shadows.
+
+- **Light and depth.** Contact shadows under books and tools via ambient occlusion; in the menu a gentle depth of field that
+  falls away to nothing when a book opens or reading starts; in dark mode a soft bloom on the bulb and a warm cone of lamp
+  light with a very slow, subtle intensity drift.
+- **Atmosphere.** A few dust motes drifting through the sun beam (light) or the lamp cone (dark); they never cross the page
+  being read and fade out when reading starts.
+- **Materials.** Leather grain and cloth weave as real normal maps, gold foil with a proper reflective response, gilded page
+  edges for the History book, wood grain with fine scratches on the desk, a slightly irregular felt nap. All in the existing
+  palette.
+- **Paper behaviour.** The turning leaf casts a moving soft shadow on the page below it; resting pages show a very slight
+  edge curl at the fore edge; the ribbon has a few verlet segments so it sways when the book moves and settles.
+- **Motion feel.** A subtle camera sway from device motion in the menu and while the book is closed (off while reading, off
+  with Reduce Motion), springy settle on tool landings, a light haptic when a leaf lands. No sound effects: they need audio
+  assets that cannot be auditioned here, so they stay out unless the owner asks.
+- **Desk detail.** A few extra small props in the Palabra palette (for example an eraser and a paper clip) and tidier,
+  more believable placement, shown to the owner as screenshots before they stay.
+
+Frame budget: 16.6 ms at 60 fps on an iPhone 12 class device with everything on, 8.3 ms headroom target on 120 Hz devices
+(ProMotion), no more than 150 MB of scene and bitmap memory, nothing allocated per frame in the page-turn path. The scene
+profile is measured in CI with a `measure` block over a scripted page turn, and checked on the owner's device.
 
 ### Cleanup when approved as done
 
@@ -185,6 +242,11 @@ code; keep the Classic shelf. Rewrite the Books sections of `AGENTS.md` (rules 1
 - Page breaks need the same page count as the web scene, not identical line breaks everywhere.
 - The scene host exposes `booksSceneNative` so tests can prove the native scene (not the fallback) was running.
 - Step 0 is a rendering feasibility spike; SceneKit on the CI simulator is unconfirmed.
+- Owner asked for "as immersive and detailed" plus essential readability: parity is built first, the enhancements follow as a
+  separate tier, and readability has measurable gates. Where immersion and readability conflict, readability wins.
+- Higher-density redraw of the current page, eased gutter dip while reading, VoiceOver page text, and pan inertia are
+  deliberate differences from the web scene made for readability; they are the only changes allowed before parity sign-off.
+- No sound effects (cannot be auditioned here); haptics only.
 - Work is verified on a separate branch (`native-books`) pushed with the provided token and run through CI by manual
   dispatch; `main` is not touched and nothing is merged. The result is delivered as a zip.
 - Rounded boxes use `SCNBox` chamfer, cutouts use `SCNShape`, lathe/half-pipe/arc-torus use small custom geometry builders.
@@ -196,6 +258,10 @@ budget for page bitmaps, the screenshot comparison script, and how to split the 
 
 ## Risks
 
+- Scope creep: the enhancement tier is large. It is gated behind parity sign-off and delivered one item at a time so any item
+  can be cut.
+- Depth effects, bloom and particles are the most likely to hurt either battery or text clarity; each has an off switch and a
+  measurement before it stays.
 - Compile-blind Swift against SceneKit and CoreText APIs: expect several CI round trips per step.
 - SceneKit shader modifiers and `SCNTechnique` are the least forgiving parts; the lens and tone pass are the first to verify.
 - SceneKit shadow softness and Three's `PCFSoftShadowMap` will not match exactly; tuned by eye from screenshots.
