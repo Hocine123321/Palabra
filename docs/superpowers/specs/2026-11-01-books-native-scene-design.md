@@ -30,9 +30,14 @@ web-view performance and more can be added to it later. The rebuilt scene must l
    (for example when the book sits low behind the controls), in the menu and while reading. It is an option in Books Settings
    and part of parity sign-off, not the later tier (see "Free view").
 
+9. **"Pull a test": real footage for review.** A button in Settings runs a scripted walk through the whole Books feature on the
+   person's own device the way a regular user would use it, records the screen to an MP4 with each action captioned, and hands
+   the MP4 and a machine-readable log over so Claude can review actual footage and fix what it shows (see "Pull a test").
+   This is how the work is checked beyond code and unit tests, and it is built early so every later step can be reviewed with it.
+
 ## Non-goals
 
-- No new lesson block types, no lesson format change, no scene features outside Free view and the Enhancement tier below.
+- No new lesson block types, no lesson format change, no scene features outside Free view, Pull a test and the Enhancement tier below.
 - No change to Classic pages (`BookshelfView` and the reader), which stay the fallback.
 - No AI, OCR or upload in Books (existing rule).
 
@@ -91,6 +96,8 @@ New folder `Palabra/Features/Books/Native/` (Books stays self-contained; Core is
 | `data.js` | `BookLibrary` (existing) + a small adapter | Page numbering, glossary, resume index |
 | `hud.js`, `main.js`, `markup.js` | not needed | HUD is SwiftUI; markup is `InlineMarkup.swift` |
 | WKWebView host | `BooksSceneView` rewritten around `SCNView` | Same `UIViewRepresentable` name and call site |
+| (new) | `FreeView` (+ gesture layer in the touch view) | Pinch/pan camera offset, see "Free view" |
+| (new) | `Features/Books/Tour/`: `TourScript`, `TourRunner`, `TourRecorder`, `TourOverlay`, `TourReport`, settings row and result view | "Pull a test", see below |
 
 ### Bridge
 
@@ -170,6 +177,10 @@ could not start", and still drops the screen to the Classic shelf.
 7. Make the native scene the default (the engine switch below flips); update tests and docs. The web scene is removed only
    after the owner accepts (see Cleanup).
 
+Pull a test is built from step 3 on and grows with each step: the recorder, caption banner, finger ring, runner and log first
+(over the closed-book menu and cover opening), then each later step adds its actions, so every step's CI run already ends with
+footage to review. The Settings button and result screen ship with the first version.
+
 8. Enhancement tier (below), one item per CI run with before/after screenshots, readability measurements rerun each time.
 9. Performance pass on a real frame budget (below), then the cleanup.
 
@@ -177,6 +188,62 @@ Engine switch while both exist: from step 3 on, Books Settings has a temporary "
 saved next to the other Books preferences, so the owner can compare on a device (launch arguments do not work in an installed
 build). It defaults to Original until step 7, then to Native, and is deleted in Cleanup. The screenshot test picks the engine
 through a debug launch argument. The `scene` CI job stays until Cleanup.
+
+### Pull a test (recorded self-test)
+
+**What the person sees.** Settings > Books > Books Settings has a "Test" section with a button named **Pull a test**. Tapping it
+opens a short explanation (it takes over the screen for about 3 minutes, records only this app's screen with no microphone, and
+needs the system's screen-recording permission the first time), then a Start button. The run covers the Books feature from the
+tab opening to leaving it, with a banner at the top naming each action ("14 of 52 · Turn page: next") and a ring showing where
+the scripted finger is touching. A Stop button is always on screen. At the end a result screen lists every action with a pass or
+fail mark and offers **Share video and log**, which opens the share sheet with the MP4 and the JSON log so they can be sent
+straight into the chat for review (or saved to Files). Tapping Pull a test again re-runs it.
+
+**What it does, in the order a regular user would.** Each action drives the same code a finger does:
+1. Books tab opens, desk is shown and left alone for two seconds (idle look, lamp, light); light and dark appearance.
+2. Tap History: the book lifts, the camera comes down, the cover swings open; wait for reading. Tap Geography: "No lessons yet".
+3. Read page 1 (dwell), tap next several times, tap previous, jump far ahead and back (multi-leaf flip), drag a leaf from its
+   edge and release past halfway, drag and let go early (it must fall back), flick quickly, swipe the page body.
+4. Tap a highlighted term (definition card opens), dismiss it. Turn Memorize on, step through its three levels, tap a blot to
+   reveal one answer, reveal the whole page, hide again.
+5. Pick up the magnifying glass, drag it across text and across the spine to the other page, put it away. Same for the ruler
+   and for the bookmark (place, turn away and come back, remove).
+6. Focus Mode in and out with a tool in hand; the four text sizes with a page re-layout each.
+7. Free view: pinch out, pinch in, two-finger drag, one-finger pan while zoomed, double-tap reset, the recenter button.
+8. Rotate to landscape: the half-page framing, the vertical pan, a turn, back to portrait (the original orientation is restored).
+9. Quality Standard then Battery saver (original value restored), then Back to the desk, Read as text and return, leave the tab.
+
+**How the gestures are real.** The touch layer takes plain points (down, move, up, with times) from UIKit and feeds one decision
+tree; the tour feeds that same entry point with scripted points on realistic paths and speeds, not the high-level commands. HUD
+buttons are driven through the same handlers the buttons call. So a bug in hit testing, thresholds or page turning shows in
+the footage exactly as it would for a person. UIKit's own recognizers (the pinch) are fed by a thin scripted source that calls
+the same recognizer callbacks.
+
+**Footage.** On device: `RPScreenRecorder` (in-app capture, microphone off) writes H.264 through `AVAssetWriter`, scaled to
+about 780 px wide with the bitrate chosen so the file stays under about 40 MB; the captions and finger ring are part of the
+app's own view tree, so they are in the video. The simulator has no ReplayKit, so there the CI job records the simulator with
+`simctl recordVideo` while the same in-app tour runs (launch argument), and the MP4 and log are published to the
+`ci-recordings` branch automatically after a push or manual dispatch (replaces `BooksTourUITests`). Claude reads either the shared
+files or the CI ones: frames are extracted at the log's timestamps with ffmpeg (available in the working sandbox) and
+inspected, so each action is checked at its start, middle and end.
+
+**The log** (`tour-<date>.json`, written next to the video): per action the id, caption, video-relative start and end times, the
+expected scene state and the observed one (page, mode, tool, focus, recall, zoom, canNext/canPrev), a pass or fail result with a
+reason, frame statistics (average and worst frame time, number of frames over 1.5x the display interval), and resident memory at
+the end; plus device model, iOS version, display refresh rate, scene engine, quality, appearance, and any warnings the scene
+logged (a texture that failed to draw, a missing glyph, a tween that never finished). Expectations are checked in code with a
+timeout, and a failing action does not stop the run, so one footage shows every problem.
+
+**Safety for the person's data.** The tour reads and writes reading progress and bookmarks like a person would, so it first
+copies `TextbookState` (and the Books preferences it will change: text size, level, quality, free view, engine) and restores
+them at the end, on Stop, on backgrounding, and, if the app is killed mid-run, at next launch from a saved copy. Nothing is
+sent anywhere by the app: sharing is the person's own share sheet. Not available (button disabled with a one-line reason)
+when the scene engine is Original, when the scene could not start, or when screen recording is restricted by the device (the tour
+can still run without video and produce just the log, which the person can choose).
+
+**Tests.** Unit: the script is valid (unique ids, every expectation reachable, restore list complete), the report encodes and
+decodes, restore-after-abort puts preferences back, caption and ring positions. UI test in CI runs the tour in the simulator
+with the recorder stubbed out and requires every action to pass, and the CI tour job produces the real footage as above.
 
 ### Free view (move, zoom out, zoom in)
 
@@ -266,7 +333,7 @@ profile is measured in CI with a `measure` block over a scripted page turn, and 
 ### Cleanup when approved as done
 
 Delete `web/books3d`, `Resources/Books3D`, the `scene` CI job and the bundle-current check, the WKWebView host and bridge
-code; keep the Classic shelf. Rewrite the Books sections of `AGENTS.md` (rules 1 to 3 now point at the Swift files; rule 3's
+code, `BooksTourUITests` (replaced by the in-app tour); keep the Classic shelf and Pull a test. Rewrite the Books sections of `AGENTS.md` (rules 1 to 3 now point at the Swift files; rule 3's
 "new block type" list becomes `LessonModels.swift`, `scripts/validate-lessons.py`, `PageLayout`/`PageRenderer`) and
 `docs/features/books.md`. Keep the old scene until the owner has seen the new one and accepts it.
 
@@ -293,6 +360,11 @@ code; keep the Classic shelf. Rewrite the Books sections of `AGENTS.md` (rules 1
   parity sign-off.
 - Free view is on by default, with the Settings switch as the option you asked for; the zoom range, the one-finger pan rule while
   zoomed in, double-tap to reset and the recenter button are my choices.
+- Pull a test lives in Books Settings (the Books feature's own settings), not the top-level Settings list; it is a normal
+  button in release builds (the owner uses sideloaded builds), disabled with a reason when it cannot run. Captured with
+  ReplayKit on device and `simctl recordVideo` in CI; sent through the share sheet because nothing in the app uploads anywhere
+  and no token is ever embedded in the app. The owner passes the files to Claude in chat; CI footage needs no step by the owner.
+- The tour walks the native scene only (the Original engine stays checked by the screenshot waypoints).
 - While zoomed in, swiping the page body does not turn pages (it pans); edge drag and arrows still turn. Say if you would
   rather keep swipe-to-turn and use only two fingers to pan.
 - No sound effects (cannot be auditioned here); haptics only.
