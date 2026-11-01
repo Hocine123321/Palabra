@@ -188,7 +188,7 @@ jobs:
   # A scripted walk through the Books tab with the simulator screen recorded, published on the ci-recordings branch.
   # Evidence, not a gate, and off the normal path: run it by hand (workflow_dispatch) or put [tour] in the commit message.
   tour:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[tour]')
+    if: (github.event_name == 'workflow_dispatch' && inputs.scope == 'full') || contains(github.event.head_commit.message, '[tour]')
     runs-on: macos-26
     timeout-minutes: 25
     permissions:
@@ -278,6 +278,8 @@ jobs:
           c = sorted((rt, x['udid']) for rt, ds in d.items() if 'iOS' in rt for x in ds if x['name'].startswith('iPhone'))
           print(c[-1][1])")
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          # Boot now so the simulator is warm by the time the build is done (a cold one timed out launching the app).
+          (xcrun simctl boot "$UDID" && xcrun simctl bootstatus "$UDID" -b) >/dev/null 2>&1 &
       - name: Build for testing
         shell: bash
         run: |
@@ -299,6 +301,7 @@ jobs:
           UDID="${{ steps.sim.outputs.udid }}"
           xcrun simctl boot "$UDID" 2>/dev/null
           xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1
+          sleep 20
           xcrun simctl io "$UDID" recordVideo --codec=h264 --force build/review/run.mp4 > build/rec.log 2>&1 &
           REC=$!
           sleep 3
