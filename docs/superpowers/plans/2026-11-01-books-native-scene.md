@@ -19,6 +19,7 @@
 - New persisted fields are optional with tolerant decoding: `TextbookState.preferences.freeView` (default true), `.sceneEngine` (`original`|`native`, default `original` until Task 15).
 - JS constants copied exactly: PW 1.0, PH = 1820/1280, COVER_T .04, OVER_X .035, OVER_Z .045, SX 28, SZ 8, BLOCK_COLS 14, GUTTER_DIP .03, FOV 32, near .05, far 40, page bitmap 1280x1820, margins top 110 bottom 130 outer 104 gutter 152, GAP 40, TEXT_SCALE {-1:.96, 0:1.1, 1:1.26, 2:1.42}, tween durations and eases from `app.js`.
 - Every UI-visible string added gets an `ar.lproj/Localizable.strings` entry keyed by the English text.
+- **Spike result (Task 1, verified in CI footage):** SceneKit renders on the macos-26 simulator; PBR, chamfered boxes, `shaderModifiers` and `.forward` shadows work; `.deferred` shadows do NOT render there. All shadow-casting lights use `shadowMode = .forward`.
 - Commit messages end with the two trailer lines the harness requires (Co-Authored-By, Claude-Session).
 
 ## Review Focus
