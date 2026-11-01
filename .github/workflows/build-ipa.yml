@@ -4,6 +4,16 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      scope:
+        description: "unit: build + unit tests + UI smoke. full: every UI test. compile: build only. review: only the review job (footage)."
+        type: choice
+        default: unit
+        options: [unit, full, compile, review]
+      review_test:
+        description: "UI test to run and record in the review job, for example PalabraUITests/SceneKitSpikeUITests (empty = no review job)"
+        type: string
+        default: ""
 
 concurrency:
   group: build-${{ github.ref }}
@@ -13,6 +23,7 @@ jobs:
   # The IPA job is independent of the test job, so a failing test never blocks the deliverable; the run itself still
   # turns red when any unit or UI test fails.
   ipa:
+    if: inputs.scope != 'review'
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +71,7 @@ jobs:
   # The 3D scene (web/books3d) is built into one HTML file that the app bundles. Test it, rebuild it, and fail when the
   # committed bundle is not what the sources produce (so the app never ships a stale scene).
   scene:
+    if: inputs.scope != 'review'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -83,6 +95,7 @@ jobs:
   # One job, one build. The default run is every unit test plus a short UI smoke set (launch and persistence; [books] adds the 3D Books reading flow). The full UI suite (about 30 launches, ~20 min) runs only on request: start the workflow by hand, or put
   # [ui] in the commit message. Keeps the job around 10 minutes and the Actions usage low.
   tests:
+    if: inputs.scope != 'review'
     runs-on: macos-26
     timeout-minutes: 30
     env:
@@ -91,7 +104,8 @@ jobs:
       HOMEBREW_NO_ENV_HINTS: "1"
       COMMIT_MSG: ${{ github.event.head_commit.message }}
       HAS_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
-      FULL_UI: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ui]')) && '1' || '0' }}
+      SCOPE: ${{ inputs.scope }}
+      FULL_UI: ${{ ((github.event_name == 'workflow_dispatch' && inputs.scope == 'full') || contains(github.event.head_commit.message, '[ui]')) && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
@@ -124,6 +138,7 @@ jobs:
         if: failure()
         run: bash scripts/ci-summary.sh build/build.log "build"
       - name: Tests
+        if: env.SCOPE != 'compile'
         shell: bash
         run: |
           # No secrets here: only the live smoke test below gets the API key.
@@ -140,11 +155,11 @@ jobs:
             $ARGS -resultBundlePath build/tests.xcresult \
             | tee build/tests.log | tail -n 60
       - name: Test summary
-        if: always()
+        if: always() && env.SCOPE != 'compile'
         run: bash scripts/ci-summary.sh build/tests.log "tests (full UI ${FULL_UI})"
       - name: Live smoke test
         # Only when the API key secret exists; skipped otherwise.
-        if: always() && env.HAS_KEY == 'true'
+        if: always() && env.HAS_KEY == 'true' && env.SCOPE != 'compile'
         shell: bash
         env:
           TEST_RUNNER_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -236,3 +251,88 @@ jobs:
           OUT=$(git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-recordings 2>&1 | tail -5)
           echo "::notice title=tour publish::$(echo "$OUT" | tr '\n' ' ' | sed "s/${GH_TOKEN}/***/g")"
           echo "files: $(ls | tr '\n' ' ')"
+
+  # Footage for review: runs one UI test class on the simulator while the screen is recorded, then publishes the video and
+  # whatever the test wrote to $REVIEW_DIR (screenshots, logs) on the ci-recordings branch under latest/. Start it by hand
+  # (workflow_dispatch) with review_test set, for example PalabraUITests/BooksTourRunUITests. Evidence, not a gate.
+  review:
+    if: github.event_name == 'workflow_dispatch' && inputs.review_test != ''
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    env:
+      REVIEW_TEST: ${{ inputs.review_test }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)['devices']
+          c = sorted((rt, x['udid']) for rt, ds in d.items() if 'iOS' in rt for x in ds if x['name'].startswith('iPhone'))
+          print(c[-1][1])")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+      - name: Build for testing
+        shell: bash
+        run: |
+          mkdir -p build
+          xcodebuild build-for-testing -project Palabra.xcodeproj -scheme Palabra \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build/dd \
+            COMPILER_INDEX_STORE_ENABLE=NO | tee build/build.log | tail -n 20
+      - name: Surface build errors as annotations
+        if: failure()
+        run: bash scripts/ci-summary.sh build/build.log "review build"
+      - name: Record the run
+        continue-on-error: true
+        shell: bash
+        env:
+          TEST_RUNNER_REVIEW_DIR: ${{ github.workspace }}/build/review
+        run: |
+          set +e +o pipefail
+          mkdir -p build/review
+          UDID="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$UDID" 2>/dev/null
+          xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force build/review/run.mp4 > build/rec.log 2>&1 &
+          REC=$!
+          sleep 3
+          xcodebuild test-without-building -project Palabra.xcodeproj -scheme Palabra \
+            -destination "id=$UDID" -derivedDataPath build/dd \
+            -only-testing:"$REVIEW_TEST" -resultBundlePath build/review.xcresult \
+            > build/review.log 2>&1
+          echo "xcodebuild exit code: $?" > build/review/result.txt
+          sleep 2
+          kill -INT $REC 2>/dev/null
+          wait $REC 2>/dev/null
+          grep -v 'CoreData:' build/review.log | tail -n 150 > build/review/xcodebuild-tail.log
+          ls -la build/review | head -80
+          exit 0
+      - name: Test summary
+        if: always()
+        run: bash scripts/ci-summary.sh build/review.log "review ($REVIEW_TEST)"
+      - name: Publish the footage
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d build/review ] || { echo "::warning title=review::no build/review directory"; exit 0; }
+          cd build/review
+          printf 'commit %s\nrun %s\ntest %s\nref %s\n' "${{ github.sha }}" "${{ github.run_id }}" "$REVIEW_TEST" "${{ github.ref_name }}" > meta.txt
+          mkdir -p ../publish/latest && cp -R ./* ../publish/latest/
+          cd ../publish
+          git init -q -b ci-recordings
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -qm "Review footage: run ${{ github.run_id }}, ${{ github.sha }}"
+          OUT=$(git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-recordings 2>&1 | tail -5)
+          echo "::notice title=review publish::$(echo "$OUT" | tr '\n' ' ' | sed "s/${GH_TOKEN}/***/g")"
+          echo "files: $(ls latest | tr '\n' ' ')"

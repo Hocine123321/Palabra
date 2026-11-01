@@ -143,14 +143,19 @@ struct PalabraApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(environment)
-                .modelContainer(container)
-                .alert("Your library couldn't be opened", isPresented: $showStoreProblem) {
-                    Button("Close", role: .cancel) {}
-                } message: {
-                    Text("Palabra is using a temporary library, so anything you add will be lost when the app closes. Close the app and open it again. If this keeps happening, don't delete the app: your saved words are still on this device.")
-                }
+            if Self.launchArguments.contains("-UITestSceneKitSpike") {
+                // Throwaway rendering check for the native Books scene (Debug builds only; see SceneKitSpikeView).
+                SceneKitSpikeView().ignoresSafeArea()
+            } else {
+                RootView()
+                    .environment(environment)
+                    .modelContainer(container)
+                    .alert("Your library couldn't be opened", isPresented: $showStoreProblem) {
+                        Button("Close", role: .cancel) {}
+                    } message: {
+                        Text("Palabra is using a temporary library, so anything you add will be lost when the app closes. Close the app and open it again. If this keeps happening, don't delete the app: your saved words are still on this device.")
+                    }
+            }
         }
     }
 }
