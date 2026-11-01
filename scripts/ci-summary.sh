@@ -9,7 +9,7 @@ grep -v 'CoreData:' "$LOG" > "$CLEAN" || true
 ROOT='#/Users/runner/work/Palabra/Palabra/##'
 {
   echo "$LABEL: passed cases: $(grep -cE "^Test Case .* passed" "$CLEAN")  failed cases: $(grep -cE "^Test Case .* failed" "$CLEAN")"
-  grep -E "^Test Suite '[A-Za-z]+Tests' (passed|failed)" "$CLEAN" | sed -E "s/ at [0-9-]+ [0-9:.]+\.?//" | awk '!seen[$0]++'
+  grep -E "^Test Suite '[A-Za-z]+Tests' failed" "$CLEAN" | sed -E "s/ at [0-9-]+ [0-9:.]+\.?//" | awk '!seen[$0]++'
   grep -E "Test Case .* failed|TEST FAILED|TEST EXECUTE FAILED|: error:|XCTAssert|Failing tests|crashed|timed out|Executed [0-9]+ tests" "$CLEAN" \
     | sed "s$ROOT" | cut -c1-300 | awk '!seen[$0]++' | head -40
   echo "--- slowest test cases:"
