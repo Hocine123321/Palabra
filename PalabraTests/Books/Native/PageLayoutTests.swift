@@ -107,7 +107,8 @@ final class PageLayoutTests: XCTestCase {
     func testBaselineFormula() {
         let r = rich("x", size: 50)
         XCTAssertEqual(r.lh, 92.5, accuracy: 1e-9)
-        XCTAssertEqual(r.lines[0].baseline, 50 * 1.18 + (92.5 - 80) * 0.5, accuracy: 1e-9)
+        let expected: Double = 59 + 6.25
+        XCTAssertEqual(r.lines[0].baseline, expected, accuracy: 1e-9)
     }
 
     func testRTLRunPositionsMirror() {
@@ -134,8 +135,11 @@ final class PageLayoutTests: XCTestCase {
         XCTAssertEqual(run.text, "Treaty of Fez")
         XCTAssertEqual(run.level, .keyFacts)
         XCTAssertEqual(run.key, "0.p.0")
-        XCTAssertEqual(run.x, 3 * 14 + 14, accuracy: 1e-9)
-        XCTAssertEqual(run.w, 6 * 14 + 14 + 2 * 14 + 14 + 3 * 14, accuracy: 1e-9)
+        // "see " is 3 letters + a space; the target is Treaty (6) of (2) Fez (3) with two spaces, 14 points per unit.
+        let expectedX: Double = 56
+        let expectedW: Double = 182
+        XCTAssertEqual(run.x, expectedX, accuracy: 1e-9)
+        XCTAssertEqual(run.w, expectedW, accuracy: 1e-9)
     }
 
     func testTwoTargetsOnOneLineAreTwoRuns() {
