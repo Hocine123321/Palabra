@@ -59,6 +59,8 @@ final class BookShapeTests: XCTestCase {
                                            ("left", s.block(height: heights.left, side: -1), item.left)] {
                 let context = "n=\(item.leafCount) flipped=\(item.flipped) \(name)"
                 XCTAssertEqual(mesh.visible, expected.visible, context)
+                // A hidden block keeps whatever geometry it had last in the web scene; nothing draws it, so only visible ones compare.
+                guard expected.visible else { continue }
                 XCTAssertEqual(mesh.scaleX, expected.scaleX, context)
                 XCTAssertEqualArrays(flat(mesh.positions), expected.positions, accuracy: 1e-5, context)
                 XCTAssertEqualArrays(flat(mesh.uvs), expected.uvs, accuracy: 1e-4, context)
