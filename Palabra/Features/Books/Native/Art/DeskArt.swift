@@ -7,8 +7,8 @@ enum DeskArt {
     static func wood() -> (map: CGImage, bump: CGImage) {
         let size = 1024
         let W = Double(size), H = Double(size)
-        let c = Canvas(width: size, height: size)
-        let b = Canvas(width: size, height: size)
+        let c = PixelCanvas(width: size, height: size)
+        let b = PixelCanvas(width: size, height: size)
         var r = SeededRandom(seed: 42)
         let planks = 4
         let plankW = W / Double(planks)
@@ -50,7 +50,7 @@ enum DeskArt {
 
     /// A white tile with faint speckle; tinted by the material colour and repeated 6 x 6.
     static func felt() -> CGImage {
-        let c = Canvas(width: 256, height: 256)
+        let c = PixelCanvas(width: 256, height: 256)
         var r = SeededRandom(seed: 5)
         c.fillStyle("#ffffff")
         c.fillRect(0, 0, 256, 256)

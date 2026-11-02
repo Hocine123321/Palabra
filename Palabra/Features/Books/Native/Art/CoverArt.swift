@@ -25,19 +25,19 @@ enum CoverArt {
     private static func font(_ size: Double) -> CTFont { PageFonts.ctFont(FontSpec(size: size, bold: true)) }
 
     private struct Layers {
-        let color = Canvas(width: CoverArt.width, height: CoverArt.height)
-        let roughness = Canvas(width: CoverArt.width, height: CoverArt.height)
-        let metalness = Canvas(width: CoverArt.width, height: CoverArt.height)
-        let bump = Canvas(width: CoverArt.width, height: CoverArt.height)
+        let color = PixelCanvas(width: CoverArt.width, height: CoverArt.height)
+        let roughness = PixelCanvas(width: CoverArt.width, height: CoverArt.height)
+        let metalness = PixelCanvas(width: CoverArt.width, height: CoverArt.height)
+        let bump = PixelCanvas(width: CoverArt.width, height: CoverArt.height)
     }
 
-    private static func frame(_ c: Canvas, _ x: Double, _ y: Double, _ w: Double, _ h: Double, _ r: Double, _ lw: Double) {
+    private static func frame(_ c: PixelCanvas, _ x: Double, _ y: Double, _ w: Double, _ h: Double, _ r: Double, _ lw: Double) {
         c.roundRectPath(x, y, w, h, r)
         c.strokeCurrentPath(width: lw)
     }
 
     /// Gold foil drawn into the colour map (as a gradient), the roughness map (shiny) and the metalness map (metal).
-    private static func foil(_ layers: Layers, _ draw: (Canvas) -> Void) {
+    private static func foil(_ layers: Layers, _ draw: (PixelCanvas) -> Void) {
         let g = layers.color.ctx
         g.saveGState()
         g.beginTransparencyLayer(auxiliaryInfo: nil)
@@ -47,7 +47,7 @@ enum CoverArt {
         g.setBlendMode(.sourceIn)
         layers.color.fillRectWithGradient(
             CGRect(x: 0, y: 0, width: W, height: H), from: CGPoint(x: 0, y: 0), to: CGPoint(x: W, y: H),
-            stops: [(0, Canvas.css("#f6d27a")), (0.5, Canvas.css("#c8962e")), (1, Canvas.css("#f1c765"))]
+            stops: [(0, PixelCanvas.css("#f6d27a")), (0.5, PixelCanvas.css("#c8962e")), (1, PixelCanvas.css("#f1c765"))]
         )
         g.endTransparencyLayer()
         g.restoreGState()
@@ -66,7 +66,7 @@ enum CoverArt {
         let g = L.color
         g.fillRectWithGradient(
             CGRect(x: 0, y: 0, width: W, height: H), from: CGPoint(x: 0, y: 0), to: CGPoint(x: W, y: H),
-            stops: [(0, Canvas.css("#8f2a37")), (0.55, Canvas.css("#6b1a25")), (1, Canvas.css("#4a111a"))]
+            stops: [(0, PixelCanvas.css("#8f2a37")), (0.55, PixelCanvas.css("#6b1a25")), (1, PixelCanvas.css("#4a111a"))]
         )
         g.grain(width: W, height: H, seed: 11, dots: 26000, darkAlpha: 0.10, lightAlpha: 0.05)
         L.roughness.fillStyle(L.roughness.gray(170))
@@ -124,7 +124,7 @@ enum CoverArt {
         }
         return CoverTextures(
             color: L.color.image(), roughness: L.roughness.image(), metalness: L.metalness.image(), bump: L.bump.image(),
-            endpaper: endpaper(subject: "history"), edge: Canvas.css("#4a111a"), cloth: Canvas.css("#5a1621")
+            endpaper: endpaper(subject: "history"), edge: PixelCanvas.css("#4a111a"), cloth: PixelCanvas.css("#5a1621")
         )
     }
 
@@ -133,7 +133,7 @@ enum CoverArt {
         let g = L.color
         g.fillRectWithGradient(
             CGRect(x: 0, y: 0, width: W, height: H), from: CGPoint(x: 0, y: 0), to: CGPoint(x: W, y: H),
-            stops: [(0, Canvas.css("#2a8a96")), (0.6, Canvas.css("#15616c")), (1, Canvas.css("#0c4049"))]
+            stops: [(0, PixelCanvas.css("#2a8a96")), (0.6, PixelCanvas.css("#15616c")), (1, PixelCanvas.css("#0c4049"))]
         )
         // buckram weave
         g.strokeStyle("rgba(255,255,255,0.045)")
@@ -216,13 +216,13 @@ enum CoverArt {
         }
         return CoverTextures(
             color: L.color.image(), roughness: L.roughness.image(), metalness: L.metalness.image(), bump: L.bump.image(),
-            endpaper: endpaper(subject: "geography"), edge: Canvas.css("#0c3a42"), cloth: Canvas.css("#12525d")
+            endpaper: endpaper(subject: "geography"), edge: PixelCanvas.css("#0c3a42"), cloth: PixelCanvas.css("#12525d")
         )
     }
 
     /// Plain material for the endpaper, back cover, and cloth edges (tiles; the scene repeats it 2 x 3).
     static func endpaper(subject: String) -> CGImage {
-        let c = Canvas(width: 512, height: 512)
+        let c = PixelCanvas(width: 512, height: 512)
         let geo = subject == "geography"
         c.fillStyle(geo ? "#e7e9d8" : "#e9dcc0")
         c.fillRect(0, 0, 512, 512)
@@ -241,7 +241,7 @@ enum CoverArt {
 
     /// The striped side of a page block.
     static func pageEdge() -> CGImage {
-        let c = Canvas(width: 64, height: 256)
+        let c = PixelCanvas(width: 64, height: 256)
         c.fillStyle("#efe4c8")
         c.fillRect(0, 0, 64, 256)
         var rng = SeededRandom(seed: 9)

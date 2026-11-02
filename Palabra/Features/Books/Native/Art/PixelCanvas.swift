@@ -25,7 +25,7 @@ enum TextAlign { case left, center, right }
 
 /// A bitmap with a 2D-canvas style coordinate system (origin top left, y down), so the page, cover and desk drawing code can
 /// follow the web scene operation by operation.
-final class Canvas {
+final class PixelCanvas {
     let ctx: CGContext
     let pixelWidth: Int
     let pixelHeight: Int
@@ -62,8 +62,8 @@ final class Canvas {
 
     func fillStyle(_ c: PageColor) { ctx.setFillColor(c.cgColor) }
     func strokeStyle(_ c: PageColor) { ctx.setStrokeColor(c.cgColor) }
-    func fillStyle(_ css: String) { ctx.setFillColor(Canvas.css(css).cgColor) }
-    func strokeStyle(_ css: String) { ctx.setStrokeColor(Canvas.css(css).cgColor) }
+    func fillStyle(_ css: String) { ctx.setFillColor(PixelCanvas.css(css).cgColor) }
+    func strokeStyle(_ css: String) { ctx.setStrokeColor(PixelCanvas.css(css).cgColor) }
     func gray(_ v: Double) -> PageColor { PageColor(r: v / 255, g: v / 255, b: v / 255) }
 
     /// `#rrggbb` or `rgba(r,g,b,a)` strings, as the web scene wrote them.
@@ -110,7 +110,7 @@ final class Canvas {
 
     /// Fills the current path (already added to the context) with a linear gradient; colours beyond the ends extend, like canvas.
     func fillPathWithGradient(from a: CGPoint, to b: CGPoint, stops: [(Double, PageColor)]) {
-        guard let gradient = Canvas.gradient(stops) else { return }
+        guard let gradient = PixelCanvas.gradient(stops) else { return }
         ctx.saveGState()
         ctx.clip()
         ctx.drawLinearGradient(gradient, start: a, end: b, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])

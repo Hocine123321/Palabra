@@ -34,7 +34,7 @@ enum PageRenderer {
     }
 
     private static let noiseTile: CGImage = {
-        let c = Canvas(width: 256, height: 256)
+        let c = PixelCanvas(width: 256, height: 256)
         var rnd = SeededRandom(seed: 7)
         for _ in 0..<2600 {
             c.fillStyle(rnd.next() > 0.5 ? "rgba(90,60,20,0.05)" : "rgba(255,255,255,0.10)")
@@ -57,7 +57,7 @@ enum PageRenderer {
 
     static func draw(_ phys: PhysicalPage?, _ o: PageRenderOptions) -> (image: CGImage, hits: [HitRegion]) {
         let size = pixelSize(density: o.density)
-        let c = Canvas(pixelWidth: size.w, pixelHeight: size.h, scale: Double(size.w) / PageGeometry.width)
+        let c = PixelCanvas(pixelWidth: size.w, pixelHeight: size.h, scale: Double(size.w) / PageGeometry.width)
         let g = c.ctx
         let P = PagePalette.forSubject(o.subject)
         let rtl = o.rtl
@@ -86,13 +86,13 @@ enum PageRenderer {
         c.fillRectWithGradient(
             CGRect(x: 0, y: 0, width: W, height: H),
             from: CGPoint(x: gutterLeft ? 0 : W, y: 0), to: CGPoint(x: gutterLeft ? W : 0, y: 0),
-            stops: [(0, Canvas.css("rgba(70,45,15,0.20)")), (0.12, Canvas.css("rgba(70,45,15,0.04)")), (1, Canvas.css("rgba(70,45,15,0)"))]
+            stops: [(0, PixelCanvas.css("rgba(70,45,15,0.20)")), (0.12, PixelCanvas.css("rgba(70,45,15,0.04)")), (1, PixelCanvas.css("rgba(70,45,15,0)"))]
         )
         c.fillRectWithGradient(
             CGRect(x: 0, y: 0, width: W, height: H), from: CGPoint(x: 0, y: 0), to: CGPoint(x: 0, y: H),
             stops: [
-                (0, Canvas.css("rgba(70,45,15,0.10)")), (0.05, Canvas.css("rgba(70,45,15,0)")),
-                (0.95, Canvas.css("rgba(70,45,15,0)")), (1, Canvas.css("rgba(70,45,15,0.12)"))
+                (0, PixelCanvas.css("rgba(70,45,15,0.10)")), (0.05, PixelCanvas.css("rgba(70,45,15,0)")),
+                (0.95, PixelCanvas.css("rgba(70,45,15,0)")), (1, PixelCanvas.css("rgba(70,45,15,0.12)"))
             ]
         )
 
@@ -119,13 +119,13 @@ enum PageRenderer {
                     if concealed(run.level, key: absKey) {
                         // Ink blot: the answer is not drawn at all.
                         c.roundRectPath(x - 6, y, w + 12, h, 14)
-                        c.fillPathWithGradient(from: CGPoint(x: 0, y: y), to: CGPoint(x: 0, y: y + h), stops: [(0, P.blot), (1, Canvas.css("#1b130b"))])
+                        c.fillPathWithGradient(from: CGPoint(x: 0, y: y), to: CGPoint(x: 0, y: y + h), stops: [(0, P.blot), (1, PixelCanvas.css("#1b130b"))])
                         c.strokeStyle("rgba(242,184,75,0.55)")
                         c.roundRectPath(x - 6, y, w + 12, h, 14)
                         c.strokeCurrentPath(width: 3)
                         hits.append(HitRegion(kind: .recall(key: absKey, level: run.level), rect: CGRect(x: x - 10, y: y - 6, width: w + 20, height: h + 12)))
                     } else {
-                        let marker = o.revealAll && (state?.isEnabled ?? false) ? Canvas.css("rgba(242,184,75,0.55)") : P.marker(level: run.level.rawValue)
+                        let marker = o.revealAll && (state?.isEnabled ?? false) ? PixelCanvas.css("rgba(242,184,75,0.55)") : P.marker(level: run.level.rawValue)
                         c.fillStyle(marker)
                         c.roundRectPath(x - 5, y + 4, w + 10, h - 4, 10)
                         c.fillCurrentPath()
