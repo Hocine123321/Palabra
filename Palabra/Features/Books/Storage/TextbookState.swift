@@ -26,11 +26,22 @@ enum SceneQuality: String, Codable, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 }
 
+/// Which renderer draws the 3D desk: the original Three.js scene in a web view, or the native SceneKit one.
+enum SceneEngine: String, Codable, CaseIterable, Identifiable, Sendable {
+    case original
+    case native
+
+    var id: String { rawValue }
+}
+
 struct ReaderPreferences: Codable, Equatable {
     var recallLevel: RecallLevel = .essential
     var textSize: ReaderTextSize = .standard
     var viewStyle: BooksViewStyle = .desk
     var sceneQuality: SceneQuality = .standard
+    /// Pinch to zoom and drag to move the camera while reading (native desk only).
+    var freeView = true
+    var sceneEngine: SceneEngine = .original
 
     init() {}
 
@@ -41,6 +52,8 @@ struct ReaderPreferences: Codable, Equatable {
         textSize = (try? c.decodeIfPresent(ReaderTextSize.self, forKey: .textSize)) ?? defaults.textSize
         viewStyle = (try? c.decodeIfPresent(BooksViewStyle.self, forKey: .viewStyle)) ?? defaults.viewStyle
         sceneQuality = (try? c.decodeIfPresent(SceneQuality.self, forKey: .sceneQuality)) ?? defaults.sceneQuality
+        freeView = (try? c.decodeIfPresent(Bool.self, forKey: .freeView)) ?? defaults.freeView
+        sceneEngine = (try? c.decodeIfPresent(SceneEngine.self, forKey: .sceneEngine)) ?? defaults.sceneEngine
     }
 }
 

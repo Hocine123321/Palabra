@@ -71,4 +71,21 @@ final class TextbookStateTests: XCTestCase {
         XCTAssertEqual(odd.preferences.sceneQuality, .standard)
         XCTAssertEqual(odd.preferences.textSize, .larger)
     }
+
+    func testEngineAndFreeViewDefaultsAndTolerance() throws {
+        let fresh = try decode("{}")
+        XCTAssertEqual(fresh.preferences.sceneEngine, .original)
+        XCTAssertTrue(fresh.preferences.freeView)
+        let saved = try decode(#"{"preferences":{"sceneEngine":"native","freeView":false,"textSize":1}}"#)
+        XCTAssertEqual(saved.preferences.sceneEngine, .native)
+        XCTAssertFalse(saved.preferences.freeView)
+        let odd = try decode(#"{"preferences":{"sceneEngine":"vulkan","freeView":"yes","textSize":1}}"#)
+        XCTAssertEqual(odd.preferences.sceneEngine, .original)
+        XCTAssertTrue(odd.preferences.freeView)
+        XCTAssertEqual(odd.preferences.textSize, .larger)
+        // Older saved settings without the new keys keep everything else.
+        let old = try decode(#"{"preferences":{"viewStyle":"classic","sceneQuality":"saver"}}"#)
+        XCTAssertEqual(old.preferences.viewStyle, .classic)
+        XCTAssertEqual(old.preferences.sceneEngine, .original)
+    }
 }

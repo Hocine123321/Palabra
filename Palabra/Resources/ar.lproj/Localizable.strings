@@ -750,6 +750,12 @@
 "Battery saver" = "توفير البطارية";
 "View" = "العرض";
 "Quality" = "الجودة";
+"Original (web)" = "الأصلي (ويب)";
+"Native (new)" = "مدمج (جديد)";
+"Engine" = "المحرك";
+"Native desk" = "المكتب المدمج";
+"Free view" = "العرض الحر";
+"Free view lets you pinch to zoom out or in and drag to move the view while you read." = "يتيح لك العرض الحر القرص للتصغير أو التكبير والسحب لتحريك العرض أثناء القراءة.";
 "Battery saver draws the desk with fewer pixels and no shadows." = "يرسم توفير البطارية المكتب بعدد أقل من البكسلات ودون ظلال.";
 "Reading" = "القراءة";
 "Memorize level" = "مستوى الحفظ";

@@ -18,6 +18,15 @@ extension BooksViewStyle {
     }
 }
 
+extension SceneEngine {
+    var title: LocalizedStringKey {
+        switch self {
+        case .original: return "Original (web)"
+        case .native: return "Native (new)"
+        }
+    }
+}
+
 extension SceneQuality {
     var title: LocalizedStringKey {
         switch self {
@@ -64,6 +73,22 @@ struct BooksSettingsView: View {
                     Text("3D desk")
                 } footer: {
                     Text("Battery saver draws the desk with fewer pixels and no shadows.")
+                }
+                .themedSection()
+
+                Section {
+                    Picker("Engine", selection: $shelf.preferences.sceneEngine) {
+                        ForEach(SceneEngine.allCases) { engine in
+                            Text(engine.title).tag(engine)
+                        }
+                    }
+                    .accessibilityIdentifier("booksEnginePicker")
+                    Toggle("Free view", isOn: $shelf.preferences.freeView)
+                        .accessibilityIdentifier("booksFreeViewToggle")
+                } header: {
+                    Text("Native desk")
+                } footer: {
+                    Text("Free view lets you pinch to zoom out or in and drag to move the view while you read.")
                 }
                 .themedSection()
             }
