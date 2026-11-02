@@ -175,20 +175,36 @@ final class PageLayoutTests: XCTestCase {
 
     func testEveryBlockTypeLaysOutWithPositiveHeight() {
         let env = LayoutEnv(measure: fixed, rtl: true, scale: 1.1, palette: .history, width: PageGeometry.contentWidth)
-        let blocks: [Block] = [
-            .heading(text: "H", level: 1), .heading(text: "H", level: 3), .paragraph("p"),
-            .list(title: "t", items: ["a", "b"], ordered: true), .keyPoint(label: "l", text: "k"),
-            .quote(text: "q", source: "s"),
-            .timeline(title: nil, events: [TimelineEvent(date: "1900", title: "x", detail: "d"), TimelineEvent(date: "1901", title: "y", detail: nil)]),
-            .stats(title: nil, items: [StatItem(label: "l", value: "1", unit: nil, note: "n"), StatItem(label: "m", value: "2", unit: nil, note: nil), StatItem(label: "o", value: "3", unit: nil, note: nil)]),
-            .comparison(title: nil, corner: nil, columns: ["a", "b"], rows: [ComparisonRow(label: "r", cells: ["1", "2"])]),
-            .comparison(title: nil, corner: nil, columns: [], rows: [ComparisonRow(label: "r", cells: ["x\ny"])]),
-            .causeEffect(title: "c", stages: [FlowStage(label: "s", nodes: ["n"]), FlowStage(label: nil, nodes: ["m"])]),
-            .process(title: nil, steps: [ProcessStep(title: "a", detail: "b"), ProcessStep(title: "c", detail: nil)]),
-            .definitions(title: nil, items: [DefinitionItem(id: nil, term: "t", definition: "d")]),
-            .image(ImagePanel(name: "i", caption: "c", alt: "a", style: nil)),
-            .unsupported(type: "future")
+        let events: [TimelineEvent] = [
+            TimelineEvent(date: "1900", title: "x", detail: "d"),
+            TimelineEvent(date: "1901", title: "y", detail: nil)
         ]
+        let stats: [StatItem] = [
+            StatItem(label: "l", value: "1", unit: nil, note: "n"),
+            StatItem(label: "m", value: "2", unit: nil, note: nil),
+            StatItem(label: "o", value: "3", unit: nil, note: nil)
+        ]
+        let row = ComparisonRow(label: "r", cells: ["1", "2"])
+        let multiline = ComparisonRow(label: "r", cells: ["x\ny"])
+        let stages: [FlowStage] = [FlowStage(label: "s", nodes: ["n"]), FlowStage(label: nil, nodes: ["m"])]
+        let steps: [ProcessStep] = [ProcessStep(title: "a", detail: "b"), ProcessStep(title: "c", detail: nil)]
+        let definitions: [DefinitionItem] = [DefinitionItem(id: nil, term: "t", definition: "d")]
+        var blocks: [Block] = []
+        blocks.append(.heading(text: "H", level: 1))
+        blocks.append(.heading(text: "H", level: 3))
+        blocks.append(.paragraph("p"))
+        blocks.append(.list(title: "t", items: ["a", "b"], ordered: true))
+        blocks.append(.keyPoint(label: "l", text: "k"))
+        blocks.append(.quote(text: "q", source: "s"))
+        blocks.append(.timeline(title: nil, events: events))
+        blocks.append(.stats(title: nil, items: stats))
+        blocks.append(.comparison(title: nil, corner: nil, columns: ["a", "b"], rows: [row]))
+        blocks.append(.comparison(title: nil, corner: nil, columns: [], rows: [multiline]))
+        blocks.append(.causeEffect(title: "c", stages: stages))
+        blocks.append(.process(title: nil, steps: steps))
+        blocks.append(.definitions(title: nil, items: definitions))
+        blocks.append(.image(ImagePanel(name: "i", caption: "c", alt: "a", style: nil)))
+        blocks.append(.unsupported(type: "future"))
         for (i, block) in blocks.enumerated() {
             let layout = BlockLayouter.layout(block, index: i, env: env)
             XCTAssertGreaterThan(layout.height, 0, "\(block)")
