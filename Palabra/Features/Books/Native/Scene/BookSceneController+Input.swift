@@ -164,6 +164,8 @@ extension BookSceneController {
         let pp = camera.planePoint(through: point, y: entry.node.surfaceY(side: side))
         d.x0 = pp.map { $0.x * rs } ?? 0
         dragTurn(&d, point, time: time)
+        // The jump from the resting leaf to the finger is not a flick.
+        d.velocity = 0
     }
 
     private func dragTurn(_ d: inout PointerDrag, _ point: CGPoint, time: Double) {
