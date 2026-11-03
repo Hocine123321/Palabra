@@ -93,6 +93,18 @@ final class BookSceneController {
     var freeDamp = (zoom: SmoothDamp(), x: SmoothDamp(), y: SmoothDamp())
     var freeInertia: Inertia?
     var freeEnabled = true
+    /// Study tools (the lens, the ruler and the bookmark card), their root, and what the lens and ruler are doing.
+    let toolsRoot = SCNNode()
+    let lens = LensNode()
+    let ruler = ToolFactory.ruler()
+    let bookmarkTool = ToolFactory.bookmark()
+    var lensPos = (x: 0.0, z: 0.0)
+    var lensShownKey: String?
+    var lensImageCache: [String: CGImage] = [:]
+    var lensPending = Set<String>()
+    var rulerZ = -0.25
+    var bandOn = false
+    var tools: [String: ToolNode] { ["lens": lens.tool, "ruler": ruler, "bookmark": bookmarkTool] }
     var sink: ((SceneMessage) -> Void)?
     /// Called when the view should switch its render quality.
     var onQualityChange: ((SceneQuality) -> Void)?
@@ -116,6 +128,9 @@ final class BookSceneController {
         scene.rootNode.addChildNode(desk.root)
         scene.rootNode.addChildNode(booksRoot)
         scene.rootNode.addChildNode(lighting.root)
+        for tool in [lens.tool, ruler, bookmarkTool] { toolsRoot.addChildNode(tool.root) }
+        toolsRoot.isHidden = true
+        scene.rootNode.addChildNode(toolsRoot)
         scene.rootNode.addChildNode(camera.node)
         scene.background.contents = SceneLighting.background(dark: false)
         tweens.timeScale = config.reducedMotion ? 0.001 : 1
@@ -310,6 +325,7 @@ final class BookSceneController {
         }
         resetFreeView(animated: false)
         current = entry
+        toolsRoot.isHidden = false
         state.mode = .opening
         state.bookID = id
         let resume: Int
@@ -371,6 +387,7 @@ final class BookSceneController {
             return
         }
         guard state.mode == .reading, let entry = current else { return }
+        returnTools()
         setFocus(false, silent: true)
         resetFreeView(animated: true)
         state.mode = .closing
@@ -383,6 +400,7 @@ final class BookSceneController {
             guard let self else { return }
             let closed = self.current
             self.current = nil
+            self.toolsRoot.isHidden = true
             self.state.mode = .menu
             self.state.bookID = nil
             self.state.page = 0
@@ -536,6 +554,7 @@ final class BookSceneController {
         post(.preference(recallLevel: nil, textSize: size))
         let keepBase = state.basePageID
         let wasReading = state.mode == .reading ? current?.book.id : nil
+        if wasReading != nil { returnTools() }
         await rebuild()
         menuLayout()
         if let wasReading, let entry = entries.first(where: { $0.book.id == wasReading }) {
@@ -572,13 +591,18 @@ final class BookSceneController {
         desk.props.isHidden = v <= 0.02
         desk.props.opacity = CGFloat(v)
         desk.props.position = SCNVector3(0, Float(-(1 - v) * 0.6), 0)
+        for (name, tool) in tools where state.tool != name {
+            tool.root.isHidden = v <= 0.02
+            tool.root.opacity = CGFloat(v)
+            tool.root.position.y = tool.restPosition.y - Float((1 - v) * 0.6)
+        }
     }
 
     // MARK: Page images
 
     func key(_ entry: Entry, _ i: Int) -> String { "\(entry.book.id):\(i)" }
 
-    private func options(_ entry: Entry, _ i: Int) -> PageRenderOptions {
+    func options(_ entry: Entry, _ i: Int) -> PageRenderOptions {
         PageRenderOptions(
             face: i % 2 == 0 ? .front : .back, rtl: entry.book.isRightToLeft, subject: entry.book.subject.rawValue,
             recall: recall, revealAll: false
@@ -660,6 +684,7 @@ final class BookSceneController {
             // Keep the old bitmap on screen until the new one is ready.
             renderLater(entry, pi)
         }
+        lensRefresh(force: true)
     }
 
     // MARK: Commands and state
@@ -674,7 +699,7 @@ final class BookSceneController {
         case .setRecall(let on): setRecall(on)
         case .setLevel(let level): setLevel(level)
         case .togglePageReveal: togglePageReveal()
-        case .setTool: break // tools arrive in Task 12
+        case .setTool(let name): setTool(name)
         case .setFreeView(let on): setFreeViewEnabled(on)
         case .resetView: resetFreeView(animated: true)
         case .setFocus(let on): setFocus(on)
@@ -712,6 +737,7 @@ final class BookSceneController {
         if state.mode == .menu { hoverStep(dt: step) }
         settlePeek()
         stepFreeView(dt: step)
+        updateLens()
     }
 
     // MARK: Picking

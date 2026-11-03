@@ -169,6 +169,17 @@ struct NativeBooksSceneView: UIViewRepresentable {
             return controller.bookID(at: point, in: view)
         }
 
+        func toolName(at point: CGPoint) -> String? {
+            guard let view, let controller else { return nil }
+            let options: [SCNHitTestOption: Any] = [
+                .searchMode: SCNHitTestSearchMode.closest.rawValue,
+                .backFaceCulling: false,
+                .rootNode: controller.toolsRoot,
+            ]
+            guard let hit = view.hitTest(point, options: options).first else { return nil }
+            return controller.tools.first { $0.value.isPartOfTool(hit.node) }?.key
+        }
+
         func pageHit(at point: CGPoint) -> PageHit? {
             guard let view, let controller, let entry = controller.current else { return nil }
             let options: [SCNHitTestOption: Any] = [

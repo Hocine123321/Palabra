@@ -129,6 +129,8 @@ final class BookSceneControllerTests: XCTestCase {
         var page: PageHit?
         func bookID(at point: CGPoint) -> String? { book }
         func pageHit(at point: CGPoint) -> PageHit? { page }
+        var tool: String?
+        func toolName(at point: CGPoint) -> String? { tool }
     }
 
     /// The screen point (middle row) whose view ray meets the page plane at world x.
@@ -235,5 +237,54 @@ final class BookSceneControllerTests: XCTestCase {
         controller.setFreeViewEnabled(false)
         controller.pinchChanged(scale: 2, at: CGPoint(x: 100, y: 100))
         XCTAssertEqual(controller.free.zoom, 1, accuracy: 1e-9)
+    }
+
+    // MARK: Tools
+
+    func testLensRulerAndBookmarkToggle() async throws {
+        let (controller, recorder) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        settle(controller)
+        controller.setTool("lens")
+        XCTAssertEqual(recorder.lastState?.tool, "lens")
+        controller.setTool("ruler") // swaps: the lens goes back, the ruler comes out
+        XCTAssertEqual(recorder.lastState?.tool, "ruler")
+        controller.setTool("ruler") // same tool again puts it away
+        XCTAssertNil(recorder.lastState?.tool)
+        controller.setTool("bookmark")
+        XCTAssertNotNil(recorder.lastState?.bookmarkPageID)
+        XCTAssertEqual(recorder.lastState?.bookmarkPageID, recorder.lastState?.basePageID)
+        let posted = recorder.messages.contains { if case .bookmark = $0 { return true } else { return false } }
+        XCTAssertTrue(posted)
+        settle(controller)
+        controller.closeBook()
+        settle(controller)
+        XCTAssertNil(recorder.lastState?.tool)
+    }
+
+    func testRulerFollowsFingerAndStaysOnPage() async throws {
+        let (controller, _) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        settle(controller)
+        controller.setTool("ruler")
+        settle(controller)
+        controller.moveRuler(CGPoint(x: 195, y: 100))
+        XCTAssertLessThan(abs(controller.rulerZ), BookDims.pageHeight / 2)
+        let before = controller.rulerZ
+        controller.moveRuler(CGPoint(x: 195, y: 700))
+        XCTAssertNotEqual(controller.rulerZ, before)
+    }
+
+    func testLensWindowMovesTheTexture() async throws {
+        let (controller, _) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        settle(controller)
+        controller.setTool("lens")
+        settle(controller)
+        controller.updateLens()
+        XCTAssertTrue(controller.lens.glass.geometry?.firstMaterial?.diffuse.contentsTransform.m11 ?? 0 > 0)
     }
 }

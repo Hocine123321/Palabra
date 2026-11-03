@@ -120,6 +120,28 @@ struct MeshData {
         return mesh
     }
 
+    /// A flat disc facing up (+y) centred on the origin; uv runs 0...1 across it (u along +x, v along +z).
+    static func disc(radius r: Float, segments: Int) -> MeshData {
+        var mesh = MeshData()
+        mesh.positions.append(SIMD3(0, 0, 0))
+        mesh.normals.append(SIMD3(0, 1, 0))
+        mesh.uvs.append(SIMD2(0.5, 0.5))
+        var indices: [UInt32] = []
+        for k in 0...segments {
+            let a = 2 * Float.pi * Float(k) / Float(segments)
+            let x = cos(a), z = sin(a)
+            mesh.positions.append(SIMD3(r * x, 0, r * z))
+            mesh.normals.append(SIMD3(0, 1, 0))
+            mesh.uvs.append(SIMD2(0.5 + 0.5 * x, 0.5 + 0.5 * z))
+        }
+        for k in 0..<segments {
+            // Counter-clockwise seen from above (+y): centre, next, current.
+            indices += [0, UInt32(k + 2), UInt32(k + 1)]
+        }
+        mesh.elements = [indices]
+        return mesh
+    }
+
     /// A tube of radius `tube` following a circle arc of radius `radius` in the xy plane (centre at the origin), from angle
     /// `from` to `to` (radians). Used for the raised bands of a spine.
     static func tubeArc(radius: Float, tube: Float, from: Float, to: Float, arcSteps: Int, tubeSteps: Int) -> MeshData {

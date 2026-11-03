@@ -16,11 +16,13 @@ struct PageHit: Equatable {
 protocol ScenePicker: AnyObject {
     func bookID(at point: CGPoint) -> String?
     func pageHit(at point: CGPoint) -> PageHit?
+    /// The study tool under a screen point ("lens", "ruler" or "bookmark").
+    func toolName(at point: CGPoint) -> String?
 }
 
 /// One finger from touch-down to lift (`this.drag` of app.js).
 struct PointerDrag {
-    enum Mode { case turn, pan, freePan }
+    enum Mode { case turn, pan, freePan, lens, ruler }
 
     var start: CGPoint
     var touch: Bool
@@ -40,6 +42,8 @@ struct PointerDrag {
     var lastPoint = CGPoint.zero
     var lastMoveTime = 0.0
     var panVelocity = CGSize.zero
+    /// A tool pressed while it was not in hand; a tap picks it up.
+    var tool: String?
 }
 
 extension BookSceneController {
@@ -57,6 +61,18 @@ extension BookSceneController {
             hoverBook = d.bookID
         case .reading:
             guard let entry = current else { return }
+            if let tool = picker?.toolName(at: point) {
+                if state.tool != tool {
+                    d.tool = tool
+                    return
+                }
+                switch tool {
+                case "lens": d.mode = .lens
+                case "ruler": d.mode = .ruler
+                default: d.tool = "bookmark-remove"
+                }
+                return
+            }
             let hit = picker?.pageHit(at: point)
             d.page = hit
             let side = pageIndex % 2 == 0 ? 1 : -1
@@ -71,6 +87,7 @@ extension BookSceneController {
                     if gutterLeft ? fraction > 0.78 : fraction < 0.22 { d.edge = true }
                 }
             }
+            if state.tool == "lens", !d.edge { d.mode = .lens }
         default:
             break
         }
@@ -86,6 +103,15 @@ extension BookSceneController {
             followFreePan(&d, point, time: time)
             return
         }
+        if d.mode == .lens {
+            if state.mode == .reading { moveLens(point, touch: d.touch) }
+            return
+        }
+        if d.mode == .ruler {
+            if state.mode == .reading { moveRuler(point) }
+            return
+        }
+        if d.tool != nil { return }
         guard d.moved else { return }
         // Zoomed in, a one-finger drag moves the view (except from a page edge, which still turns the leaf).
         if d.mode == nil, canFreeMove, free.zoom > 1.05, !d.edge, state.mode == .menu || state.mode == .reading {
@@ -101,7 +127,7 @@ extension BookSceneController {
             dragTurn(&d, point, time: time)
         case .pan:
             panBy(d.pan0 - dy / max(pxPerZ, 1e-6))
-        case .freePan:
+        case .freePan, .lens, .ruler:
             break
         case nil:
             let horizontal = abs(dx) > abs(dy) * 1.1
@@ -135,6 +161,12 @@ extension BookSceneController {
         case .reading:
             if d.mode == .turn {
                 finishTurn(d)
+            } else if d.tool == "bookmark-remove" {
+                setTool("bookmark")
+            } else if let tool = d.tool {
+                if !d.moved { setTool(tool) }
+            } else if d.mode == .lens || d.mode == .ruler {
+                if !d.moved { tapPage(at: point) }
             } else if d.mode == .freePan {
                 panEnded(velocity: d.panVelocity)
             } else if d.mode == .pan {
