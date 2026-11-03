@@ -52,21 +52,28 @@ final class BookSceneControllerTests: XCTestCase {
         XCTAssertTrue(start.canNext)
         XCTAssertFalse(start.canPrev)
 
+        // Page index 1 is the back of leaf 0: turning to it flips leaf 0 onto the left stack.
         controller.next()
         settle(controller)
         XCTAssertEqual(recorder.lastState?.page, 2)
         XCTAssertTrue(recorder.lastState?.canPrev ?? false)
-        // Pages 1 and 2 are the two sides of leaf 0: after the turn page 2 is on the left stack, so leaf 0 is flipped.
-        XCTAssertEqual(entry.node.leafProgress(0), 0, accuracy: 1e-9)
+        XCTAssertEqual(entry.node.leafProgress(0), 1, accuracy: 1e-9)
+        // Index 2 is the front of leaf 1 (right stack): leaf 1 stays down.
         controller.next()
         settle(controller)
         XCTAssertEqual(entry.node.leafProgress(0), 1, accuracy: 1e-9)
+        XCTAssertEqual(entry.node.leafProgress(1), 0, accuracy: 1e-9)
+        controller.next()
+        settle(controller)
+        XCTAssertEqual(entry.node.leafProgress(1), 1, accuracy: 1e-9)
 
+        controller.previous()
         controller.previous()
         controller.previous()
         settle(controller)
         XCTAssertEqual(recorder.lastState?.page, 1)
-        XCTAssertGreaterThanOrEqual(recorder.visits.count, 3)
+        XCTAssertEqual(entry.node.leafProgress(0), 0, accuracy: 1e-9)
+        XCTAssertGreaterThanOrEqual(recorder.visits.count, 4)
 
         controller.closeBook()
         settle(controller)
