@@ -103,8 +103,8 @@ final class DeskNode {
         quarter.addLine(to: CGPoint(x: 0.7, y: 0))
         quarter.addArc(withCenter: .zero, radius: 0.7, startAngle: 0, endAngle: .pi / 2, clockwise: true)
         quarter.close()
-        let s = 0.32
-        let rounded = UIBezierPath(roundedRect: CGRect(x: -s, y: -s, width: 2 * s, height: 2 * s), cornerRadius: 0.1)
+        let s = 0.32, corner = 0.1
+        let rounded = UIBezierPath(roundedRect: CGRect(x: -s, y: -s, width: 2 * s, height: 2 * s), cornerRadius: corner)
         _ = make(circle, 0xd97757, 1.25, -2.05, 0)
         _ = make(quarter, 0xa3b18a, -1.45, 1.85, 0.4)
         _ = make(rounded, 0x9dbad5, -1.35, -2.25, 0.5)

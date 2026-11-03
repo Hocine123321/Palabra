@@ -17,6 +17,8 @@ final class BooksSceneModel {
 
     @ObservationIgnored private let shelf: BookShelf
     @ObservationIgnored var run: ((String) -> Void)?
+    /// Set instead of `run` when the native SceneKit desk draws the scene: commands go straight to its controller.
+    @ObservationIgnored private(set) var native: BookSceneController?
     @ObservationIgnored private var queued: [SceneCommand] = []
     @ObservationIgnored private var started = false
     @ObservationIgnored private let selection = UISelectionFeedbackGenerator()
@@ -40,6 +42,28 @@ final class BooksSceneModel {
         }
     }
 
+    /// Starts the native desk: builds its controller from the shelf and loads the books. The view draws `controller.scene`.
+    @discardableResult
+    func startNative(reducedMotion: Bool) -> BookSceneController {
+        if let native { return native }
+        let preferences = shelf.preferences
+        var lastPages: [String: String] = [:]
+        var bookmarks: [String: String] = [:]
+        for (bookID, item) in shelf.state.progress {
+            if let last = item.lastPageID { lastPages[bookID] = last }
+            if let mark = item.bookmarkPageID { bookmarks[bookID] = mark }
+        }
+        let controller = BookSceneController(config: NativeSceneConfig(
+            library: shelf.library, lastPageID: lastPages, bookmarks: bookmarks, textSize: preferences.textSize,
+            recallLevel: preferences.recallLevel, quality: preferences.sceneQuality, reducedMotion: reducedMotion
+        ))
+        controller.sink = { [weak self] message in self?.handle(message) }
+        native = controller
+        started = true
+        Task { await controller.load() }
+        return controller
+    }
+
     func fail(_ message: String) {
         failure = message
     }
@@ -53,7 +77,15 @@ final class BooksSceneModel {
             queued.append(command)
             return
         }
-        run?(command.javaScript)
+        dispatch(command)
+    }
+
+    private func dispatch(_ command: SceneCommand) {
+        if let native {
+            Task { await native.handle(command) }
+        } else {
+            run?(command.javaScript)
+        }
     }
 
     // MARK: Messages from the scene
@@ -64,7 +96,7 @@ final class BooksSceneModel {
             isReady = true
             let waiting = queued
             queued = []
-            waiting.forEach { run?($0.javaScript) }
+            waiting.forEach { dispatch($0) }
         case .state(let next):
             // A small tick when the page or the tool in hand changes, the way a real page would click into place.
             if next.isReading, state.isReading, next.basePageID != state.basePageID || next.page != state.page { selection.selectionChanged() }

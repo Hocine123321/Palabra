@@ -34,8 +34,17 @@ struct BooksSceneScreen: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .task {
-            if model == nil { model = BooksSceneModel(shelf: shelf) }
+        .task(id: shelf.preferences.sceneEngine) {
+            // Changing the engine in Settings starts a fresh scene (the old model's view is gone with the navigation).
+            model = BooksSceneModel(shelf: shelf)
+        }
+    }
+
+    @ViewBuilder
+    private func sceneView(_ model: BooksSceneModel, engine: SceneEngine) -> some View {
+        switch engine {
+        case .original: BooksSceneView(model: model, reducedMotion: reduceMotion)
+        case .native: NativeBooksSceneView(model: model, reducedMotion: reduceMotion)
         }
     }
 
@@ -44,7 +53,7 @@ struct BooksSceneScreen: View {
         return GeometryReader { proxy in
             let safe = proxy.safeAreaInsets
             ZStack {
-                BooksSceneView(model: model, reducedMotion: reduceMotion)
+                sceneView(model, engine: preferences.sceneEngine)
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .opacity(model.isReady ? 1 : 0)
