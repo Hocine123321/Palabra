@@ -71,7 +71,7 @@ final class BookSceneController {
     private(set) var entries: [Entry] = []
     private(set) var current: Entry?
     /// 0-based index of the page being read.
-    private(set) var pageIndex = 0
+    var pageIndex = 0
     var recall: RecallState
     private(set) var textSize: ReaderTextSize
     private(set) var quality: SceneQuality
