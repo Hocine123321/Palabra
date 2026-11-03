@@ -5,7 +5,10 @@ import UIKit
 /// is to leave evidence. CI records the simulator screen while it runs and publishes the video, one JPEG per step and
 /// `steps.json` (what was tried, whether the control was there, when) on the `ci-recordings` branch.
 /// Not part of the normal UI test run (see the workflow); run it on its own with `-only-testing:PalabraUITests/BooksTourUITests`.
-final class BooksTourUITests: XCTestCase {
+class BooksTourUITests: XCTestCase {
+    /// Extra launch arguments (the native-engine subclass adds `-UITestNativeBooks`).
+    var extraArguments: [String] { [] }
+
     private struct Step: Encodable {
         var n: Int
         var name: String
@@ -22,7 +25,8 @@ final class BooksTourUITests: XCTestCase {
         super.setUp()
         continueAfterFailure = true
         started = Date()
-        if let path = ProcessInfo.processInfo.environment["TOUR_DIR"], !path.isEmpty {
+        let environment = ProcessInfo.processInfo.environment
+        if let path = environment["TOUR_DIR"] ?? environment["REVIEW_DIR"], !path.isEmpty {
             outputDirectory = URL(fileURLWithPath: path, isDirectory: true)
             try? FileManager.default.createDirectory(at: outputDirectory!, withIntermediateDirectories: true)
         }
@@ -77,7 +81,7 @@ final class BooksTourUITests: XCTestCase {
 
     func testBooksTour() {
         let app = XCUIApplication()
-        app.launchArguments = ["-UITestStub", "-UITestReset"]
+        app.launchArguments = ["-UITestStub", "-UITestReset"] + extraArguments
         app.launch()
 
         XCUIDevice.shared.orientation = .portrait

@@ -106,6 +106,8 @@ struct PalabraApp: App {
                 // `-UITestSpeech <text>` is what the stub "hears" in a speaking question.
                 speech: StubSpeechListener(heard: arguments.firstIndex(of: "-UITestSpeech").flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil })
             )
+            // `-UITestNativeBooks` draws the Books desk with the native SceneKit engine instead of the web one.
+            if arguments.contains("-UITestNativeBooks") { env.books.preferences.sceneEngine = .native }
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id
                 env.selectedTTSModelID = StubAIClient.sampleModels.last?.id

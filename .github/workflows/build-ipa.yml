@@ -144,7 +144,7 @@ jobs:
           # No secrets here: only the live smoke test below gets the API key.
           ARGS="-only-testing:PalabraTests -skip-testing:PalabraTests/LiveSmokeTests"
           if [ "$FULL_UI" = "1" ]; then
-            ARGS="$ARGS -only-testing:PalabraUITests -skip-testing:PalabraUITests/BooksTourUITests"
+            ARGS="$ARGS -only-testing:PalabraUITests -skip-testing:PalabraUITests/BooksTourUITests -skip-testing:PalabraUITests/NativeBooksTourUITests"
           else
             ARGS="$ARGS -only-testing:PalabraUITests/LaunchUITests -only-testing:PalabraUITests/PersistenceUITests"
             # The 3D Books reading flow is the slowest UI test (~2 min); add it with [books] in the commit message.
