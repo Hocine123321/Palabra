@@ -212,6 +212,15 @@ final class BookNode {
         }
     }
 
+    // MARK: Picking
+
+    /// Which leaf face a node of this book is (nil for any other node).
+    func face(of node: SCNNode) -> (leaf: Int, front: Bool)? {
+        if let i = frontLeaf.firstIndex(where: { $0 === node }) { return (i, true) }
+        if let i = backLeaf.firstIndex(where: { $0 === node }) { return (i, false) }
+        return nil
+    }
+
     // MARK: State
 
     func setLeafProgress(_ index: Int, _ p: Double) {
@@ -251,6 +260,7 @@ final class BookNode {
     }
 
     func leafProgress(_ index: Int) -> Double { shape.leaves[index].p }
+    func peek(_ index: Int) -> Double { shape.leaves[index].peek }
 
     // MARK: Images
 

@@ -1,6 +1,7 @@
 import SceneKit
 import SwiftUI
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 
 /// An `SCNView` that reports its size, so the camera can follow rotations and split-screen changes.
 final class NativeSCNView: SCNView {
@@ -56,7 +57,7 @@ struct NativeBooksSceneView: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, ScenePicker {
         private weak var view: SCNView?
         private weak var model: BooksSceneModel?
         private weak var controller: BookSceneController?
@@ -67,8 +68,11 @@ struct NativeBooksSceneView: UIViewRepresentable {
             self.view = view
             self.model = model
             self.controller = controller
-            let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
-            view.addGestureRecognizer(tap)
+            controller.picker = self
+            let pointer = PointerGesture()
+            pointer.cancelsTouchesInView = false
+            pointer.onEvent = { [weak self] event, point, touch in self?.pointer(event, point, touch) }
+            view.addGestureRecognizer(pointer)
             let link = CADisplayLink(target: DisplayLinkTarget(self), selector: #selector(DisplayLinkTarget.step(_:)))
             link.add(to: .main, forMode: .common)
             self.link = link
@@ -86,12 +90,93 @@ struct NativeBooksSceneView: UIViewRepresentable {
             controller?.tick(dt: dt)
         }
 
-        @objc private func tapped(_ gesture: UITapGestureRecognizer) {
-            guard let view, let controller, let model, controller.state.mode == .menu else { return }
-            if let id = controller.bookID(at: gesture.location(in: view), in: view) {
-                model.send(.openBook(id: id, pageID: nil))
+        private func pointer(_ event: PointerGesture.Event, _ point: CGPoint, _ touch: Bool) {
+            guard let controller else { return }
+            let time = CACurrentMediaTime()
+            switch event {
+            case .down: controller.pointerDown(point, touch: touch, time: time)
+            case .move: controller.pointerMove(point, time: time)
+            case .up: controller.pointerUp(point, time: time)
+            case .cancel: controller.pointerCancel()
             }
         }
+
+        // MARK: ScenePicker
+
+        func bookID(at point: CGPoint) -> String? {
+            guard let view, let controller else { return nil }
+            return controller.bookID(at: point, in: view)
+        }
+
+        func pageHit(at point: CGPoint) -> PageHit? {
+            guard let view, let controller, let entry = controller.current else { return nil }
+            let options: [SCNHitTestOption: Any] = [
+                .searchMode: SCNHitTestSearchMode.all.rawValue,
+                .backFaceCulling: false,
+                .rootNode: entry.node.root,
+                .sortResults: true,
+            ]
+            let eye = controller.camera.pose.position
+            for hit in view.hitTest(point, options: options) {
+                guard let face = entry.node.face(of: hit.node) else { continue }
+                // Both faces of a leaf are in the scene: only the one turned toward the camera counts.
+                let toEye = SIMD3<Double>(eye.x - Double(hit.worldCoordinates.x), eye.y - Double(hit.worldCoordinates.y), eye.z - Double(hit.worldCoordinates.z))
+                let normal = SIMD3<Double>(Double(hit.worldNormal.x), Double(hit.worldNormal.y), Double(hit.worldNormal.z))
+                guard normal.x * toEye.x + normal.y * toEye.y + normal.z * toEye.z > 0 else { continue }
+                let uv = hit.textureCoordinates(withMappingChannel: 0)
+                return PageHit(
+                    pageIndex: face.leaf * 2 + (face.front ? 0 : 1), leaf: face.leaf, front: face.front,
+                    px: Double(uv.x) * PageGeometry.width, py: Double(uv.y) * PageGeometry.height
+                )
+            }
+            return nil
+        }
+    }
+}
+
+/// Reports the first finger (or the mouse / pointer) from touch-down to lift, without stealing touches from anything else.
+final class PointerGesture: UIGestureRecognizer {
+    enum Event { case down, move, up, cancel }
+
+    var onEvent: ((Event, CGPoint, Bool) -> Void)?
+    private var tracked: UITouch?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        if tracked != nil {
+            // A second finger: this is a pinch, not a drag.
+            if let t = tracked { onEvent?(.cancel, t.location(in: view), true) }
+            tracked = nil
+            state = .cancelled
+            return
+        }
+        guard let touch = touches.first else { return }
+        tracked = touch
+        state = .began
+        onEvent?(.down, touch.location(in: view), touch.type != .indirectPointer)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let t = tracked, touches.contains(t) else { return }
+        state = .changed
+        onEvent?(.move, t.location(in: view), t.type != .indirectPointer)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let t = tracked, touches.contains(t) else { return }
+        tracked = nil
+        state = .ended
+        onEvent?(.up, t.location(in: view), t.type != .indirectPointer)
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let t = tracked, touches.contains(t) else { return }
+        tracked = nil
+        state = .cancelled
+        onEvent?(.cancel, t.location(in: view), true)
+    }
+
+    override func reset() {
+        tracked = nil
     }
 }
 

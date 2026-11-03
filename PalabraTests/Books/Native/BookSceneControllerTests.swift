@@ -121,4 +121,87 @@ final class BookSceneControllerTests: XCTestCase {
         settle(controller)
         XCTAssertNotNil(controller.pageImage(entry, 0))
     }
+
+    // MARK: Input
+
+    private final class FakePicker: ScenePicker {
+        var book: String?
+        var page: PageHit?
+        func bookID(at point: CGPoint) -> String? { book }
+        func pageHit(at point: CGPoint) -> PageHit? { page }
+    }
+
+    /// The screen point (middle row) whose view ray meets the page plane at world x.
+    private func screenPoint(_ controller: BookSceneController, worldX: Double, y: Double) -> CGPoint {
+        var lo = 0.0, hi = Double(controller.camera.size.width)
+        for _ in 0..<40 {
+            let mid = (lo + hi) / 2
+            let hit = controller.camera.planePoint(through: CGPoint(x: mid, y: Double(controller.camera.size.height) / 2), y: y)
+            if (hit?.x ?? 0) < worldX { lo = mid } else { hi = mid }
+        }
+        return CGPoint(x: (lo + hi) / 2, y: Double(controller.camera.size.height) / 2)
+    }
+
+    func testTapOnBookInMenuOpensIt() async throws {
+        let (controller, _) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        let picker = FakePicker()
+        picker.book = entry.book.id
+        controller.picker = picker
+        let p = CGPoint(x: 100, y: 400)
+        controller.pointerDown(p, touch: true, time: 0)
+        controller.pointerUp(p, time: 0.1)
+        XCTAssertEqual(controller.state.mode, .opening)
+        XCTAssertEqual(controller.state.bookID, entry.book.id)
+    }
+
+    func testDraggingTheOuterEdgeTurnsThePage() async throws {
+        let (controller, recorder) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty && !$0.book.isRightToLeft })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        settle(controller)
+        let picker = FakePicker()
+        controller.picker = picker
+        let surface = entry.node.surfaceY(side: 1)
+        picker.page = PageHit(pageIndex: 0, leaf: 0, front: true, px: 1100, py: 900)
+        let from = screenPoint(controller, worldX: 0.9, y: surface)
+        let to = screenPoint(controller, worldX: -0.2, y: surface)
+        controller.pointerDown(from, touch: true, time: 0)
+        controller.pointerMove(CGPoint(x: (from.x + to.x) / 2, y: from.y), time: 0.1)
+        XCTAssertGreaterThan(entry.node.leafProgress(0), 0)
+        controller.pointerMove(to, time: 0.2)
+        controller.pointerUp(to, time: 0.25)
+        settle(controller)
+        XCTAssertEqual(entry.node.leafProgress(0), 1, accuracy: 1e-9)
+        XCTAssertEqual(recorder.lastState?.page, 2)
+    }
+
+    func testShortDragSettlesBack() async throws {
+        let (controller, recorder) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty && !$0.book.isRightToLeft })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        settle(controller)
+        let picker = FakePicker()
+        controller.picker = picker
+        let surface = entry.node.surfaceY(side: 1)
+        picker.page = PageHit(pageIndex: 0, leaf: 0, front: true, px: 1100, py: 900)
+        let from = screenPoint(controller, worldX: 0.9, y: surface)
+        let to = screenPoint(controller, worldX: 0.7, y: surface)
+        controller.pointerDown(from, touch: true, time: 0)
+        controller.pointerMove(to, time: 0.5)
+        controller.pointerUp(to, time: 0.6)
+        settle(controller)
+        XCTAssertEqual(entry.node.leafProgress(0), 0, accuracy: 1e-9)
+        XCTAssertEqual(recorder.lastState?.page, 1)
+    }
+
+    func testRayThroughViewCentreHitsLookPoint() async {
+        let (controller, _) = await makeController()
+        controller.camera.setShift(0)
+        controller.camera.setPose(CameraPose(position: SIMD3(0, 5, 5), look: .zero))
+        let centre = CGPoint(x: controller.camera.size.width / 2, y: controller.camera.size.height / 2)
+        let p = controller.camera.planePoint(through: centre, y: 0)
+        XCTAssertEqual(p?.x ?? 9, 0, accuracy: 1e-9)
+        XCTAssertEqual(p?.z ?? 9, 0, accuracy: 1e-9)
+    }
 }

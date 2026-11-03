@@ -48,9 +48,9 @@ final class CameraRig {
         apply()
     }
 
-    /// The projection of `PerspectiveCamera` with a view offset, as a SceneKit matrix.
-    static func projection(fovDegrees: Double, size: CGSize, shiftY: Double, shiftX: Double = 0, zoom: Double = 1) -> SCNMatrix4 {
-        let near = Self.near, far = Self.far
+    /// The near-plane window of `PerspectiveCamera` with a view offset (left, right, top, bottom).
+    static func frustum(fovDegrees: Double, size: CGSize, shiftY: Double, shiftX: Double = 0, zoom: Double = 1)
+        -> (left: Double, right: Double, top: Double, bottom: Double) {
         let aspect = Double(size.width / size.height)
         var top = near * tan(fovDegrees * .pi / 360) / zoom
         let height = 2 * top
@@ -58,17 +58,55 @@ final class CameraRig {
         var left = -0.5 * width
         left += shiftX * width / Double(size.width)
         top -= shiftY * height / Double(size.height)
-        let right = left + width, bottom = top - height
+        return (left, left + width, top, top - height)
+    }
+
+    /// The projection of `PerspectiveCamera` with a view offset, as a SceneKit matrix.
+    static func projection(fovDegrees: Double, size: CGSize, shiftY: Double, shiftX: Double = 0, zoom: Double = 1) -> SCNMatrix4 {
+        let f = frustum(fovDegrees: fovDegrees, size: size, shiftY: shiftY, shiftX: shiftX, zoom: zoom)
+        let near = Self.near, far = Self.far
         var m = SCNMatrix4Identity
-        m.m11 = Float(2 * near / (right - left))
-        m.m22 = Float(2 * near / (top - bottom))
-        m.m31 = Float((right + left) / (right - left))
-        m.m32 = Float((top + bottom) / (top - bottom))
+        m.m11 = Float(2 * near / (f.right - f.left))
+        m.m22 = Float(2 * near / (f.top - f.bottom))
+        m.m31 = Float((f.right + f.left) / (f.right - f.left))
+        m.m32 = Float((f.top + f.bottom) / (f.top - f.bottom))
         m.m33 = Float(-(far + near) / (far - near))
         m.m34 = -1
         m.m43 = Float(-2 * far * near / (far - near))
         m.m44 = 0
         return m
+    }
+
+    /// The world-space ray through a point of the view (points, y down), for picking without a renderer.
+    func ray(through point: CGPoint) -> (origin: SIMD3<Double>, direction: SIMD3<Double>) {
+        let f = Self.frustum(fovDegrees: fovDegrees, size: size, shiftY: shift + Double(pan.height), shiftX: Double(pan.width), zoom: zoom)
+        let nx = Double(point.x / size.width), ny = Double(point.y / size.height)
+        let x = f.left + nx * (f.right - f.left)
+        let y = f.top - ny * (f.top - f.bottom)
+        // Camera basis: forward toward the look point, right = forward x up, up = right x forward.
+        let forward = Self.normalized(pose.look - pose.position)
+        let right = Self.normalized(Self.cross(forward, SIMD3(0, 1, 0)))
+        let up = Self.cross(right, forward)
+        let direction = Self.normalized(right * x + up * y + forward * Self.near)
+        return (pose.position, direction)
+    }
+
+    /// Where the view ray meets the horizontal plane at height `y`, or nil when it never does.
+    func planePoint(through point: CGPoint, y: Double) -> SIMD3<Double>? {
+        let r = ray(through: point)
+        guard abs(r.direction.y) > 1e-9 else { return nil }
+        let t = (y - r.origin.y) / r.direction.y
+        guard t > 0 else { return nil }
+        return r.origin + r.direction * t
+    }
+
+    private static func cross(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> SIMD3<Double> {
+        SIMD3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
+    }
+
+    private static func normalized(_ v: SIMD3<Double>) -> SIMD3<Double> {
+        let l = (v.x * v.x + v.y * v.y + v.z * v.z).squareRoot()
+        return l == 0 ? v : v / l
     }
 
     private func apply() {

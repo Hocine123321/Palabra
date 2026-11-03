@@ -66,30 +66,35 @@ final class BookSceneController {
 
     // MARK: State
 
-    private(set) var state = SceneState()
+    var state = SceneState()
     private(set) var entries: [Entry] = []
     private(set) var current: Entry?
     /// 0-based index of the page being read.
     private(set) var pageIndex = 0
-    private(set) var recall: RecallState
+    var recall: RecallState
     private(set) var textSize: ReaderTextSize
     private(set) var quality: SceneQuality
     private(set) var isDark = false
     private(set) var insets = (top: 0.0, bottom: 0.0)
-    private(set) var panZ = 0.0
+    var panZ = 0.0
     private(set) var panLimit = 0.0
     private(set) var pxPerZ = 1.0
     private(set) var isLoaded = false
     var hoverBook: String?
+    var activeTermID: String?
+    /// Set by the view: what is under a screen point (needs a renderer).
+    weak var picker: ScenePicker?
+    var drag: PointerDrag?
+    var peekLeaf: Int?
     var sink: ((SceneMessage) -> Void)?
     /// Called when the view should switch its render quality.
     var onQualityChange: ((SceneQuality) -> Void)?
 
-    private var config: NativeSceneConfig
+    var config: NativeSceneConfig
     private var closeAfterOpen = false
     private var cameraTween: Tween?
     private var propsOpacity = 1.0
-    private var leafTweens: [Int: Tween] = [:]
+    var leafTweens: [Int: Tween] = [:]
     private var cache: [String: PageImage] = [:]
     private var pending: [String: Int] = [:]
     private var generation = 0
@@ -112,6 +117,8 @@ final class BookSceneController {
         lighting.setShadows(quality != .saver)
     }
 
+    func leafTweenIsRunning(_ leaf: Int) -> Bool { leafTweens[leaf].map { !$0.isDead } ?? false }
+
     var isBusy: Bool { tweens.isActive || !pending.isEmpty }
 
     var isWide: Bool { metrics.isWide }
@@ -133,7 +140,7 @@ final class BookSceneController {
         post(.ready)
     }
 
-    private func post(_ message: SceneMessage) { sink?(message) }
+    func post(_ message: SceneMessage) { sink?(message) }
 
     /// Re-runs pagination for every book (text size changed, or first load).
     private func rebuild() async {
@@ -393,7 +400,7 @@ final class BookSceneController {
         frameMenu(animated: true)
     }
 
-    private func setLeavesInstant(_ entry: Entry, page: Int) {
+    func setLeavesInstant(_ entry: Entry, page: Int) {
         let flipped = (page + 1) / 2
         for leaf in 0..<entry.node.leafCount { entry.node.setLeafProgress(leaf, leaf < flipped ? 1 : 0) }
         entry.node.layout()
@@ -433,7 +440,7 @@ final class BookSceneController {
         goToPage(i)
     }
 
-    private func animateLeaf(_ entry: Entry, _ leaf: Int, to: Double, duration: Double, delay: Double) {
+    func animateLeaf(_ entry: Entry, _ leaf: Int, to: Double, duration: Double, delay: Double) {
         guard leaf >= 0, leaf < entry.node.leafCount else { return }
         let key = leaf
         tweens.cancel(leafTweens[key])
@@ -448,7 +455,7 @@ final class BookSceneController {
         })
     }
 
-    private func afterNavigate() {
+    func afterNavigate() {
         guard let entry = current, entry.pages.indices.contains(pageIndex) else { return }
         let phys = entry.pages[pageIndex]
         state.page = pageIndex
@@ -461,8 +468,19 @@ final class BookSceneController {
         emit()
     }
 
+    func openTerm(id: String) {
+        guard let entry = current, entry.pages.indices.contains(pageIndex),
+              let definition = entry.pages[pageIndex].glossary[id] else { return }
+        activeTermID = id
+        post(.term(id: id, term: InlineMarkup.plainText(definition.term), definition: InlineMarkup.plainText(definition.definition)))
+        emit()
+    }
+
     func closeTerm() {
-        // Terms arrive with the tap handling (Task 12); nothing is open yet.
+        guard activeTermID != nil else { return }
+        activeTermID = nil
+        post(.termClose)
+        emit()
     }
 
     // MARK: Recall and text size
@@ -546,7 +564,7 @@ final class BookSceneController {
 
     // MARK: Page images
 
-    private func key(_ entry: Entry, _ i: Int) -> String { "\(entry.book.id):\(i)" }
+    func key(_ entry: Entry, _ i: Int) -> String { "\(entry.book.id):\(i)" }
 
     private func options(_ entry: Entry, _ i: Int) -> PageRenderOptions {
         PageRenderOptions(
@@ -677,6 +695,7 @@ final class BookSceneController {
         let step = min(0.05, dt)
         tweens.update(dt: step)
         if state.mode == .menu { hoverStep(dt: step) }
+        settlePeek()
     }
 
     // MARK: Picking
