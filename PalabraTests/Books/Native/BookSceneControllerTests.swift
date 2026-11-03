@@ -204,4 +204,36 @@ final class BookSceneControllerTests: XCTestCase {
         XCTAssertEqual(p?.x ?? 9, 0, accuracy: 1e-9)
         XCTAssertEqual(p?.z ?? 9, 0, accuracy: 1e-9)
     }
+
+    // MARK: Free view
+
+    func testPinchMovesTheViewAndDoubleTapResets() async throws {
+        let (controller, recorder) = await makeController()
+        let centre = CGPoint(x: 195, y: 422)
+        controller.pinchChanged(scale: 1.5, at: centre)
+        controller.pinchEnded(at: centre)
+        XCTAssertEqual(controller.free.zoom, 1.5, accuracy: 1e-9)
+        XCTAssertTrue(recorder.lastState?.viewMoved ?? false)
+        for _ in 0..<5 { controller.tick(dt: 0.05) }
+        XCTAssertEqual(controller.camera.zoom, 1.5, accuracy: 1e-9) // reduced motion: no spring
+        controller.doubleTapped(at: centre)
+        for _ in 0..<5 { controller.tick(dt: 0.05) }
+        XCTAssertEqual(controller.camera.zoom, 1, accuracy: 1e-9)
+        XCTAssertFalse(recorder.lastState?.viewMoved ?? true)
+    }
+
+    func testZoomIsLimited() async {
+        let (controller, _) = await makeController()
+        let centre = CGPoint(x: 195, y: 422)
+        controller.pinchChanged(scale: 20, at: centre)
+        controller.pinchEnded(at: centre)
+        XCTAssertEqual(controller.free.zoom, ZoomLimits.menu.maxZoom, accuracy: 1e-9)
+    }
+
+    func testFreeViewOffIgnoresGestures() async {
+        let (controller, _) = await makeController()
+        controller.setFreeViewEnabled(false)
+        controller.pinchChanged(scale: 2, at: CGPoint(x: 100, y: 100))
+        XCTAssertEqual(controller.free.zoom, 1, accuracy: 1e-9)
+    }
 }

@@ -24,6 +24,7 @@ struct NativeSceneConfig {
     var recallLevel: RecallLevel = .essential
     var quality: SceneQuality = .standard
     var reducedMotion = false
+    var freeView = true
 }
 
 /// A page bitmap with the places on it that react to a tap.
@@ -86,6 +87,12 @@ final class BookSceneController {
     weak var picker: ScenePicker?
     var drag: PointerDrag?
     var peekLeaf: Int?
+    /// Free view: what the fingers asked for, what is drawn (it chases the target), and the glide after a release.
+    var free = FreeView()
+    var freeShown = (zoom: 1.0, pan: SIMD2<Double>.zero)
+    var freeDamp = (zoom: SmoothDamp(), x: SmoothDamp(), y: SmoothDamp())
+    var freeInertia: Inertia?
+    var freeEnabled = true
     var sink: ((SceneMessage) -> Void)?
     /// Called when the view should switch its render quality.
     var onQualityChange: ((SceneQuality) -> Void)?
@@ -112,6 +119,7 @@ final class BookSceneController {
         scene.rootNode.addChildNode(camera.node)
         scene.background.contents = SceneLighting.background(dark: false)
         tweens.timeScale = config.reducedMotion ? 0.001 : 1
+        freeEnabled = config.freeView
         state.textSize = textSize
         state.level = recall.level
         lighting.setShadows(quality != .saver)
@@ -300,6 +308,7 @@ final class BookSceneController {
             post(.empty(bookID: id))
             return
         }
+        resetFreeView(animated: false)
         current = entry
         state.mode = .opening
         state.bookID = id
@@ -363,6 +372,7 @@ final class BookSceneController {
         }
         guard state.mode == .reading, let entry = current else { return }
         setFocus(false, silent: true)
+        resetFreeView(animated: true)
         state.mode = .closing
         let turned = (0..<entry.node.leafCount).filter { entry.node.leafProgress($0) > 0.5 }
         for (k, leaf) in turned.enumerated() {
@@ -422,6 +432,7 @@ final class BookSceneController {
         let diff = abs(wantTurned - nowTurned)
         pageIndex = target
         panZ = -99
+        free.pan = .zero
         ensureTextures(entry, around: target, immediate: false)
         if diff > 0 {
             let stagger = min(0.1, 0.55 / Double(max(1, diff)))
@@ -520,6 +531,7 @@ final class BookSceneController {
     func setTextSize(_ size: ReaderTextSize) async {
         guard size != textSize else { return }
         textSize = size
+        resetFreeView(animated: false)
         state.textSize = size
         post(.preference(recallLevel: nil, textSize: size))
         let keepBase = state.basePageID
@@ -663,6 +675,8 @@ final class BookSceneController {
         case .setLevel(let level): setLevel(level)
         case .togglePageReveal: togglePageReveal()
         case .setTool: break // tools arrive in Task 12
+        case .setFreeView(let on): setFreeViewEnabled(on)
+        case .resetView: resetFreeView(animated: true)
         case .setFocus(let on): setFocus(on)
         case .setTextSize(let size): await setTextSize(size)
         case .setInsets(let top, let bottom): setInsets(top: top, bottom: bottom)
@@ -681,6 +695,7 @@ final class BookSceneController {
         s.textSize = textSize
         s.bookmarkPageID = current.flatMap { config.bookmarks[$0.book.id] }
         s.isRightToLeft = current?.book.isRightToLeft ?? false
+        s.viewMoved = freeEnabled && free.isMoved
         s.title = current?.book.title
         s.books = entries.map {
             SceneBookInfo(id: $0.book.id, title: $0.book.title, subject: $0.book.subject.rawValue, pages: $0.pages.count, isRightToLeft: $0.book.isRightToLeft)
@@ -696,6 +711,7 @@ final class BookSceneController {
         tweens.update(dt: step)
         if state.mode == .menu { hoverStep(dt: step) }
         settlePeek()
+        stepFreeView(dt: step)
     }
 
     // MARK: Picking

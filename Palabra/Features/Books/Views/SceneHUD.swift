@@ -34,8 +34,32 @@ struct SceneHUD: View {
         .animation(Motion.reduced(Motion.quick), value: state.isReading)
         .animation(Motion.reduced(Motion.quick), value: state.focus)
         .animation(Motion.reduced(Motion.quick), value: state.recall)
+        .animation(Motion.reduced(Motion.quick), value: state.viewMoved)
         .environment(\.layoutDirection, .leftToRight)
         .overlay(alignment: .top) { noticeBanner }
+        .overlay(alignment: .bottomTrailing) { recenterButton }
+    }
+
+    /// Free view: appears while the camera is off its framed pose.
+    @ViewBuilder
+    private var recenterButton: some View {
+        if state.viewMoved {
+            Button {
+                model.send(.resetView)
+            } label: {
+                Image(systemName: "scope")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.primary)
+                    .frame(width: 44, height: 44)
+                    .glassCapsule()
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, Theme.Spacing.md)
+            .padding(.bottom, state.isReading ? (state.focus ? 130 : 160) : 170)
+            .accessibilityLabel(Text("Recenter view"))
+            .accessibilityIdentifier("viewReset")
+            .transition(.opacity)
+        }
     }
 
     private var palette: Theme.Textbook.Palette {

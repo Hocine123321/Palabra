@@ -55,7 +55,8 @@ final class BooksSceneModel {
         }
         let controller = BookSceneController(config: NativeSceneConfig(
             library: shelf.library, lastPageID: lastPages, bookmarks: bookmarks, textSize: preferences.textSize,
-            recallLevel: preferences.recallLevel, quality: preferences.sceneQuality, reducedMotion: reducedMotion
+            recallLevel: preferences.recallLevel, quality: preferences.sceneQuality, reducedMotion: reducedMotion,
+            freeView: preferences.freeView
         ))
         controller.sink = { [weak self] message in self?.handle(message) }
         native = controller

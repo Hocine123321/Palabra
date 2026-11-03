@@ -20,7 +20,7 @@ protocol ScenePicker: AnyObject {
 
 /// One finger from touch-down to lift (`this.drag` of app.js).
 struct PointerDrag {
-    enum Mode { case turn, pan }
+    enum Mode { case turn, pan, freePan }
 
     var start: CGPoint
     var touch: Bool
@@ -37,6 +37,9 @@ struct PointerDrag {
     /// Page-turn speed in progress per second.
     var velocity = 0.0
     var pan0 = 0.0
+    var lastPoint = CGPoint.zero
+    var lastMoveTime = 0.0
+    var panVelocity = CGSize.zero
 }
 
 extension BookSceneController {
@@ -79,14 +82,28 @@ extension BookSceneController {
         defer { drag = d }
         let dx = Double(point.x - d.start.x), dy = Double(point.y - d.start.y)
         if !d.moved, hypot(dx, dy) > Self.slop { d.moved = true }
+        if d.mode == .freePan {
+            followFreePan(&d, point, time: time)
+            return
+        }
+        guard d.moved else { return }
+        // Zoomed in, a one-finger drag moves the view (except from a page edge, which still turns the leaf).
+        if d.mode == nil, canFreeMove, free.zoom > 1.05, !d.edge, state.mode == .menu || state.mode == .reading {
+            d.mode = .freePan
+            d.lastPoint = d.start
+            d.lastMoveTime = time
+            followFreePan(&d, point, time: time)
+            return
+        }
         guard state.mode == .reading, current != nil else { return }
         switch d.mode {
         case .turn:
             dragTurn(&d, point, time: time)
         case .pan:
             panBy(d.pan0 - dy / max(pxPerZ, 1e-6))
+        case .freePan:
+            break
         case nil:
-            guard d.moved else { return }
             let horizontal = abs(dx) > abs(dy) * 1.1
             if !d.edge, !horizontal, panLimit > 0 {
                 d.mode = .pan
@@ -97,17 +114,29 @@ extension BookSceneController {
         }
     }
 
+    private func followFreePan(_ d: inout PointerDrag, _ point: CGPoint, time: Double) {
+        let delta = CGSize(width: point.x - d.lastPoint.x, height: point.y - d.lastPoint.y)
+        let dt = max(0.001, time - d.lastMoveTime)
+        d.panVelocity = CGSize(width: delta.width / dt, height: delta.height / dt)
+        d.lastPoint = point
+        d.lastMoveTime = time
+        panChanged(by: delta)
+    }
+
     func pointerUp(_ point: CGPoint, time: Double) {
         guard let d = drag else { return }
         drag = nil
         switch state.mode {
         case .menu:
             let id = picker?.bookID(at: point)
+            if d.mode == .freePan { panEnded(velocity: d.panVelocity) }
             if let id, id == d.bookID, !d.moved { openBook(id: id, pageID: nil) }
             hoverBook = nil
         case .reading:
             if d.mode == .turn {
                 finishTurn(d)
+            } else if d.mode == .freePan {
+                panEnded(velocity: d.panVelocity)
             } else if d.mode == .pan {
                 break
             } else if !d.moved {

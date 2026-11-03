@@ -35,6 +35,8 @@ struct SceneState: Equatable {
     var isRightToLeft = false
     var books: [SceneBookInfo] = []
     var problems = 0
+    /// Free view: the reader has moved or zoomed the camera away from the framed pose (native engine only).
+    var viewMoved = false
 
     var isReading: Bool { mode == .reading || mode == .opening }
 
@@ -134,6 +136,9 @@ enum SceneCommand: Equatable {
     case setAppearance(dark: Bool)
     case setQuality(SceneQuality)
     case closeTerm
+    /// Native engine only (the web scene ignores both).
+    case setFreeView(Bool)
+    case resetView
 
     var dictionary: [String: Any] {
         switch self {
@@ -155,6 +160,8 @@ enum SceneCommand: Equatable {
         case .setAppearance(let dark): return ["name": "setAppearance", "dark": dark]
         case .setQuality(let quality): return ["name": "setQuality", "quality": quality.rawValue]
         case .closeTerm: return ["name": "closeTerm"]
+        case .setFreeView(let on): return ["name": "setFreeView", "on": on]
+        case .resetView: return ["name": "resetView"]
         }
     }
 

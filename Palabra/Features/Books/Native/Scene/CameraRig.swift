@@ -11,7 +11,7 @@ final class CameraRig {
     private(set) var size = CGSize(width: 390, height: 844)
     private(set) var shift = 0.0
     var fovDegrees = 32.0
-    /// Extra zoom and screen-space pan from Free view (1 = none).
+    /// Extra zoom and screen-space pan from Free view (1 = none); the pan is how far the picture moved, in points, y down.
     private(set) var zoom = 1.0
     private(set) var pan = CGSize.zero
     static let near = 0.05
@@ -79,7 +79,7 @@ final class CameraRig {
 
     /// The world-space ray through a point of the view (points, y down), for picking without a renderer.
     func ray(through point: CGPoint) -> (origin: SIMD3<Double>, direction: SIMD3<Double>) {
-        let f = Self.frustum(fovDegrees: fovDegrees, size: size, shiftY: shift + Double(pan.height), shiftX: Double(pan.width), zoom: zoom)
+        let f = Self.frustum(fovDegrees: fovDegrees, size: size, shiftY: shift - Double(pan.height), shiftX: -Double(pan.width), zoom: zoom)
         let nx = Double(point.x / size.width), ny = Double(point.y / size.height)
         let x = f.left + nx * (f.right - f.left)
         let y = f.top - ny * (f.top - f.bottom)
@@ -113,7 +113,7 @@ final class CameraRig {
         node.position = SCNVector3(Float(pose.position.x), Float(pose.position.y), Float(pose.position.z))
         node.look(at: SCNVector3(Float(pose.look.x), Float(pose.look.y), Float(pose.look.z)), up: SCNVector3(0, 1, 0), localFront: SCNVector3(0, 0, -1))
         camera.projectionTransform = Self.projection(
-            fovDegrees: fovDegrees, size: size, shiftY: shift + Double(pan.height), shiftX: Double(pan.width), zoom: zoom
+            fovDegrees: fovDegrees, size: size, shiftY: shift - Double(pan.height), shiftX: -Double(pan.width), zoom: zoom
         )
     }
 }

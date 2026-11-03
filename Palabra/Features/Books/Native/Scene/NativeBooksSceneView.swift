@@ -57,7 +57,7 @@ struct NativeBooksSceneView: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, ScenePicker {
+    final class Coordinator: NSObject, ScenePicker, UIGestureRecognizerDelegate {
         private weak var view: SCNView?
         private weak var model: BooksSceneModel?
         private weak var controller: BookSceneController?
@@ -71,8 +71,21 @@ struct NativeBooksSceneView: UIViewRepresentable {
             controller.picker = self
             let pointer = PointerGesture()
             pointer.cancelsTouchesInView = false
+            pointer.delegate = self
             pointer.onEvent = { [weak self] event, point, touch in self?.pointer(event, point, touch) }
             view.addGestureRecognizer(pointer)
+            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinched(_:)))
+            pinch.delegate = self
+            view.addGestureRecognizer(pinch)
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+            pan.minimumNumberOfTouches = 2
+            pan.maximumNumberOfTouches = 2
+            pan.delegate = self
+            view.addGestureRecognizer(pan)
+            let double = UITapGestureRecognizer(target: self, action: #selector(doubleTapped(_:)))
+            double.numberOfTapsRequired = 2
+            double.delegate = self
+            view.addGestureRecognizer(double)
             let link = CADisplayLink(target: DisplayLinkTarget(self), selector: #selector(DisplayLinkTarget.step(_:)))
             link.add(to: .main, forMode: .common)
             self.link = link
@@ -99,6 +112,54 @@ struct NativeBooksSceneView: UIViewRepresentable {
             case .up: controller.pointerUp(point, time: time)
             case .cancel: controller.pointerCancel()
             }
+        }
+
+        // MARK: Free view gestures
+
+        private var lastScale: CGFloat = 1
+
+        @objc private func pinched(_ g: UIPinchGestureRecognizer) {
+            guard let controller, let view else { return }
+            switch g.state {
+            case .began:
+                lastScale = 1
+            case .changed:
+                controller.pinchChanged(scale: Double(g.scale / lastScale), at: g.location(in: view))
+                lastScale = g.scale
+            case .ended, .cancelled:
+                controller.pinchEnded(at: g.location(in: view))
+            default:
+                break
+            }
+        }
+
+        private var lastTranslation = CGPoint.zero
+
+        @objc private func panned(_ g: UIPanGestureRecognizer) {
+            guard let controller, let view else { return }
+            switch g.state {
+            case .began:
+                lastTranslation = .zero
+            case .changed:
+                let t = g.translation(in: view)
+                controller.panChanged(by: CGSize(width: t.x - lastTranslation.x, height: t.y - lastTranslation.y))
+                lastTranslation = t
+            case .ended:
+                let v = g.velocity(in: view)
+                controller.panEnded(velocity: CGSize(width: v.x, height: v.y))
+            default:
+                break
+            }
+        }
+
+        @objc private func doubleTapped(_ g: UITapGestureRecognizer) {
+            guard let view else { return }
+            controller?.doubleTapped(at: g.location(in: view))
+        }
+
+        nonisolated func gestureRecognizer(_ a: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith b: UIGestureRecognizer) -> Bool {
+            // The pointer gesture and the double tap watch alongside everything; pinch and two-finger pan work together.
+            !(a is UIPinchGestureRecognizer && b is UITapGestureRecognizer) && !(a is UITapGestureRecognizer && b is UIPinchGestureRecognizer)
         }
 
         // MARK: ScenePicker
