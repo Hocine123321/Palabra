@@ -42,6 +42,15 @@ enum TourScript {
             if let r = reading(ctx) { return r }
             return ctx.state.page == n ? nil : "page \(ctx.state.page), expected \(n)"
         }
+        /// A point on a page, with `px` written for a left-to-right bitmap (gutter on its left); right-to-left books mirror it.
+        func pagePoint(_ c: BookSceneController, _ index: Int, _ px: Double) -> CGPoint? {
+            let rtl = c.current?.book.isRightToLeft ?? false
+            return c.screenPoint(pageIndex: index, px: rtl ? PageGeometry.width - px : px, py: 900)
+        }
+        /// Keeps a swipe's end inside the screen.
+        func edgeClamped(_ p: CGPoint, _ c: BookSceneController) -> CGPoint {
+            CGPoint(x: min(max(2, p.x), c.camera.size.width - 2), y: p.y)
+        }
         func firstPage(_ ctx: TourContext) -> String? { ctx.controller.current?.pages.first?.baseID }
 
         // 1. The desk, left alone; light and dark.
@@ -93,26 +102,26 @@ enum TourScript {
         // 4. By hand.
         add("edge-drag", "Drag the page edge past the middle", expect: "page 2", timeout: 4, run: { ctx in
             let c = ctx.controller
-            guard let a = c.screenPoint(pageIndex: 0, px: 1150, py: 900), let b = c.screenPoint(pageIndex: 0, px: -250, py: 900) else { return }
-            await ctx.swipe(from: a, to: CGPoint(x: max(2, b.x), y: b.y), seconds: 0.7)
+            guard let a = pagePoint(c, 0, 1150), let b = pagePoint(c, 0, -250) else { return }
+            await ctx.swipe(from: a, to: edgeClamped(b, c), seconds: 0.7)
             await ctx.wait(1.2)
         }, check: { page($0, 2) })
         add("edge-drag-early", "Drag a little and let go", expect: "page stays 2", timeout: 3, run: { ctx in
             let c = ctx.controller
-            guard let a = c.screenPoint(pageIndex: 2, px: 1150, py: 900), let b = c.screenPoint(pageIndex: 2, px: 800, py: 900) else { return }
+            guard let a = pagePoint(c, 2, 1150), let b = pagePoint(c, 2, 800) else { return }
             await ctx.swipe(from: a, to: b, seconds: 0.8)
             await ctx.wait(1.2)
         }, check: { page($0, 2) })
         add("flick", "Flick the page quickly", expect: "page 4", timeout: 4, run: { ctx in
             let c = ctx.controller
-            guard let a = c.screenPoint(pageIndex: 2, px: 1150, py: 900), let b = c.screenPoint(pageIndex: 2, px: 700, py: 900) else { return }
+            guard let a = pagePoint(c, 2, 1150), let b = pagePoint(c, 2, 700) else { return }
             await ctx.swipe(from: a, to: b, seconds: 0.12)
             await ctx.wait(1.4)
         }, check: { page($0, 4) })
         add("swipe-body", "Swipe the page body", expect: "page 6", timeout: 4, run: { ctx in
             let c = ctx.controller
-            guard let a = c.screenPoint(pageIndex: 4, px: 450, py: 900), let b = c.screenPoint(pageIndex: 4, px: -300, py: 900) else { return }
-            await ctx.swipe(from: a, to: CGPoint(x: max(2, b.x), y: b.y), seconds: 0.5)
+            guard let a = pagePoint(c, 4, 450), let b = pagePoint(c, 4, -300) else { return }
+            await ctx.swipe(from: a, to: edgeClamped(b, c), seconds: 0.5)
             await ctx.wait(1.4)
         }, check: { page($0, 6) })
 

@@ -165,7 +165,7 @@ final class BookSceneControllerTests: XCTestCase {
         let picker = FakePicker()
         controller.picker = picker
         let surface = entry.node.surfaceY(side: 1)
-        picker.page = PageHit(pageIndex: 0, leaf: 0, front: true, px: 1100, py: 900)
+        picker.page = PageHit(pageIndex: 0, leaf: 0, front: true, px: entry.book.isRightToLeft ? 180 : 1100, py: 900)
         // A right-to-left book is mirrored: its first page lies on the left.
         let s = entry.book.isRightToLeft ? -1.0 : 1.0
         let from = screenPoint(controller, worldX: 0.9 * s, y: surface)
@@ -188,7 +188,7 @@ final class BookSceneControllerTests: XCTestCase {
         let picker = FakePicker()
         controller.picker = picker
         let surface = entry.node.surfaceY(side: 1)
-        picker.page = PageHit(pageIndex: 0, leaf: 0, front: true, px: 1100, py: 900)
+        picker.page = PageHit(pageIndex: 0, leaf: 0, front: true, px: entry.book.isRightToLeft ? 180 : 1100, py: 900)
         let s = entry.book.isRightToLeft ? -1.0 : 1.0
         let from = screenPoint(controller, worldX: 0.9 * s, y: surface)
         let to = screenPoint(controller, worldX: 0.7 * s, y: surface)
@@ -309,12 +309,12 @@ final class BookSceneControllerTests: XCTestCase {
         controller.openBook(id: entry.book.id, pageID: nil)
         settle(controller)
         // The outer edge of the right page is at x = +1, the head at z = -PH/2.
-        let outer = try XCTUnwrap(controller.worldPoint(pageIndex: 0, px: PageGeometry.width, py: 0))
+        let outer = try XCTUnwrap(controller.worldPoint(pageIndex: 0, px: entry.book.isRightToLeft ? 0 : PageGeometry.width, py: 0))
         let s = entry.book.isRightToLeft ? -1.0 : 1.0
         XCTAssertEqual(outer.x, s * BookDims.pageWidth, accuracy: 1e-9)
         XCTAssertEqual(outer.z, -BookDims.pageHeight / 2, accuracy: 1e-9)
         // Page 1 is the back of leaf 0, on the left: its outer edge is at x = -1 (u = 0).
-        let left = try XCTUnwrap(controller.worldPoint(pageIndex: 1, px: 0, py: PageGeometry.height))
+        let left = try XCTUnwrap(controller.worldPoint(pageIndex: 1, px: entry.book.isRightToLeft ? PageGeometry.width : 0, py: PageGeometry.height))
         XCTAssertEqual(left.x, -s * BookDims.pageWidth, accuracy: 1e-9)
         XCTAssertEqual(left.z, BookDims.pageHeight / 2, accuracy: 1e-9)
     }
