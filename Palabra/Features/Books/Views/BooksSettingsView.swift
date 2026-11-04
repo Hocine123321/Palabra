@@ -93,6 +93,29 @@ struct BooksSettingsView: View {
                 .themedSection()
             }
 
+            if shelf.preferences.viewStyle == .desk {
+                let reason = TourRunner.unavailableReason(preferences: shelf.preferences)
+                Section {
+                    Button {
+                        shelf.tourRequested = true
+                        environment.router.tab = .books
+                    } label: {
+                        Text("Pull a test")
+                    }
+                    .disabled(reason != nil)
+                    .accessibilityIdentifier("pullATestButton")
+                } header: {
+                    Text("Test")
+                } footer: {
+                    if let reason {
+                        Text(LocalizedStringKey(reason))
+                    } else {
+                        Text("Runs a scripted walk through the Books tab, records the screen and writes a log you can share.")
+                    }
+                }
+                .themedSection()
+            }
+
             Section("Reading") {
                 Picker("Text size", selection: $shelf.preferences.textSize) {
                     ForEach(ReaderTextSize.allCases) { size in

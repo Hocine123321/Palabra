@@ -16,6 +16,8 @@ final class BooksSceneModel {
     var notice: String?
 
     @ObservationIgnored private let shelf: BookShelf
+    /// The recorded self-test ("Pull a test"); only runs on the native desk.
+    let tour = TourRunner()
     @ObservationIgnored var run: ((String) -> Void)?
     /// Set instead of `run` when the native SceneKit desk draws the scene: commands go straight to its controller.
     @ObservationIgnored private(set) var native: BookSceneController?
@@ -63,6 +65,12 @@ final class BooksSceneModel {
         started = true
         Task { await controller.load() }
         return controller
+    }
+
+    /// Starts the recorded tour on the native desk once it is ready.
+    func startTour() {
+        guard let native, isReady, !tour.isRunning else { return }
+        tour.start(host: AppTourHost(model: self, controller: native), shelf: shelf, recorder: ReplayKitTourRecorder())
     }
 
     func fail(_ message: String) {

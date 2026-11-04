@@ -35,6 +35,8 @@ struct BooksSceneScreen: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task(id: shelf.preferences.sceneEngine) {
+            // A tour that was cut short by the app being killed left a copy of the person's Books state: put it back first.
+            TourSafety.restoreIfNeeded(into: shelf)
             // Changing the engine in Settings starts a fresh scene (the old model's view is gone with the navigation).
             model = BooksSceneModel(shelf: shelf)
         }
@@ -59,6 +61,18 @@ struct BooksSceneScreen: View {
                     .opacity(model.isReady ? 1 : 0)
                     .animation(Motion.reduced(Motion.standard), value: model.isReady)
                 SceneHUD(model: model, path: $path)
+                if model.tour.isRunning {
+                    TourOverlay(runner: model.tour).ignoresSafeArea()
+                }
+            }
+            .onChange(of: model.isReady, initial: true) { _, ready in
+                if ready, environment.books.tourRequested {
+                    environment.books.tourRequested = false
+                    model.startTour()
+                }
+            }
+            .sheet(isPresented: Binding(get: { model.tour.phase == .finished }, set: { if !$0 { model.tour.dismissResult() } })) {
+                TourResultView(runner: model.tour)
             }
             .background(Theme.background)
             .onChange(of: colorScheme, initial: true) { _, scheme in

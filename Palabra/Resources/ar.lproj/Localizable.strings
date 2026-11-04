@@ -765,3 +765,12 @@
 "Reset reading progress?" = "إعادة ضبط تقدّم القراءة؟";
 "Reset" = "إعادة ضبط";
 "Recenter view" = "إعادة توسيط العرض";
+"Pull a test" = "إجراء اختبار";
+"Runs a scripted walk through the Books tab, records the screen and writes a log you can share." = "يجري جولة مبرمجة في تبويب الكتب ويسجّل الشاشة ويكتب سجلًا يمكنك مشاركته.";
+"Switch the Books view to the 3D desk first." = "بدّل عرض الكتب إلى المكتب ثلاثي الأبعاد أولًا.";
+"Pull a test needs the Native engine." = "يحتاج الاختبار إلى المحرك الأصلي.";
+"Stop the test" = "إيقاف الاختبار";
+"Test result" = "نتيجة الاختبار";
+"Needs a look" = "يحتاج إلى مراجعة";
+"Video" = "فيديو";
+"Log" = "السجل";

@@ -15,6 +15,8 @@ final class BookShelf {
     private(set) var library: BookLibrary
     /// Changes whenever reading progress is cleared, so a 3D desk that is already loaded knows to start over.
     private(set) var resetToken = 0
+    /// Set by Settings > Books > Pull a test; the 3D desk starts the recorded tour when it sees it.
+    var tourRequested = false
     var state: TextbookState { didSet { store.value = state } }
     @ObservationIgnored private let store: TextbookStateStore
     @ObservationIgnored let source: BookContentSource
