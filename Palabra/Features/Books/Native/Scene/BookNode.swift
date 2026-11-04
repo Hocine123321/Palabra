@@ -352,7 +352,7 @@ final class BookNode {
         var front = MeshData()
         front.positions = positions
         front.normals = normals
-        front.uvs = Self.frontUV
+        front.uvs = Self.frontUVForRTL(style.rtl)
         front.elements = [indices]
         var back = front
         back.normals = normals.map { -$0 }
@@ -365,7 +365,9 @@ final class BookNode {
         backLeaf[index].geometry = bg
     }
 
-    private static let frontUV = leafUVs(back: false, rtl: false)
+    private static let frontUVLTR = leafUVs(back: false, rtl: false)
+    private static let frontUVRTL = leafUVs(back: false, rtl: true)
+    private static func frontUVForRTL(_ rtl: Bool) -> [SIMD2<Float>] { rtl ? frontUVRTL : frontUVLTR }
     private static let backUVLTR = leafUVs(back: true, rtl: false)
     private static let backUVRTL = leafUVs(back: true, rtl: true)
     private static func backUVForRTL(_ rtl: Bool) -> [SIMD2<Float>] { rtl ? backUVRTL : backUVLTR }
