@@ -314,6 +314,15 @@ jobs:
           kill -INT $REC 2>/dev/null
           wait $REC 2>/dev/null
           grep -v 'CoreData:' build/review.log | tail -n 150 > build/review/xcodebuild-tail.log
+          # A long tour records hundreds of MB of H.264, over GitHub's 100 MB file limit: shrink it before publishing.
+          if [ -f build/review/run.mp4 ] && [ "$(stat -f%z build/review/run.mp4)" -gt 60000000 ]; then
+            avconvert --source build/review/run.mp4 --output build/review/run-small.mp4 --preset Preset1280x720 --replace > build/avconvert.log 2>&1
+            if [ -s build/review/run-small.mp4 ]; then mv build/review/run-small.mp4 build/review/run.mp4; else cat build/avconvert.log | tail -5; fi
+          fi
+          if [ -f build/review/run.mp4 ] && [ "$(stat -f%z build/review/run.mp4)" -gt 90000000 ]; then
+            echo "run.mp4 is still over 90 MB: leaving it out of the publish" >> build/review/result.txt
+            rm build/review/run.mp4
+          fi
           ls -la build/review | head -80
           exit 0
       - name: Test summary
