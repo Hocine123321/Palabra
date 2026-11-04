@@ -159,15 +159,17 @@ final class BookSceneControllerTests: XCTestCase {
 
     func testDraggingTheOuterEdgeTurnsThePage() async throws {
         let (controller, recorder) = await makeController()
-        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty && !$0.book.isRightToLeft })
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
         controller.openBook(id: entry.book.id, pageID: nil)
         settle(controller)
         let picker = FakePicker()
         controller.picker = picker
         let surface = entry.node.surfaceY(side: 1)
         picker.page = PageHit(pageIndex: 0, leaf: 0, front: true, px: 1100, py: 900)
-        let from = screenPoint(controller, worldX: 0.9, y: surface)
-        let to = screenPoint(controller, worldX: -0.2, y: surface)
+        // A right-to-left book is mirrored: its first page lies on the left.
+        let s = entry.book.isRightToLeft ? -1.0 : 1.0
+        let from = screenPoint(controller, worldX: 0.9 * s, y: surface)
+        let to = screenPoint(controller, worldX: -0.2 * s, y: surface)
         controller.pointerDown(from, touch: true, time: 0)
         controller.pointerMove(CGPoint(x: (from.x + to.x) / 2, y: from.y), time: 0.1)
         XCTAssertGreaterThan(entry.node.leafProgress(0), 0)
@@ -180,15 +182,16 @@ final class BookSceneControllerTests: XCTestCase {
 
     func testShortDragSettlesBack() async throws {
         let (controller, recorder) = await makeController()
-        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty && !$0.book.isRightToLeft })
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
         controller.openBook(id: entry.book.id, pageID: nil)
         settle(controller)
         let picker = FakePicker()
         controller.picker = picker
         let surface = entry.node.surfaceY(side: 1)
         picker.page = PageHit(pageIndex: 0, leaf: 0, front: true, px: 1100, py: 900)
-        let from = screenPoint(controller, worldX: 0.9, y: surface)
-        let to = screenPoint(controller, worldX: 0.7, y: surface)
+        let s = entry.book.isRightToLeft ? -1.0 : 1.0
+        let from = screenPoint(controller, worldX: 0.9 * s, y: surface)
+        let to = screenPoint(controller, worldX: 0.7 * s, y: surface)
         controller.pointerDown(from, touch: true, time: 0)
         controller.pointerMove(to, time: 0.5)
         controller.pointerUp(to, time: 0.6)
@@ -302,16 +305,17 @@ final class BookSceneControllerTests: XCTestCase {
 
     func testPagePointRoundTripsThroughThePageAxes() async throws {
         let (controller, _) = await makeController()
-        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty && !$0.book.isRightToLeft })
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
         controller.openBook(id: entry.book.id, pageID: nil)
         settle(controller)
         // The outer edge of the right page is at x = +1, the head at z = -PH/2.
         let outer = try XCTUnwrap(controller.worldPoint(pageIndex: 0, px: PageGeometry.width, py: 0))
-        XCTAssertEqual(outer.x, BookDims.pageWidth, accuracy: 1e-9)
+        let s = entry.book.isRightToLeft ? -1.0 : 1.0
+        XCTAssertEqual(outer.x, s * BookDims.pageWidth, accuracy: 1e-9)
         XCTAssertEqual(outer.z, -BookDims.pageHeight / 2, accuracy: 1e-9)
         // Page 1 is the back of leaf 0, on the left: its outer edge is at x = -1 (u = 0).
         let left = try XCTUnwrap(controller.worldPoint(pageIndex: 1, px: 0, py: PageGeometry.height))
-        XCTAssertEqual(left.x, -BookDims.pageWidth, accuracy: 1e-9)
+        XCTAssertEqual(left.x, -s * BookDims.pageWidth, accuracy: 1e-9)
         XCTAssertEqual(left.z, BookDims.pageHeight / 2, accuracy: 1e-9)
     }
 }

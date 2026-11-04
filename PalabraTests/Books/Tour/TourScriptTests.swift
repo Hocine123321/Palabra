@@ -8,6 +8,7 @@ final class TourScriptTests: XCTestCase {
         let controller: BookSceneController
         var state = SceneState()
         var clock = 0.0
+        var picker: GeometryPicker?
 
         init(controller: BookSceneController) {
             self.controller = controller
@@ -39,6 +40,8 @@ final class TourScriptTests: XCTestCase {
         let controller = BookSceneController(config: NativeSceneConfig(library: library, reducedMotion: true))
         controller.setSize(CGSize(width: 390, height: 844))
         let host = TestHost(controller: controller)
+        host.picker = GeometryPicker(controller: controller)
+        controller.picker = host.picker
         await controller.load()
         return host
     }
