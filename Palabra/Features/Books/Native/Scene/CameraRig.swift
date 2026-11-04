@@ -91,6 +91,22 @@ final class CameraRig {
         return (pose.position, direction)
     }
 
+    /// Where a world point lands in the view (points, y down), or nil when it is behind the camera.
+    func screenPoint(for world: SIMD3<Double>) -> CGPoint? {
+        let f = Self.frustum(fovDegrees: fovDegrees, size: size, shiftY: shift - Double(pan.height), shiftX: -Double(pan.width), zoom: zoom)
+        let forward = Self.normalized(pose.look - pose.position)
+        let right = Self.normalized(Self.cross(forward, SIMD3(0, 1, 0)))
+        let up = Self.cross(right, forward)
+        let d = world - pose.position
+        let depth = d.x * forward.x + d.y * forward.y + d.z * forward.z
+        guard depth > 1e-6 else { return nil }
+        let xn = (d.x * right.x + d.y * right.y + d.z * right.z) * Self.near / depth
+        let yn = (d.x * up.x + d.y * up.y + d.z * up.z) * Self.near / depth
+        let nx = (xn - f.left) / (f.right - f.left)
+        let ny = (f.top - yn) / (f.top - f.bottom)
+        return CGPoint(x: nx * Double(size.width), y: ny * Double(size.height))
+    }
+
     /// Where the view ray meets the horizontal plane at height `y`, or nil when it never does.
     func planePoint(through point: CGPoint, y: Double) -> SIMD3<Double>? {
         let r = ray(through: point)

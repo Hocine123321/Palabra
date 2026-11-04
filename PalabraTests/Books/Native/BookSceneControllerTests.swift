@@ -287,4 +287,31 @@ final class BookSceneControllerTests: XCTestCase {
         controller.updateLens()
         XCTAssertTrue(controller.lens.glass.geometry?.firstMaterial?.diffuse.contentsTransform.m11 ?? 0 > 0)
     }
+
+    func testScreenPointInvertsTheRay() async {
+        let (controller, _) = await makeController()
+        controller.camera.setShift(40)
+        controller.camera.setPose(CameraPose(position: SIMD3(0.4, 5, 4), look: SIMD3(0.3, 0, 0.2)))
+        for point in [CGPoint(x: 50, y: 200), CGPoint(x: 195, y: 422), CGPoint(x: 340, y: 700)] {
+            guard let world = controller.camera.planePoint(through: point, y: 0.1) else { return XCTFail("no hit") }
+            let back = controller.camera.screenPoint(for: world)
+            XCTAssertEqual(Double(back?.x ?? -1), Double(point.x), accuracy: 1e-6)
+            XCTAssertEqual(Double(back?.y ?? -1), Double(point.y), accuracy: 1e-6)
+        }
+    }
+
+    func testPagePointRoundTripsThroughThePageAxes() async throws {
+        let (controller, _) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty && !$0.book.isRightToLeft })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        settle(controller)
+        // The outer edge of the right page is at x = +1, the head at z = -PH/2.
+        let outer = try XCTUnwrap(controller.worldPoint(pageIndex: 0, px: PageGeometry.width, py: 0))
+        XCTAssertEqual(outer.x, BookDims.pageWidth, accuracy: 1e-9)
+        XCTAssertEqual(outer.z, -BookDims.pageHeight / 2, accuracy: 1e-9)
+        // Page 1 is the back of leaf 0, on the left: its outer edge is at x = -1 (u = 0).
+        let left = try XCTUnwrap(controller.worldPoint(pageIndex: 1, px: 0, py: PageGeometry.height))
+        XCTAssertEqual(left.x, -BookDims.pageWidth, accuracy: 1e-9)
+        XCTAssertEqual(left.z, BookDims.pageHeight / 2, accuracy: 1e-9)
+    }
 }

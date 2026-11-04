@@ -320,4 +320,29 @@ extension BookSceneController {
         }
         closeTerm()
     }
+
+    // MARK: Where things are on screen (for the scripted tour and tests)
+
+    /// The world point on the open book for a point of a page bitmap (1280 x 1820 units).
+    func worldPoint(pageIndex index: Int, px: Double, py: Double) -> SIMD3<Double>? {
+        guard let entry = current else { return nil }
+        let front = index % 2 == 0
+        let side = front ? 1 : -1
+        let rtl = entry.book.isRightToLeft
+        let u = px / PageGeometry.width
+        let uvx = rtl ? 1 - u : u
+        let logicalX = front ? uvx * pw : (uvx - 1) * pw
+        let z = py / PageGeometry.height * BookDims.pageHeight - BookDims.pageHeight / 2
+        return SIMD3(rtl ? -logicalX : logicalX, entry.node.surfaceY(side: side), z)
+    }
+
+    func screenPoint(pageIndex index: Int, px: Double, py: Double) -> CGPoint? {
+        worldPoint(pageIndex: index, px: px, py: py).flatMap { camera.screenPoint(for: $0) }
+    }
+
+    /// Where a book on the desk appears (menu).
+    func screenPoint(ofBook id: String) -> CGPoint? {
+        guard let entry = entries.first(where: { $0.book.id == id }) else { return nil }
+        return camera.screenPoint(for: SIMD3(entry.menu.x, 0.1, entry.menu.z))
+    }
 }
