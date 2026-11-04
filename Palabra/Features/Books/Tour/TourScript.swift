@@ -120,7 +120,7 @@ enum TourScript {
         }, check: { page($0, 4) })
         add("swipe-body", "Swipe the page body", expect: "page 6", timeout: 4, run: { ctx in
             let c = ctx.controller
-            guard let a = pagePoint(c, 4, 450), let b = pagePoint(c, 4, -300) else { return }
+            guard let a = pagePoint(c, 4, 700), let b = pagePoint(c, 4, -500) else { return }
             await ctx.swipe(from: a, to: edgeClamped(b, c), seconds: 0.5)
             await ctx.wait(1.4)
         }, check: { page($0, 6) })

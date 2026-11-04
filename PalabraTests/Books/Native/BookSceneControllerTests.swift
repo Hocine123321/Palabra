@@ -171,7 +171,9 @@ final class BookSceneControllerTests: XCTestCase {
         let from = screenPoint(controller, worldX: 0.9 * s, y: surface)
         let to = screenPoint(controller, worldX: -0.2 * s, y: surface)
         controller.pointerDown(from, touch: true, time: 0)
-        controller.pointerMove(CGPoint(x: (from.x + to.x) / 2, y: from.y), time: 0.1)
+        // The first move past the slop grabs the page; the finger's position then is the reference.
+        controller.pointerMove(screenPoint(controller, worldX: 0.7 * s, y: surface), time: 0.1)
+        controller.pointerMove(CGPoint(x: (from.x + to.x) / 2, y: from.y), time: 0.15)
         XCTAssertGreaterThan(entry.node.leafProgress(0), 0)
         controller.pointerMove(to, time: 0.2)
         controller.pointerUp(to, time: 0.25)
