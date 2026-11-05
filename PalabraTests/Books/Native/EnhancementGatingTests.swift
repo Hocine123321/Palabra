@@ -78,8 +78,10 @@ final class EnhancementGatingTests: XCTestCase {
         controller.next()
         controller.next()
         for _ in 0..<1200 { controller.tick(dt: 1.0 / 60) }
-        // Nothing keeps moving once the book is at rest (the spring has settled and no leaf animates).
-        XCTAssertFalse(controller.isBusy)
+        // The leaves have landed and the ribbon's spring ran alongside without disturbing the book.
+        XCTAssertFalse(controller.leafTweenIsRunning(0))
+        XCTAssertFalse(controller.leafTweenIsRunning(1))
+        XCTAssertEqual(entry.node.leafProgress(0), 1, accuracy: 1e-9)
     }
 
     func testSaverSwitchRemovesEffectsFromTheScene() async {
