@@ -1,0 +1,137 @@
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project Palabra.xcodeproj -scheme Palabra -destination id=F0C70C77-E423-4478-B648-3D25045B311B -derivedDataPath build/dd "-only-testing:PalabraUITests/NativeDarkExposureUITests" -resultBundlePath build/review.xcresult
+
+Writing result bundle at path:
+	/Users/runner/work/Palabra/Palabra/build/review.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:F0C70C77-E423-4478-B648-3D25045B311B, OS:26.5, name:iPhone 17 Pro }
+{ platform:iOS Simulator, arch:x86_64, id:F0C70C77-E423-4478-B648-3D25045B311B, OS:26.5, name:iPhone 17 Pro }
+2026-11-05 13:39:38.595731+0000 PalabraUITests-Runner[11996:38806] [Default] Running tests...
+objc[11996]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x109b8c310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x108f18398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-05 13:39:50.210.
+Test Suite 'PalabraUITests.xctest' started at 2026-11-05 13:39:50.211.
+Test Suite 'NativeDarkExposureUITests' started at 2026-11-05 13:39:50.211.
+Test Case '-[PalabraUITests.NativeDarkExposureUITests testLampStrengths]' started.
+    t =     0.00s Start Test at 2026-11-05 13:39:50.214
+    t =     0.19s Set Up
+    t =     0.21s Open dev.palabra.app
+    t =     0.21s     Launch dev.palabra.app
+2026-11-05 13:39:51.636 xcodebuild[10833:35830] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-05 13:39:51.636 xcodebuild[10833:35830] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =    10.30s         Setting up automation session
+    t =    13.73s         Wait for dev.palabra.app to idle
+    t =    20.12s Setting device orientation to Portrait
+    t =    20.21s     Device orientation changed to Portrait
+    t =    20.27s     Wait for dev.palabra.app to idle
+    t =    20.29s Tap "Books" Button
+    t =    20.29s     Wait for dev.palabra.app to idle
+    t =    20.30s     Find the "Books" Button
+    t =    20.97s     Check for interrupting elements affecting "Books" Button
+    t =    21.03s     Synthesize event
+    t =    21.49s     Wait for dev.palabra.app to idle
+    t =    33.02s Waiting 12.0s for "bookCover.history" Any to exist
+    t =    34.11s     Checking `Expect predicate `existsNoRetry == 1` for object "bookCover.history" Any`
+    t =    34.12s         Checking existence of `"bookCover.history" Any`
+    t =    40.09s Checking existence of `"bookCover.history" Any`
+    t =    40.65s Tap "bookCover.history" Any
+    t =    40.65s     Wait for dev.palabra.app to idle
+    t =    40.67s     Find the "bookCover.history" Any
+    t =    41.15s     Check for interrupting elements affecting "bookCover.history" Button
+    t =    42.17s     Synthesize event
+    t =    42.60s     Wait for dev.palabra.app to idle
+    t =    49.05s Terminate dev.palabra.app:13376
+    t =    50.10s Open dev.palabra.app
+    t =    50.10s     Launch dev.palabra.app
+2026-11-05 13:40:40.339 xcodebuild[10833:35830] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-05 13:40:40.339 xcodebuild[10833:35830] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =    50.75s         Setting up automation session
+    t =    52.94s         Wait for dev.palabra.app to idle
+    t =    55.48s Setting device orientation to Portrait
+    t =    55.50s     Wait for dev.palabra.app to idle
+    t =    55.51s Tap "Books" Button
+    t =    55.51s     Wait for dev.palabra.app to idle
+    t =    55.54s     Find the "Books" Button
+    t =    55.92s     Check for interrupting elements affecting "Books" Button
+    t =    55.97s     Synthesize event
+    t =    56.33s     Wait for dev.palabra.app to idle
+    t =    64.84s Waiting 12.0s for "bookCover.history" Any to exist
+    t =    65.88s     Checking `Expect predicate `existsNoRetry == 1` for object "bookCover.history" Any`
+    t =    65.88s         Checking existence of `"bookCover.history" Any`
+    t =    70.13s Checking existence of `"bookCover.history" Any`
+    t =    70.96s Tap "bookCover.history" Any
+    t =    70.96s     Wait for dev.palabra.app to idle
+    t =    70.97s     Find the "bookCover.history" Any
+    t =    71.46s     Check for interrupting elements affecting "bookCover.history" Button
+    t =    72.43s     Synthesize event
+    t =    72.78s     Wait for dev.palabra.app to idle
+    t =    79.22s Terminate dev.palabra.app:14365
+    t =    80.24s Open dev.palabra.app
+    t =    80.24s     Launch dev.palabra.app
+2026-11-05 13:41:10.457 xcodebuild[10833:35830] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-05 13:41:10.457 xcodebuild[10833:35830] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =    83.35s         Setting up automation session
+    t =    91.29s         Wait for dev.palabra.app to idle
+    t =    94.27s Setting device orientation to Portrait
+    t =    94.29s     Wait for dev.palabra.app to idle
+    t =    94.30s Tap "Books" Button
+    t =    94.30s     Wait for dev.palabra.app to idle
+    t =    94.32s     Find the "Books" Button
+    t =    94.96s     Check for interrupting elements affecting "Books" Button
+    t =    95.04s     Synthesize event
+    t =    95.46s     Wait for dev.palabra.app to idle
+    t =   100.03s Waiting 12.0s for "bookCover.history" Any to exist
+    t =   101.09s     Checking `Expect predicate `existsNoRetry == 1` for object "bookCover.history" Any`
+    t =   101.09s         Checking existence of `"bookCover.history" Any`
+    t =   105.92s Checking existence of `"bookCover.history" Any`
+    t =   106.40s Tap "bookCover.history" Any
+    t =   106.40s     Wait for dev.palabra.app to idle
+    t =   106.40s     Find the "bookCover.history" Any
+    t =   106.87s     Check for interrupting elements affecting "bookCover.history" Button
+    t =   107.86s     Synthesize event
+    t =   108.21s     Wait for dev.palabra.app to idle
+    t =   114.02s Terminate dev.palabra.app:15498
+    t =   115.05s Open dev.palabra.app
+    t =   115.05s     Launch dev.palabra.app
+2026-11-05 13:41:45.275 xcodebuild[10833:35830] [MT] IDELaunchParametersSnapshot: The operation couldn’t be completed. (DebuggerLLDB.DebuggerVersionStore.StoreError error 0.)
+2026-11-05 13:41:45.275 xcodebuild[10833:35830] [MT] IDELaunchParametersSnapshot: no debugger version
+    t =   115.60s         Setting up automation session
+    t =   118.59s         Wait for dev.palabra.app to idle
+    t =   121.36s Setting device orientation to Portrait
+    t =   121.37s     Wait for dev.palabra.app to idle
+    t =   121.38s Tap "Books" Button
+    t =   121.38s     Wait for dev.palabra.app to idle
+    t =   121.41s     Find the "Books" Button
+    t =   121.80s     Check for interrupting elements affecting "Books" Button
+    t =   121.85s     Synthesize event
+    t =   122.16s     Wait for dev.palabra.app to idle
+    t =   125.79s Waiting 12.0s for "bookCover.history" Any to exist
+    t =   126.81s     Checking `Expect predicate `existsNoRetry == 1` for object "bookCover.history" Any`
+    t =   126.81s         Checking existence of `"bookCover.history" Any`
+    t =   130.85s Checking existence of `"bookCover.history" Any`
+    t =   131.25s Tap "bookCover.history" Any
+    t =   131.25s     Wait for dev.palabra.app to idle
+    t =   131.31s     Find the "bookCover.history" Any
+    t =   132.02s     Check for interrupting elements affecting "bookCover.history" Button
+    t =   132.86s     Synthesize event
+    t =   133.22s     Wait for dev.palabra.app to idle
+    t =   139.42s Terminate dev.palabra.app:16573
+    t =   140.45s Tear Down
+Test Case '-[PalabraUITests.NativeDarkExposureUITests testLampStrengths]' passed (141.097 seconds).
+Test Suite 'NativeDarkExposureUITests' passed at 2026-11-05 13:42:11.312.
+	 Executed 1 test, with 0 failures (0 unexpected) in 141.097 (141.100) seconds
+Test Suite 'PalabraUITests.xctest' passed at 2026-11-05 13:42:11.313.
+	 Executed 1 test, with 0 failures (0 unexpected) in 141.097 (141.101) seconds
+Test Suite 'Selected tests' passed at 2026-11-05 13:42:11.314.
+	 Executed 1 test, with 0 failures (0 unexpected) in 141.097 (141.104) seconds
+2026-11-05 13:42:12.923 xcodebuild[10833:35830] [MT] IDETestOperationsObserverDebug: 182.797 elapsed -- Testing started completed.
+2026-11-05 13:42:12.923 xcodebuild[10833:35830] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-05 13:42:12.923 xcodebuild[10833:35830] [MT] IDETestOperationsObserverDebug: 182.797 sec, +182.797 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/Palabra/Palabra/build/review.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
