@@ -17,6 +17,9 @@ final class SceneLighting {
 
     /// SceneKit lumens that correspond to a Three.js intensity of 1 on the same light.
     static let lumensPerThree = 1000.0 / Double.pi
+    /// The dark-mode lamp. The Three.js value (34 x 4 x pi-scaled = 4300) blows the page out in SceneKit; 70 reads like a warm desk
+    /// lamp (picked from exposure footage at 25 to 1800: 50 is moody, 80 starts to yellow the paper).
+    static let lampLumens = 70.0
     /// Debug builds only, set by a UI-test launch argument.
     static var lampLumensOverride: Double?
 
@@ -95,7 +98,7 @@ final class SceneLighting {
         // Hemisphere (0.42 / 0.16) plus the environment's share (0.55 / 0.22 of a bright room).
         fill.light?.intensity = (dark ? 0.16 + 0.22 : 0.42 + 0.55) * k * 0.55
         fill.light?.color = UIColor(rgb: dark ? 0x9fb0d0 : 0xfff3dd)
-        lamp.light?.intensity = dark ? (Self.lampLumensOverride ?? 34 * k * 4) * lampScale : 0
+        lamp.light?.intensity = dark ? (Self.lampLumensOverride ?? Self.lampLumens) * lampScale : 0
         lamp.light?.castsShadow = dark && shadows
         lamp.isHidden = !dark
     }
