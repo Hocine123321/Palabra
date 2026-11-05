@@ -108,6 +108,8 @@ struct PalabraApp: App {
             )
             // `-UITestNativeBooks` draws the Books desk with the native SceneKit engine instead of the web one.
             if arguments.contains("-UITestNativeBooks") { env.books.preferences.sceneEngine = .native }
+            // `-UITestDark` forces the dark appearance.
+            if arguments.contains("-UITestDark") { env.appearanceMode = .dark }
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id
                 env.selectedTTSModelID = StubAIClient.sampleModels.last?.id

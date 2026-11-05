@@ -26,7 +26,8 @@ final class EnhancementGatingTests: XCTestCase {
     }
 
     func testDepthOfFieldOffWhenReadingOrMoved() {
-        XCTAssertTrue(flags().dof)
+        // The effect is held back until it has been seen on a device; the gating rules apply once it is on.
+        XCTAssertEqual(flags().dof, EnhancementFlags.depthOfFieldVerified)
         XCTAssertFalse(flags(reading: true).dof)
         XCTAssertFalse(flags(moved: true).dof)
     }

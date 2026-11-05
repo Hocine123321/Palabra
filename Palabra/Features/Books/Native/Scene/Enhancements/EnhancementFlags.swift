@@ -19,6 +19,9 @@ struct EnhancementFlags: Equatable {
 
     static let off = EnhancementFlags()
 
+    /// Depth of field did not show in the CI simulator, so how it looks on a device is unknown: it stays off until the owner has seen it.
+    static let depthOfFieldVerified = false
+
     /// Battery saver removes every effect (as it already removes shadows); Reduce Motion removes what moves by itself; reading
     /// removes anything that could touch the text (depth of field, dust); a moved Free view removes depth of field too.
     static func resolve(enabled: Bool = true, quality: SceneQuality, reduceMotion: Bool, moved: Bool, reading: Bool, dark: Bool = false) -> EnhancementFlags {
@@ -27,7 +30,7 @@ struct EnhancementFlags: Equatable {
         flags.haptics = true
         guard quality != .saver else { return flags }
         flags.ao = true
-        flags.dof = !reading && !moved && !reduceMotion
+        flags.dof = depthOfFieldVerified && !reading && !moved && !reduceMotion
         flags.bloom = dark
         flags.dust = !reading && !reduceMotion
         flags.sway = !reduceMotion
