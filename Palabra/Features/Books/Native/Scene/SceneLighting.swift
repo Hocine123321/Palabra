@@ -17,6 +17,8 @@ final class SceneLighting {
 
     /// SceneKit lumens that correspond to a Three.js intensity of 1 on the same light.
     static let lumensPerThree = 1000.0 / Double.pi
+    /// Debug builds only, set by a UI-test launch argument.
+    static var lampLumensOverride: Double?
 
     init() {
         let sunLight = SCNLight()
@@ -93,7 +95,7 @@ final class SceneLighting {
         // Hemisphere (0.42 / 0.16) plus the environment's share (0.55 / 0.22 of a bright room).
         fill.light?.intensity = (dark ? 0.16 + 0.22 : 0.42 + 0.55) * k * 0.55
         fill.light?.color = UIColor(rgb: dark ? 0x9fb0d0 : 0xfff3dd)
-        lamp.light?.intensity = dark ? 34 * k * 4 * lampScale : 0
+        lamp.light?.intensity = dark ? (Self.lampLumensOverride ?? 34 * k * 4) * lampScale : 0
         lamp.light?.castsShadow = dark && shadows
         lamp.isHidden = !dark
     }

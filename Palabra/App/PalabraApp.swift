@@ -110,6 +110,10 @@ struct PalabraApp: App {
             if arguments.contains("-UITestNativeBooks") { env.books.preferences.sceneEngine = .native }
             // `-UITestDark` forces the dark appearance.
             if arguments.contains("-UITestDark") { env.appearanceMode = .dark }
+            // `-UITestLampLumens N` overrides the dark-mode lamp strength (exposure tuning).
+            if let i = arguments.firstIndex(of: "-UITestLampLumens"), i + 1 < arguments.count, let value = Double(arguments[i + 1]) {
+                SceneLighting.lampLumensOverride = value
+            }
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id
                 env.selectedTTSModelID = StubAIClient.sampleModels.last?.id
