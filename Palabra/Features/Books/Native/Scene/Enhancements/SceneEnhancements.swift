@@ -65,7 +65,7 @@ final class SceneEnhancements {
         shadow(x: 1.4, z: -1.65, w: 0.5, l: 0.5, rot: 0.4, strength: 0.9)
         shadow(x: 0.9, z: -1.95, w: 0.95, l: 0.22, rot: -0.35, strength: 0.7)
         shadow(x: -4.6, z: -2.6, w: 1.1, l: 1.1, rot: 0, strength: 0.9)
-        shadow(x: -0.75, z: -2.0, w: 0.3, l: 0.2, rot: 0.6, strength: 0.8)
+        shadow(x: 1.45, z: -1.15, w: 0.3, l: 0.2, rot: -0.35, strength: 0.8)
         buildExtras()
     }
 
@@ -92,8 +92,8 @@ final class SceneEnhancements {
         body.castsShadow = true
         eraser.addChildNode(body)
         eraser.addChildNode(sleeve)
-        eraser.position = SCNVector3(-0.75, 0.016, -2.0)
-        eraser.eulerAngles.y = 0.6
+        eraser.position = SCNVector3(1.45, 0.016, -1.15)
+        eraser.eulerAngles.y = -0.35
         extras.addChildNode(eraser)
 
         // A paper clip: two thin loops of different size.
@@ -108,7 +108,7 @@ final class SceneEnhancements {
             node.castsShadow = true
             clip.addChildNode(node)
         }
-        clip.position = SCNVector3(-0.45, 0.016, -1.75)
+        clip.position = SCNVector3(0.85, 0.016, -1.4)
         clip.eulerAngles.y = -0.5
         extras.addChildNode(clip)
     }
@@ -194,8 +194,11 @@ final class SceneEnhancements {
 
         // Dust: never while a page is being read.
         let dustTarget = new.dust ? 1.0 : 0.0
-        dustAmount += (dustTarget - dustAmount) * min(1, dt * 1.5)
-        dust.isHidden = dustAmount < 0.02
+        // Gone within a third of a second when reading starts: no mote may drift over a page.
+        dustAmount += (dustTarget - dustAmount) * min(1, dt * (new.dust ? 1.5 : 10))
+        let hideDust = dustAmount < 0.05
+        if hideDust, !dust.isHidden { dustSystem.reset() }
+        dust.isHidden = hideDust
         dust.opacity = CGFloat(dustAmount)
         dustSystem.birthRate = new.dust ? 5 : 0
         if dustIsDark != dark {

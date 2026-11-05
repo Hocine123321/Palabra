@@ -55,8 +55,8 @@ final class CameraRig {
         if camera.wantsDepthOfField != enabled { camera.wantsDepthOfField = enabled }
         guard enabled else { return }
         camera.focusDistance = CGFloat(focusDistance)
-        camera.fStop = 6
-        camera.focalBlurSampleCount = 6
+        camera.fStop = 2.8
+        camera.focalBlurSampleCount = 8
     }
 
     func setFree(zoom: Double, pan: CGSize) {
