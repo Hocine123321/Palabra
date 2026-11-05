@@ -372,12 +372,47 @@ final class BookNode {
     private static let backUVRTL = leafUVs(back: true, rtl: true)
     private static func backUVForRTL(_ rtl: Bool) -> [SIMD2<Float>] { rtl ? backUVRTL : backUVLTR }
 
+    // MARK: Ribbon sway (Enhancement tier)
+
+    private var ribbonSway: Float = 0
+    private var ribbonVelocity: Float = 0
+    private var lastLeafSum = 0.0
+    private var lastRootX: Float = 0
+
+    /// The ribbon's loose end swings when leaves turn or the book moves, and settles (a damped spring).
+    func stepRibbon(dt: Double, enabled: Bool) {
+        let sum = (0..<leafCount).reduce(0.0) { $0 + leafProgress($1) }
+        let x = root.position.x
+        if enabled {
+            ribbonVelocity += Float(sum - lastLeafSum) * 0.35 * sign
+            ribbonVelocity -= (x - lastRootX) * 0.8
+        }
+        lastLeafSum = sum
+        lastRootX = x
+        guard abs(ribbonSway) > 1e-4 || abs(ribbonVelocity) > 1e-4 else { return }
+        let h = Float(min(dt, 1.0 / 30))
+        ribbonVelocity += (-60 * ribbonSway - 4.5 * ribbonVelocity) * h
+        ribbonSway = max(-0.06, min(0.06, ribbonSway + ribbonVelocity * h))
+        if !enabled, abs(ribbonSway) < 2e-4, abs(ribbonVelocity) < 2e-3 {
+            ribbonSway = 0
+            ribbonVelocity = 0
+        }
+        layoutRibbon()
+    }
+
     private func layoutRibbon() {
         let r = shape.ribbon()
         ribbon.isHidden = !r.visible
         guard r.visible else { return }
         var mesh = MeshData()
         mesh.positions = r.positions
+        if ribbonSway != 0 {
+            let hang = Float(BookDims.pageHeight / 2)
+            for i in mesh.positions.indices {
+                let over = max(0, mesh.positions[i].z - hang)
+                mesh.positions[i].x += ribbonSway * min(1, over / 0.16)
+            }
+        }
         let rows = BookDims.ribbonRows
         var indices: [UInt32] = []
         for row in 0..<(rows - 1) {

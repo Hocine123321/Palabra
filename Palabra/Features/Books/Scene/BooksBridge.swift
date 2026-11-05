@@ -139,6 +139,7 @@ enum SceneCommand: Equatable {
     /// Native engine only (the web scene ignores both).
     case setFreeView(Bool)
     case resetView
+    case setEnhancements(Bool)
 
     var dictionary: [String: Any] {
         switch self {
@@ -162,6 +163,7 @@ enum SceneCommand: Equatable {
         case .closeTerm: return ["name": "closeTerm"]
         case .setFreeView(let on): return ["name": "setFreeView", "on": on]
         case .resetView: return ["name": "resetView"]
+        case .setEnhancements(let on): return ["name": "setEnhancements", "on": on]
         }
     }
 

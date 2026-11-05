@@ -14,6 +14,8 @@ final class CameraRig {
     /// Extra zoom and screen-space pan from Free view (1 = none); the pan is how far the picture moved, in points, y down.
     private(set) var zoom = 1.0
     private(set) var pan = CGSize.zero
+    /// A small positional offset from device motion (the look point stays put, so the picture shifts a little).
+    private(set) var sway = SIMD3<Double>.zero
     static let near = 0.05
     static let far = 40.0
 
@@ -40,6 +42,21 @@ final class CameraRig {
     func setPose(_ pose: CameraPose) {
         self.pose = pose
         apply()
+    }
+
+    func setSway(_ offset: SIMD3<Double>) {
+        guard offset != sway else { return }
+        sway = offset
+        apply()
+    }
+
+    /// Depth of field for the menu: blur that grows away from the focus distance.
+    func setDepthOfField(enabled: Bool, focusDistance: Double) {
+        if camera.wantsDepthOfField != enabled { camera.wantsDepthOfField = enabled }
+        guard enabled else { return }
+        camera.focusDistance = CGFloat(focusDistance)
+        camera.fStop = 6
+        camera.focalBlurSampleCount = 6
     }
 
     func setFree(zoom: Double, pan: CGSize) {
@@ -126,7 +143,7 @@ final class CameraRig {
     }
 
     private func apply() {
-        node.position = SCNVector3(Float(pose.position.x), Float(pose.position.y), Float(pose.position.z))
+        node.position = SCNVector3(Float(pose.position.x + sway.x), Float(pose.position.y + sway.y), Float(pose.position.z + sway.z))
         node.look(at: SCNVector3(Float(pose.look.x), Float(pose.look.y), Float(pose.look.z)), up: SCNVector3(0, 1, 0), localFront: SCNVector3(0, 0, -1))
         camera.projectionTransform = Self.projection(
             fovDegrees: fovDegrees, size: size, shiftY: shift - Double(pan.height), shiftX: -Double(pan.width), zoom: zoom

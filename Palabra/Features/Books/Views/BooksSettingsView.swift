@@ -85,10 +85,12 @@ struct BooksSettingsView: View {
                     .accessibilityIdentifier("booksEnginePicker")
                     Toggle("Free view", isOn: $shelf.preferences.freeView)
                         .accessibilityIdentifier("booksFreeViewToggle")
+                    Toggle("Extra effects", isOn: $shelf.preferences.enhancements)
+                        .accessibilityIdentifier("booksEnhancementsToggle")
                 } header: {
                     Text("Native desk")
                 } footer: {
-                    Text("Free view lets you pinch to zoom out or in and drag to move the view while you read.")
+                    Text("Free view lets you pinch to zoom out or in and drag to move the view while you read. Extra effects add soft shadows, depth of field, dust and lamp glow to the desk; they never touch the page you read, and Battery saver turns them off.")
                 }
                 .themedSection()
             }

@@ -87,6 +87,7 @@ struct BooksSceneScreen: View {
                 if new.recallLevel != old.recallLevel { model.send(.setLevel(new.recallLevel)) }
                 if new.sceneQuality != old.sceneQuality { model.send(.setQuality(new.sceneQuality)) }
                 if new.freeView != old.freeView { model.send(.setFreeView(new.freeView)) }
+                if new.enhancements != old.enhancements { model.send(.setEnhancements(new.enhancements)) }
             }
         }
         .toolbar(model.state.isReading ? .hidden : .visible, for: .tabBar)

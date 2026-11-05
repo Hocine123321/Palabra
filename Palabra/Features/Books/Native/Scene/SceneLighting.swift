@@ -12,6 +12,8 @@ final class SceneLighting {
     private let lamp = SCNNode()
     private(set) var dark = false
     private(set) var shadows = true
+    /// A slow drift applied to the lamp's strength (1 = none).
+    private(set) var lampScale = 1.0
 
     /// SceneKit lumens that correspond to a Three.js intensity of 1 on the same light.
     static let lumensPerThree = 1000.0 / Double.pi
@@ -66,6 +68,12 @@ final class SceneLighting {
         apply()
     }
 
+    func setLampScale(_ scale: Double) {
+        guard abs(scale - lampScale) > 1e-4 else { return }
+        lampScale = scale
+        apply()
+    }
+
     func setShadows(_ enabled: Bool) {
         shadows = enabled
         apply()
@@ -85,7 +93,7 @@ final class SceneLighting {
         // Hemisphere (0.42 / 0.16) plus the environment's share (0.55 / 0.22 of a bright room).
         fill.light?.intensity = (dark ? 0.16 + 0.22 : 0.42 + 0.55) * k * 0.55
         fill.light?.color = UIColor(rgb: dark ? 0x9fb0d0 : 0xfff3dd)
-        lamp.light?.intensity = dark ? 34 * k * 4 : 0
+        lamp.light?.intensity = dark ? 34 * k * 4 * lampScale : 0
         lamp.light?.castsShadow = dark && shadows
         lamp.isHidden = !dark
     }

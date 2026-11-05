@@ -755,7 +755,8 @@
 "Engine" = "المحرك";
 "Native desk" = "المكتب المدمج";
 "Free view" = "العرض الحر";
-"Free view lets you pinch to zoom out or in and drag to move the view while you read." = "يتيح لك العرض الحر القرص للتصغير أو التكبير والسحب لتحريك العرض أثناء القراءة.";
+"Free view lets you pinch to zoom out or in and drag to move the view while you read. Extra effects add soft shadows, depth of field, dust and lamp glow to the desk; they never touch the page you read, and Battery saver turns them off." = "يتيح لك العرض الحر القرص للتصغير أو التكبير والسحب لتحريك العرض أثناء القراءة. وتضيف المؤثرات الإضافية ظلالاً ناعمة وعمق مجال وغباراً وتوهج المصباح إلى المكتب، ولا تمسّ الصفحة التي تقرؤها، ويوقفها وضع توفير البطارية.";
+"Extra effects" = "مؤثرات إضافية";
 "Battery saver draws the desk with fewer pixels and no shadows." = "يرسم توفير البطارية المكتب بعدد أقل من البكسلات ودون ظلال.";
 "Reading" = "القراءة";
 "Memorize level" = "مستوى الحفظ";

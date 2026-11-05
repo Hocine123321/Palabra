@@ -25,6 +25,7 @@ struct NativeSceneConfig {
     var quality: SceneQuality = .standard
     var reducedMotion = false
     var freeView = true
+    var enhancements = true
 }
 
 /// A page bitmap with the places on it that react to a tap.
@@ -62,6 +63,8 @@ final class BookSceneController {
     let camera = CameraRig()
     let desk = DeskNode()
     let lighting = SceneLighting()
+    let enhancements = SceneEnhancements()
+    private(set) var enhancementsEnabled = true
     let tweens = Tweens()
     private let booksRoot = SCNNode()
 
@@ -128,6 +131,9 @@ final class BookSceneController {
         scene.rootNode.addChildNode(desk.root)
         scene.rootNode.addChildNode(booksRoot)
         scene.rootNode.addChildNode(lighting.root)
+        scene.rootNode.addChildNode(enhancements.root)
+        enhancements.install(on: desk)
+        enhancementsEnabled = config.enhancements
         for tool in [lens.tool, ruler, bookmarkTool] { toolsRoot.addChildNode(tool.root) }
         toolsRoot.isHidden = true
         scene.rootNode.addChildNode(toolsRoot)
@@ -171,6 +177,7 @@ final class BookSceneController {
         let token = rebuildToken
         for entry in entries { entry.node.root.removeFromParentNode() }
         entries = []
+        enhancements.resetBookShadows()
         cache = [:]
         pending = [:]
         assigned = [:]
@@ -195,6 +202,7 @@ final class BookSceneController {
             let style = BookStyle(subject: subject, rtl: book.isRightToLeft, leafCount: leafCount, bulk: BookStyle.bulk(for: subject))
             let node = BookNode(style: style, covers: CoverArt.make(subject: subject), pageEdge: CoverArt.pageEdge())
             booksRoot.addChildNode(node.root)
+            enhancements.addBookShadow(for: node.root, mirrored: style.rtl)
             entries.append(Entry(book: book, pages: pages, node: node))
         }
     }
@@ -481,6 +489,7 @@ final class BookSceneController {
             entry.node.setLeafProgress(leaf, to)
             entry.node.layout()
             self?.leafTweens[key] = nil
+            if self?.enhancementFlags.haptics == true { Haptics.leafLanded() }
         })
     }
 
@@ -701,6 +710,7 @@ final class BookSceneController {
         case .togglePageReveal: togglePageReveal()
         case .setTool(let name): setTool(name)
         case .setFreeView(let on): setFreeViewEnabled(on)
+        case .setEnhancements(let on): setEnhancements(on)
         case .resetView: resetFreeView(animated: true)
         case .setFocus(let on): setFocus(on)
         case .setTextSize(let size): await setTextSize(size)
@@ -738,6 +748,28 @@ final class BookSceneController {
         settlePeek()
         stepFreeView(dt: step)
         updateLens()
+        stepEnhancements(dt: step)
+    }
+
+    // MARK: Enhancement tier
+
+    var enhancementFlags: EnhancementFlags {
+        EnhancementFlags.resolve(
+            enabled: enhancementsEnabled, quality: quality, reduceMotion: config.reducedMotion,
+            moved: free.isMoved, reading: state.mode != .menu, dark: isDark
+        )
+    }
+
+    func setEnhancements(_ on: Bool) {
+        enhancementsEnabled = on
+    }
+
+    private func stepEnhancements(dt: Double) {
+        let flags = enhancementFlags
+        enhancements.update(
+            dt: dt, flags: flags, dark: isDark, menu: state.mode == .menu, camera: camera, lighting: lighting, bulb: desk.bulbPosition
+        )
+        current?.node.stepRibbon(dt: dt, enabled: flags.sway)
     }
 
     // MARK: Picking

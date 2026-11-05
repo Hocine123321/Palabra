@@ -41,6 +41,8 @@ struct ReaderPreferences: Codable, Equatable {
     var sceneQuality: SceneQuality = .standard
     /// Pinch to zoom and drag to move the camera while reading (native desk only).
     var freeView = true
+    /// Extra effects on the native desk (soft shadows, depth of field, dust, lamp glow); Battery saver turns them off anyway.
+    var enhancements = true
     var sceneEngine: SceneEngine = .original
 
     init() {}
@@ -53,6 +55,7 @@ struct ReaderPreferences: Codable, Equatable {
         viewStyle = (try? c.decodeIfPresent(BooksViewStyle.self, forKey: .viewStyle)) ?? defaults.viewStyle
         sceneQuality = (try? c.decodeIfPresent(SceneQuality.self, forKey: .sceneQuality)) ?? defaults.sceneQuality
         freeView = (try? c.decodeIfPresent(Bool.self, forKey: .freeView)) ?? defaults.freeView
+        enhancements = (try? c.decodeIfPresent(Bool.self, forKey: .enhancements)) ?? defaults.enhancements
         sceneEngine = (try? c.decodeIfPresent(SceneEngine.self, forKey: .sceneEngine)) ?? defaults.sceneEngine
     }
 }
