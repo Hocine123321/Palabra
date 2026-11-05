@@ -16,7 +16,7 @@ final class NativeDarkExposureUITests: XCTestCase {
     }
 
     func testLampStrengths() {
-        for lumens in [150, 400, 900, 1800] {
+        for lumens in [25, 50, 80, 110] {
             let app = XCUIApplication()
             app.launchArguments = ["-UITestStub", "-UITestReset", "-UITestNativeBooks", "-UITestDark", "-UITestLampLumens", "\(lumens)"]
             app.launch()
