@@ -1,0 +1,106 @@
+# Web companion: Palabra in a browser, linked to the app
+
+Status: **future work, vision only.** Nothing here is built. It records what was decided in conversation on 2026-11-07 so the
+build can start from it later. Open questions are listed at the end.
+
+## Intent
+
+The person wants to use Palabra from a PC. The app on the phone stays the one real copy of the data; a **single HTML file**
+opened on the PC is a full web version of the UI that talks to the app. Neither side hosts anything: the app and the HTML file
+both dial out to the same small relay and exchange messages through it, on the same Wi-Fi or across the internet.
+
+## Why this shape
+
+- **iOS cannot serve.** An app cannot accept incoming connections in the background, and a phone is not reachable from outside
+  its network. It can always make an outgoing connection, so both ends connect out and meet in the middle.
+- **A local file avoids hosting and HTTPS.** Service workers and installable web apps need `https://` or `localhost`. A page
+  opened from `file://` needs neither. The file is the whole UI; nothing has to be served to load it.
+- **The phone stays the source of truth.** No second database, no account, no sync service to run. The Google AI key never
+  leaves the phone.
+
+## Goals
+
+1. **One HTML file** (`palabra-web.html`, built from a `web/` folder in this repo) that is the whole UI: same layout, colours,
+   typography, spacing and flows as the app (Recortes & Glass, Claude Orange accent, the app's radii), except iOS-only elements.
+2. **Link by relay.** The app and the file each open an outgoing WebSocket to the relay and exchange messages. Same-Wi-Fi and
+   internet use the same path. A direct local connection may be tried first as a later optimisation; it is not required.
+3. **Pairing and encryption.** The app shows a long random code (or QR) once. The file stores it. Messages are end-to-end
+   encrypted with a key derived from the code, so the relay sees only opaque bytes and holds nothing.
+4. **Keep the phone awake while the feature is on.** The app disables the idle timer (`isIdleTimerDisabled`) while web access
+   is switched on, and shows a clear "Web access is on" state. The setting says it uses more battery.
+5. **Works with the phone offline.** The first time the file connects it pulls a snapshot of the app's data into the browser's
+   storage (IndexedDB). After that the UI opens and navigates without the phone. It shows "last synced" and what is waiting.
+6. **Outbox.** Actions that need the app are queued in the browser and sent in order when the app is reachable. Each carries an
+   id and the version of the record it was based on, and is retried until the app confirms it.
+7. **Settings control in the app.** One switch, a pairing screen (code, QR, paired devices, revoke), and a status line.
+
+## Behaviour rules
+
+- **The phone wins conflicts.** If a queued action was based on a stale version, the app rejects it. Rejected actions go to a
+  "needs review" list in the web UI with the reason; the person decides to retry, edit or drop.
+- **Not everything is queued.** Actions that cost something or cannot be undone (AI calls, deletes, anything that spends quota)
+  wait for a live connection and are not replayed silently from a stale queue.
+- **AI calls run on the phone.** The web UI asks the app to make them. API keys, the backup key and model settings never
+  cross the link.
+- **Reads come from the cache when the app is away,** and are refreshed from the app when it is back.
+- **Foreground only.** iOS suspends sockets when the app is backgrounded or the phone locks, so the link only exists while the
+  app is open. This is stated in the feature's own settings text, not hidden.
+
+## Architecture
+
+```
+web/                       source of the single HTML file (UI, state, outbox, crypto, relay client)
+relay/                     the relay: forwards messages between two paired ends, stores nothing
+Palabra/Features/WebLink/  the app side: pairing, relay client, message handlers, keep-awake, settings screen
+Palabra/App/CapabilityProviders.swift   reused as the data door: the web UI reads and writes through the same capabilities
+```
+
+- **Data access goes through the capability registry,** the same door Artifacts use (`library.words`, `words.add`, ...). New
+  web needs become new capabilities, so the grant and dry-run rules stay in one place.
+- **Message envelope:** `{id, type, version, payload}` encrypted as a whole; `type` is one of `snapshot`, `read`, `write`,
+  `ai`, `ack`, `reject`, `ping`. Unknown types are ignored, so old files and new apps keep working.
+- **Snapshot** carries the screens' data (words, sections, tags, stats, study state, artifacts) with a version per record.
+- **Relay:** a tiny WebSocket service keyed by a room id derived from the pairing code. It cannot read messages and keeps no
+  history. It is the only piece that has to be hosted; a free tier is enough.
+- **Build:** `web/` is bundled into one file by a script, with no external URLs (fonts and icons inlined), so it also runs offline.
+
+## Phases (CI green and verified after each)
+
+1. **Link proof:** relay, pairing, encryption, and an encrypted ping between the app and a bare HTML page. No UI yet.
+2. **Read-only web:** snapshot over the link, the design tokens, navigation, and the first screens (Library, Study).
+3. **Offline:** persistent cache in the browser, "last synced", usable with the app away.
+4. **Outbox:** queued writes, ordering, retries, rejection and the "needs review" list, AI calls over the link.
+5. **More screens:** Artifacts first (they already run in a sandboxed web view), then Chat, then the Books desk last.
+6. **Optional:** direct same-Wi-Fi connection before the relay; push relay out of the free tier if it is ever needed.
+
+## Non-goals
+
+- No account, login or cloud copy of the person's data; the relay is a pipe, not a store.
+- No hosting of the UI (no website, no certificate, no service worker).
+- No change to existing persisted names (bundle id, SwiftData entities, UserDefaults keys); the web feature only adds new ones.
+- No background syncing while the app is suspended; iOS does not allow it.
+- No pixel-identical copy of iOS-only things (haptics, system sheets, glass materials, the SceneKit desk). They get web
+  equivalents or simplified versions.
+
+## Anti-goals
+
+- A relay that can read the person's words or spend their AI quota.
+- Silent replay of a stale outbox: no queued delete or AI call fires without a live, confirmed connection.
+- A second set of business rules in JavaScript. The app decides; the web UI displays and asks.
+- A feature that quietly keeps the phone awake. The keep-awake behaviour is on only while the switch is on, and visible.
+
+## Constraints
+
+- The idle-timer override only works in the foreground and only while the feature is on; it is released when the switch is off
+  or the app leaves the screen.
+- Chrome and Edge may show a one-time "local network" prompt if a direct connection is added later; Safari is stricter.
+- IndexedDB quota varies by browser; the snapshot must stay small enough to be stored (trim audio and large artifacts, load
+  them on demand).
+- The pairing code is the only secret. Losing it means re-pairing; revoking a device invalidates its code.
+
+## Open questions
+
+- Where to host the relay (a free-tier serverless WebSocket host is the likely pick), and who owns the account.
+- Whether to show the pairing as a QR (needs a camera or screen scan on the PC side) or a typed/pasted code only.
+- How much of the Books desk is worth rebuilding in WebGL versus a flat reader.
+- Whether Chat history is cached offline or only available live.

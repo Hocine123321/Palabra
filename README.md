@@ -51,6 +51,7 @@ Palabra/Features/Onboarding  first-run screen
 PalabraTests                 unit tests (folders mirror Palabra/)
 PalabraUITests               UI tests (stubbed AI)
 docs/features                notes on shipped features
+docs/superpowers/specs       design specs, including future work not built yet (e.g. the web companion)
 docs/REVIEW.md               code review: open weaknesses and what was fixed
 project.yml                  XcodeGen project definition
 ~~~
