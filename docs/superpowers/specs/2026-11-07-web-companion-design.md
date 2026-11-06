@@ -1,13 +1,14 @@
 # Web companion: Palabra in a browser, linked to the app
 
 Status: **future work, vision only.** Nothing here is built. It records what was decided in conversation on 2026-11-07 so the
-build can start from it later. Open questions are listed at the end.
+build can start from it later. The open questions were answered the same day (see Decisions); what is still open is at the end.
 
 ## Intent
 
 The person wants to use Palabra from a PC. The app on the phone stays the one real copy of the data; a **single HTML file**
 opened on the PC is a full web version of the UI that talks to the app. Neither side hosts anything: the app and the HTML file
-both dial out to the same small relay and exchange messages through it, on the same Wi-Fi or across the internet.
+both dial out to the same small relay and exchange messages through it, on the same Wi-Fi or across the internet. Pairing is
+only allowed from the same Wi-Fi.
 
 ## Why this shape
 
@@ -24,8 +25,10 @@ both dial out to the same small relay and exchange messages through it, on the s
    typography, spacing and flows as the app (Recortes & Glass, Claude Orange accent, the app's radii), except iOS-only elements.
 2. **Link by relay.** The app and the file each open an outgoing WebSocket to the relay and exchange messages. Same-Wi-Fi and
    internet use the same path. A direct local connection may be tried first as a later optimisation; it is not required.
-3. **Pairing and encryption.** The app shows a long random code (or QR) once. The file stores it. Messages are end-to-end
-   encrypted with a key derived from the code, so the relay sees only opaque bytes and holds nothing.
+3. **Pairing and encryption.** The HTML file carries a **pairing code hardcoded in it** (generated when the file is built or
+   exported from the app). The app shows the same code. The two must match for the link to open. Pairing only works from the
+   **same Wi-Fi network**, so a stranger on another network cannot pair (see "Same-Wi-Fi pairing" below). Once paired, messages
+   are end-to-end encrypted with a key derived from the code, so the relay sees only opaque bytes and holds nothing.
 4. **Keep the phone awake while the feature is on.** The app disables the idle timer (`isIdleTimerDisabled`) while web access
    is switched on, and shows a clear "Web access is on" state. The setting says it uses more battery.
 5. **Works with the phone offline.** The first time the file connects it pulls a snapshot of the app's data into the browser's
@@ -45,6 +48,36 @@ both dial out to the same small relay and exchange messages through it, on the s
 - **Reads come from the cache when the app is away,** and are refreshed from the app when it is back.
 - **Foreground only.** iOS suspends sockets when the app is backgrounded or the phone locks, so the link only exists while the
   app is open. This is stated in the feature's own settings text, not hidden.
+
+## Same-Wi-Fi pairing
+
+The person's rule: pairing must only work when the app and the HTML file are on the same Wi-Fi, so nobody on another network
+can pair. A relay on the internet cannot see anyone's Wi-Fi, so the rule is enforced **at pairing time over a direct local
+connection**, and the relay is used only afterwards:
+
+1. The app opens a small local listener (Network.framework, `Bonjour` service) only while the **Pair a browser** screen is open.
+2. The HTML file, opened on the PC on the same network, finds it and connects to the phone's local address. This direct hop is
+   the proof of "same network": a device on another Wi-Fi cannot reach a private address.
+3. The file sends its hardcoded code. The app checks it matches. If so, the app returns a **session secret** over that local
+   hop, and both store it. The code alone is not enough, and the secret never touches the relay in the clear.
+4. From then on the two connect out to the relay (Wi-Fi or internet) and encrypt with the session secret. The relay never sees
+   the code or the secret.
+5. Pairing can be redone or revoked from the app at any time; revoking invalidates the secret.
+
+Consequences, stated honestly: the hardcoded code only proves the file belongs to this person (it is not a secret that survives
+the file being shared); the **same-network check** is what blocks strangers. Because browsers may ask for local-network
+permission, or block `file://` pages from reaching a LAN address, pairing may need a one-time browser prompt, and the build must
+prototype this first (phase 1). If a browser refuses it outright, the fallback is to type the app's code into the page, with the
+app confirming from the local side.
+
+## Cache scope
+
+- **The 2D pages UI is cached in full:** Library, Study, Artifacts, Chat history (recent only, see below), Settings views. The
+  person opens the file once while the app is online and the snapshot is stored.
+- **Books content is cached on demand, in order of visit:** a book's content is stored only after the person navigates to the
+  Books page and opens it. Nothing from Books is pre-fetched. Books never opened while online are unavailable offline.
+- **Chat history: only the most recent conversation is cached.** Older conversations load only while the app is reachable.
+- Cached data shows "last synced"; a queued action shows as waiting.
 
 ## Architecture
 
@@ -66,11 +99,13 @@ Palabra/App/CapabilityProviders.swift   reused as the data door: the web UI read
 
 ## Phases (CI green and verified after each)
 
-1. **Link proof:** relay, pairing, encryption, and an encrypted ping between the app and a bare HTML page. No UI yet.
+1. **Link proof:** the local pairing hop (same-network check), the relay, encryption, and an encrypted ping between the app and a
+   bare HTML page. No UI yet. Settles whether browsers allow the `file://` to local-address hop.
 2. **Read-only web:** snapshot over the link, the design tokens, navigation, and the first screens (Library, Study).
 3. **Offline:** persistent cache in the browser, "last synced", usable with the app away.
 4. **Outbox:** queued writes, ordering, retries, rejection and the "needs review" list, AI calls over the link.
-5. **More screens:** Artifacts first (they already run in a sandboxed web view), then Chat, then the Books desk last.
+5. **More screens:** Artifacts first (they already run in a sandboxed web view), then Chat (most recent conversation cached), then
+   the Books pages with on-visit caching. The 3D desk stays out of scope.
 6. **Optional:** direct same-Wi-Fi connection before the relay; push relay out of the free tier if it is ever needed.
 
 ## Non-goals
@@ -80,7 +115,7 @@ Palabra/App/CapabilityProviders.swift   reused as the data door: the web UI read
 - No change to existing persisted names (bundle id, SwiftData entities, UserDefaults keys); the web feature only adds new ones.
 - No background syncing while the app is suspended; iOS does not allow it.
 - No pixel-identical copy of iOS-only things (haptics, system sheets, glass materials, the SceneKit desk). They get web
-  equivalents or simplified versions.
+  equivalents or simplified versions; the 3D desk is not rebuilt for the web.
 
 ## Anti-goals
 
@@ -98,9 +133,19 @@ Palabra/App/CapabilityProviders.swift   reused as the data door: the web UI read
   them on demand).
 - The pairing code is the only secret. Losing it means re-pairing; revoking a device invalidates its code.
 
+## Decisions (2026-11-07)
+
+- **Relay host:** a Cloudflare Worker with a Durable Object relaying WebSocket frames, free tier, owned by the person's own
+  Cloudflare account. Chosen because it needs no server, stores nothing, and the free tier covers one person's traffic.
+- **Pairing UI:** a hardcoded code in the HTML file that must match the app's code, no QR (see "Same-Wi-Fi pairing").
+- **Books:** only the 2D pages UI is part of the web version; Books content is cached by visit order (see "Cache scope"). The
+  3D desk is not rebuilt in WebGL for the first versions.
+- **Chat:** only the most recent conversation is cached for offline use; older ones need a connection.
+
 ## Open questions
 
-- Where to host the relay (a free-tier serverless WebSocket host is the likely pick), and who owns the account.
-- Whether to show the pairing as a QR (needs a camera or screen scan on the PC side) or a typed/pasted code only.
-- How much of the Books desk is worth rebuilding in WebGL versus a flat reader.
-- Whether Chat history is cached offline or only available live.
+- Whether browsers let a `file://` page reach the phone's local address for the pairing hop (Chrome and Edge ask for
+  local-network permission; Safari is stricter). Phase 1 settles this; the typed-code fallback is described above.
+- Who builds and refreshes the HTML file: exported from the app (code baked in per device) or built from `web/` and given a code
+  on first open. Exporting from the app is simpler for matching codes; it needs a share/save step on the phone.
+- What the relay does about abuse (rate limits per room), since it is a public address, even though it stores nothing.
