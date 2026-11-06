@@ -94,15 +94,15 @@ final class EnhancementGatingTests: XCTestCase {
     // MARK: Window light
 
     func testWindowLightIsLightModeDeskOnly() {
-        XCTAssertTrue(EnhancementFlags.resolve(quality: .high, reduceMotion: false, moved: false, reading: false, dark: false).window)
-        XCTAssertFalse(EnhancementFlags.resolve(quality: .high, reduceMotion: false, moved: false, reading: false, dark: true).window, "dark mode has the lamp")
-        XCTAssertFalse(EnhancementFlags.resolve(quality: .high, reduceMotion: false, moved: false, reading: true, dark: false).window, "nothing falls across the text")
+        XCTAssertTrue(flags().window)
+        XCTAssertFalse(flags(dark: true).window, "dark mode has the lamp")
+        XCTAssertFalse(flags(reading: true).window, "nothing falls across the text")
     }
 
     func testWindowLightFollowsTheSwitchesLikeEveryEffect() {
-        XCTAssertFalse(EnhancementFlags.resolve(enabled: false, quality: .high, reduceMotion: false, moved: false, reading: false).window)
-        XCTAssertFalse(EnhancementFlags.resolve(quality: .saver, reduceMotion: false, moved: false, reading: false).window, "battery saver removes it")
+        XCTAssertFalse(flags(enabled: false).window)
+        XCTAssertFalse(flags(quality: .saver).window, "battery saver removes it")
         // Reduce Motion keeps the still picture: the light is there, it just does not drift.
-        XCTAssertTrue(EnhancementFlags.resolve(quality: .high, reduceMotion: true, moved: false, reading: false).window)
+        XCTAssertTrue(flags(reduceMotion: true).window)
     }
 }
