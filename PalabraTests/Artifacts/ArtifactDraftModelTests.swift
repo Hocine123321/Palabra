@@ -21,7 +21,7 @@ final class ArtifactDraftModelTests: XCTestCase {
         super.tearDown()
     }
 
-    private func makeEnvironment() async -> (AppEnvironment, MockAIClient) {
+    private func makeEnvironment(withKey: Bool = true) async -> (AppEnvironment, MockAIClient) {
         let client = MockAIClient()
         let env = AppEnvironment(
             ai: client,
@@ -33,6 +33,7 @@ final class ArtifactDraftModelTests: XCTestCase {
             wordQueue: SwiftDataWordQueueRepository(context: ModelContext(container)),
             artifactRepository: artifacts
         )
+        guard withKey else { return (env, client) }
         env.saveAPIKey("test-api-key")
         client.listModelsResult = .success([AIModel(id: "models/gemini-2.5-flash", displayName: "Flash", description: nil, inputTokenLimit: nil, outputTokenLimit: nil)])
         await env.catalogue.refresh(apiKey: "test-api-key", using: client)
@@ -162,5 +163,90 @@ final class ArtifactDraftModelTests: XCTestCase {
         let instruction = client.generateJSONCalls.first?.systemInstruction ?? ""
         XCTAssertTrue(instruction.contains("palabra.call"))
         XCTAssertTrue(instruction.contains("ai.generate"))
+    }
+
+    // MARK: External AI export and import
+
+    func testExportPromptForCreateIncludesFormatLineAndRequest() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        let model = ArtifactDraftModel(environment: env)
+        model.format = .app
+        model.request = "verb trainer"
+        let prompt = model.exportPrompt() ?? ""
+        XCTAssertTrue(prompt.contains("FORMAT: build this as kind \"app\""))
+        XCTAssertTrue(prompt.contains("verb trainer"))
+        XCTAssertTrue(prompt.contains("---PAYLOAD---"))
+    }
+
+    func testExportPromptForUpdateIncludesCurrentPayload() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        guard case .success(let artifact) = artifacts.create(title: "Practice", kind: .app, payload: Data("<html><body>stored page</body></html>".utf8), requested: [], prompt: "p", now: Date()) else { return XCTFail("create failed") }
+        let model = ArtifactDraftModel(environment: env, mode: .update(artifactID: artifact.id))
+        model.request = "add a score"
+        let prompt = model.exportPrompt() ?? ""
+        XCTAssertTrue(prompt.contains("CURRENT PAYLOAD:"))
+        XCTAssertTrue(prompt.contains("stored page"))
+        XCTAssertTrue(prompt.contains("add a score"))
+    }
+
+    func testExportPromptNilWhenRequestTooShort() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        let model = ArtifactDraftModel(environment: env)
+        model.request = "ab"
+        XCTAssertNil(model.exportPrompt())
+    }
+
+    func testImportWorksWithoutAnAPIKeyAndMakesNoAICalls() async {
+        let (env, client) = await makeEnvironment(withKey: false)
+        let model = ArtifactDraftModel(environment: env)
+        model.importExternal(appReply(requests: #"["library.words"]"#))
+        XCTAssertEqual(model.phase, .preview)
+        XCTAssertEqual(model.draft?.kind, .app)
+        XCTAssertTrue(client.generateJSONCalls.isEmpty)
+    }
+
+    func testImportKeepsTheRequestAsPromptAndFallsBackToALabel() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        let typed = ArtifactDraftModel(environment: env)
+        typed.request = "a verb trainer"
+        typed.importExternal(appReply(requests: "[]"))
+        XCTAssertEqual(typed.draft?.prompt, "a verb trainer")
+        let untyped = ArtifactDraftModel(environment: env)
+        untyped.importExternal(appReply(requests: "[]"))
+        XCTAssertEqual(untyped.draft?.prompt, ArtifactDraftModel.importedLabel)
+    }
+
+    func testImportFailureShowsFailedAndRetryReplaysWithoutAnAICall() async {
+        let (env, client) = await makeEnvironment()
+        let model = ArtifactDraftModel(environment: env)
+        model.importExternal("hello")
+        guard case .failed(.malformedEnvelope) = model.phase else { return XCTFail("expected a malformed envelope, got \(model.phase)") }
+        model.dismissFailure()
+        XCTAssertEqual(model.phase, .input)
+        await model.retry()
+        guard case .failed = model.phase else { return XCTFail("expected the failure again") }
+        XCTAssertTrue(client.generateJSONCalls.isEmpty)
+    }
+
+    func testUpdateImportKeepsKindAndSavesANewVersion() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        guard case .success(let artifact) = artifacts.create(title: "Practice", kind: .app, payload: Data("<html></html>".utf8), requested: [], prompt: "p", now: Date()) else { return XCTFail("create failed") }
+        let model = ArtifactDraftModel(environment: env, mode: .update(artifactID: artifact.id))
+        let spec = #"{"kind":"spec","title":"T","requests":[]}"# + "\n---PAYLOAD---\n" + #"{"blocks":[{"type":"text","text":"x"}]}"# + "\n---END---"
+        model.importExternal(spec)
+        guard case .failed(.malformedEnvelope) = model.phase else { return XCTFail("a spec must not replace an app, got \(model.phase)") }
+        model.importExternal(appReply(requests: "[]", html: "<html><body>new</body></html>"))
+        XCTAssertEqual(model.phase, .preview)
+        XCTAssertNotNil(model.save())
+        XCTAssertEqual(artifacts.artifact(id: artifact.id)?.currentVersion, 2)
+        XCTAssertEqual(artifacts.artifact(id: artifact.id)?.title, "Practice")
+    }
+
+    func testImportAsksApprovalForNewCapabilities() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        let model = ArtifactDraftModel(environment: env)
+        model.importExternal(appReply(requests: #"["library.words"]"#))
+        XCTAssertTrue(model.needsDecision)
+        XCTAssertEqual(model.pending.map(\.name), ["library.words"])
     }
 }

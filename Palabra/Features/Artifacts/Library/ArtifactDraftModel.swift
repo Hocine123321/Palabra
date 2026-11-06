@@ -21,6 +21,8 @@ final class ArtifactDraftModel {
     private enum Operation {
         case generate
         case refine(String)
+        /// Text pasted from an external AI; replaying it makes no AI call.
+        case importExternal(String)
     }
 
     /// What the editor accepts: the generator's cap minus room for the format line.
@@ -88,6 +90,60 @@ final class ArtifactDraftModel {
         request.trimmingCharacters(in: .whitespacesAndNewlines).count >= ArtifactGeneratorLimits.minRequestLength
     }
 
+    // MARK: External AI (Claude, ChatGPT)
+
+    /// The prompt to copy into another AI: Gemini's own rules plus the request (and, on update, the current payload).
+    /// `nil` until the request is long enough. Needs no API key.
+    func exportPrompt() -> String? {
+        let trimmed = request.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= ArtifactGeneratorLimits.minRequestLength else { return nil }
+        let asked = String(trimmed.prefix(Self.maxInput))
+        let userPrompt: String
+        switch mode {
+        case .create:
+            userPrompt = format.apply(to: asked)
+        case .update(let artifactID):
+            guard let current = currentSnapshot(artifactID) else { return nil }
+            userPrompt = ArtifactPrompts.updatePrompt(change: asked, currentTitle: current.title, currentPayload: String(decoding: current.payload, as: UTF8.self))
+        }
+        return ArtifactPrompts.exportPrompt(userPrompt: userPrompt, registry: environment.capabilities, language: environment.aiLanguage)
+    }
+
+    /// Turns the other AI's answer into the draft, then shows the usual preview (approval card, Refine, Save). Needs no API key.
+    func importExternal(_ text: String) {
+        lastOperation = .importExternal(text)
+        saveError = nil
+        let settings = environment.artifactSettings
+        let generator = ArtifactGenerator(
+            ai: environment.ai, registry: environment.capabilities, language: environment.aiLanguage,
+            allowedKinds: settings.allowAppArtifacts ? [.spec, .app] : [.spec]
+        )
+        let asked = String(request.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.maxInput))
+        let label = asked.isEmpty ? Self.importedLabel : asked
+        let result: Result<ArtifactDraft, ArtifactGenError>
+        switch mode {
+        case .create:
+            result = generator.importDraft(text, fixedTitle: nil, expectedKind: nil, userPrompt: label)
+        case .update(let artifactID):
+            guard let current = currentSnapshot(artifactID) else {
+                phase = .failed(.malformedEnvelope("The artifact no longer exists."))
+                return
+            }
+            result = generator.importDraft(text, fixedTitle: current.title, expectedKind: current.kind, userPrompt: label)
+        }
+        switch result {
+        case .success(let value):
+            draft = value
+            if !pending.isEmpty { decided = false }
+            phase = .preview
+        case .failure(let error):
+            phase = .failed(error)
+        }
+    }
+
+    /// Saved as the version's prompt when the person typed no request before pasting.
+    static let importedLabel = "Imported from an external AI"
+
     func generate() async {
         lastOperation = .generate
         saveError = nil
@@ -107,6 +163,7 @@ final class ArtifactDraftModel {
         switch lastOperation {
         case .generate: await generate()
         case .refine(let change): await refine(change: change)
+        case .importExternal(let text): importExternal(text)
         }
     }
 
