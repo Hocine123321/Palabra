@@ -81,6 +81,87 @@ final class BookSceneControllerTests: XCTestCase {
         XCTAssertNil(recorder.lastState?.bookID)
     }
 
+    /// The camera must end exactly on the reading pose after an open, and back on the menu pose after a close.
+    func testOpenEndsOnTheReadingPoseAndCloseOnTheMenuPose() async throws {
+        let (controller, _) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        let menu = Framing.menu(controller.metrics)
+        assertPose(controller.camera.pose, menu)
+        controller.openBook(id: entry.book.id, pageID: nil)
+        settle(controller)
+        XCTAssertEqual(controller.state.mode, .reading)
+        let reading = controller.readTarget(controller.pageIndex)
+        assertPose(controller.camera.pose, reading)
+        controller.closeBook()
+        settle(controller)
+        XCTAssertEqual(controller.state.mode, .menu)
+        assertPose(controller.camera.pose, menu)
+    }
+
+    private func assertPose(_ a: CameraPose, _ b: CameraPose, file: StaticString = #filePath, line: UInt = #line) {
+        for (x, y) in [(a.position, b.position), (a.look, b.look)] {
+            XCTAssertEqual(x.x, y.x, accuracy: 1e-6, file: file, line: line)
+            XCTAssertEqual(x.y, y.y, accuracy: 1e-6, file: file, line: line)
+            XCTAssertEqual(x.z, y.z, accuracy: 1e-6, file: file, line: line)
+        }
+    }
+
+    /// Rotating the device while a book opens must not leave the camera framed for the old size.
+    func testResizeDuringOpenEndsOnThePoseForTheNewSize() async throws {
+        let (controller, _) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        controller.tick(dt: 0.1)
+        controller.setSize(CGSize(width: 844, height: 390))
+        settle(controller)
+        XCTAssertEqual(controller.state.mode, .reading)
+        assertPose(controller.camera.pose, controller.readTarget(controller.pageIndex))
+    }
+
+    func testResizeDuringCloseEndsOnTheMenuPoseForTheNewSize() async throws {
+        let (controller, _) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        settle(controller)
+        controller.closeBook()
+        controller.tick(dt: 0.1)
+        controller.setSize(CGSize(width: 844, height: 390))
+        settle(controller)
+        XCTAssertEqual(controller.state.mode, .menu)
+        assertPose(controller.camera.pose, Framing.menu(controller.metrics))
+    }
+
+    /// With real (not reduced) motion the open is one camera move: it never stops part-way and its speed never jumps.
+    /// (Absolute distances depend on the real poses, so only scale-free properties are asserted.)
+    func testOpenUsesOneCameraMoveWithoutStalling() async throws {
+        let library = BookLibrary.load(from: BundleBookSource())
+        let controller = BookSceneController(config: NativeSceneConfig(library: library, reducedMotion: false))
+        controller.setSize(CGSize(width: 390, height: 844))
+        await controller.load()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        var last = controller.camera.pose.position
+        var steps: [Double] = []
+        while controller.tweens.isActive, steps.count < 600 {
+            controller.tick(dt: 1.0 / 60)
+            let p = controller.camera.pose.position
+            let d = p - last
+            steps.append((d.x * d.x + d.y * d.y + d.z * d.z).squareRoot())
+            last = p
+        }
+        XCTAssertEqual(controller.state.mode, .reading)
+        XCTAssertGreaterThan(steps.count, 60, "a real open takes well over a second")
+        let peak = steps.max() ?? 0
+        XCTAssertGreaterThan(peak, 0)
+        // Through the middle of the move (not the ease-in and ease-out) the camera keeps moving.
+        let middle = steps[(steps.count / 5)..<(steps.count * 4 / 5)]
+        XCTAssertGreaterThan(middle.min() ?? 0, peak * 0.02, "the camera stopped part-way through the open")
+        // No frame-to-frame jump in speed (two chained eased tweens would drop to about zero at the join).
+        var worstJump = 0.0
+        for (a, b) in zip(steps, steps.dropFirst()) { worstJump = max(worstJump, abs(b - a)) }
+        XCTAssertLessThan(worstJump, peak * 0.25, "the camera speed jumped between two frames")
+    }
+
     func testOpeningThenCloseRequestClosesAfterOpen() async throws {
         let (controller, _) = await makeController()
         let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })

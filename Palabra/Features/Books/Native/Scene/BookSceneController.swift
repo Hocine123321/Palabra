@@ -250,6 +250,19 @@ final class BookSceneController {
 
     // MARK: Camera
 
+    /// Called when an open or close has finished: the size or insets may have changed during it, and `reframe` does nothing
+    /// while the mode is `.opening` or `.closing`. Only acts if the camera is not already where the mode wants it.
+    private func reframeAfterTransition() {
+        let wanted: CameraPose
+        switch state.mode {
+        case .reading: wanted = readTarget(pageIndex)
+        case .menu: wanted = Framing.menu(metrics)
+        default: return
+        }
+        guard wanted != camera.pose else { return }
+        moveCamera(wanted, duration: 0)
+    }
+
     func moveCamera(_ target: CameraPose, duration: Double) {
         tweens.cancel(cameraTween)
         let from = camera.pose
@@ -265,10 +278,23 @@ final class BookSceneController {
         }
     }
 
-    private func moveCameraDelayed(_ target: CameraPose, delay: Double, duration: Double) {
-        tweens.add(duration: 0.0001, delay: delay, onUpdate: { _ in }, onDone: { [weak self] in
-            self?.moveCamera(target, duration: duration)
-        })
+    /// Moves the camera along `path` as ONE tween, so it never stalls between legs. The path starts from wherever the camera
+    /// is now (an interrupted move continues from its current pose instead of jumping). `delay` holds the camera still first
+    /// (on a close, until the leaves have turned back).
+    func moveCamera(along path: CameraPath, delay: Double = 0, duration: Double) {
+        tweens.cancel(cameraTween)
+        guard duration > 0 else {
+            camera.setPose(path.end)
+            return
+        }
+        var poses = path.poses
+        poses[0] = camera.pose
+        let live = CameraPath(poses: poses, times: path.times)
+        // Linear time: the path's own end tangents ease the start and the stop. An ease on top of that made the camera
+        // sit still for the first quarter second after the tap and then rush.
+        cameraTween = tweens.add(duration: duration, delay: delay, ease: .linear) { [weak self] t in
+            self?.camera.setPose(live.pose(at: t))
+        }
     }
 
     func frameMenu(animated: Bool) {
@@ -348,7 +374,10 @@ final class BookSceneController {
         panZ = 0
         state.pageCount = entry.pages.count
         setLeavesInstant(entry, page: start)
-        ensureTextures(entry, around: start, immediate: true)
+        // With animation the reading pages are drawn off the main thread: they are not visible until the lid has lifted
+        // (about half a second in) and drawing them here would be one long frame right as the camera starts to move.
+        // With Reduce Motion there is no animation to protect, so they are ready at once.
+        ensureTextures(entry, around: start, immediate: config.reducedMotion, prefetchPriority: .utility)
         let wide = isWide
         for other in entries where other !== entry {
             let from = other.node.root.position
@@ -367,19 +396,31 @@ final class BookSceneController {
             )
             root.eulerAngles = SCNVector3(0, Float(BookMath.lerp(fromRY, 0, t)), 0)
         }
-        moveCamera(coverPose(entry), duration: 0.8)
+        // One continuous camera move: menu -> over the closed cover -> reading pose. (It used to be two tweens, and the second
+        // cancelled the first while it was still moving, which stalled the camera and made the open look jerky.)
+        moveCamera(
+            along: CameraPath(poses: [camera.pose, coverPose(entry), readTarget(start, focus: false)], times: Self.openKeyTimes),
+            duration: Self.openCameraDuration
+        )
         tweens.add(duration: 1.15, delay: 0.55, ease: .inOut, onUpdate: { t in entry.node.setCoverOpen(t) }, onDone: { [weak self] in
             guard let self else { return }
             self.state.mode = .reading
+            self.reframeAfterTransition()
             self.afterNavigate()
             if self.closeAfterOpen {
                 self.closeAfterOpen = false
                 self.closeBook()
             }
         })
-        moveCameraDelayed(readTarget(start, focus: false), delay: 0.55, duration: 1.2)
         emit()
     }
+
+    /// Camera timing of an open: the cover keyframe is reached just as the lid is lifting, the reading pose when it lands.
+    static let openCameraDuration = 1.75
+    static let openKeyTimes = [0.0, 0.55, 1.0]
+    /// Closing mirrors it.
+    static let closeCameraDuration = 1.8
+    static let closeKeyTimes = [0.0, 0.5, 1.0]
 
     private func resumeIndex(_ entry: Entry) -> Int {
         let last = config.lastPageID[entry.book.id]
@@ -414,9 +455,16 @@ final class BookSceneController {
             self.state.page = 0
             self.pageIndex = 0
             self.menuTransitionBack(closed)
+            // The window may have been rotated or resized while the camera followed its path (reframe is skipped then):
+            // end on the pose for the current size. When nothing changed this is the pose the path already ends on.
+            self.reframeAfterTransition()
             self.emit()
         })
-        moveCameraDelayed(coverPose(entry), delay: wait, duration: 0.9)
+        moveCamera(
+            along: CameraPath(poses: [camera.pose, coverPose(entry), Framing.menu(metrics)], times: Self.closeKeyTimes),
+            delay: wait,
+            duration: Self.closeCameraDuration
+        )
         emit()
     }
 
@@ -433,7 +481,6 @@ final class BookSceneController {
                 entry.node.root.eulerAngles = SCNVector3(0, Float(BookMath.lerp(fromRY, entry.menu.ry, t)), 0)
             }
         }
-        frameMenu(animated: true)
     }
 
     func setLeavesInstant(_ entry: Entry, page: Int) {
@@ -631,14 +678,16 @@ final class BookSceneController {
     }
 
     /// Draws page `i` off the main thread and puts it on its leaf face when done.
-    private func renderLater(_ entry: Entry, _ i: Int) {
+    /// `priority` is lowered only while a book opens: seven pages drawn together must not compete with the render loop for the
+    /// cores, and those pages are not needed until the lid has lifted. Page turns keep `.userInitiated`.
+    private func renderLater(_ entry: Entry, _ i: Int, priority: TaskPriority = .userInitiated) {
         let k = key(entry, i)
         guard pending[k] == nil else { return }
         let token = generation
         pending[k] = token
         let phys = entry.pages.indices.contains(i) ? entry.pages[i] : nil
         let box = UncheckedBox((phys, options(entry, i)))
-        Task.detached(priority: .userInitiated) { [weak self] in
+        Task.detached(priority: priority) { [weak self] in
             let result = PageRenderer.draw(box.value.0, box.value.1)
             let done = UncheckedBox(PageImage(image: result.image, hits: result.hits))
             await MainActor.run {
@@ -656,7 +705,7 @@ final class BookSceneController {
     }
 
     /// Gives the leaves around page `i` their bitmaps and frees the ones far away (`_ensureTextures`).
-    func ensureTextures(_ entry: Entry, around i: Int, immediate: Bool) {
+    func ensureTextures(_ entry: Entry, around i: Int, immediate: Bool, prefetchPriority: TaskPriority = .userInitiated) {
         let n = entry.pages.count
         var want = Set<Int>()
         for k in (i - 3)...(i + 3) where k >= -1 && k <= n { want.insert(k) }
@@ -667,7 +716,7 @@ final class BookSceneController {
                 if want.contains(pi) {
                     assignedNow.insert(pi)
                     if cache[key(entry, pi)] == nil {
-                        if immediate, abs(pi - i) <= 1 { renderNow(entry, pi) } else { renderLater(entry, pi) }
+                        if immediate, abs(pi - i) <= 1 { renderNow(entry, pi) } else { renderLater(entry, pi, priority: prefetchPriority) }
                     }
                     if cache[key(entry, pi)] != nil { show(entry, pi) }
                 } else {

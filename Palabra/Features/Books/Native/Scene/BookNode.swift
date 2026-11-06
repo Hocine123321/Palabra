@@ -243,7 +243,9 @@ final class BookNode {
 
     func setCoverOpen(_ p: Double) {
         shape.coverOpen = p
-        layoutDirty = true
+        // A leaf's shape does not depend on how far the cover is open (`BookShape.deform` never reads `coverOpen`), so the
+        // leaves are NOT rebuilt here. This used to dirty every leaf, which allocated two new meshes per leaf on every frame
+        // of the open and close animation and made the camera move stutter.
         layout()
     }
 
