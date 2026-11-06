@@ -63,6 +63,31 @@ final class ArtifactSettingsTests: XCTestCase {
         XCTAssertEqual(ArtifactOutputBudget.externalMinKB, ArtifactOutputBudget.maxKB, "the ranges meet: the in-app maximum is where the external range starts")
     }
 
+    func testExternalCapDefaultsToTwoMegabytesAndIsClamped() throws {
+        XCTAssertEqual(ArtifactSettings.default.externalMaxKB, 2048)
+        XCTAssertEqual(ArtifactSettings.default.externalBytes, 2_097_152)
+        XCTAssertEqual(ArtifactOutputBudget.clampedExternalKB(1), 128)
+        XCTAssertEqual(ArtifactOutputBudget.clampedExternalKB(999_999), 2048)
+        XCTAssertEqual(try JSONDecoder().decode(ArtifactSettings.self, from: Data(#"{"externalMaxKB":640}"#.utf8)).externalMaxKB, 640)
+        XCTAssertEqual(try JSONDecoder().decode(ArtifactSettings.self, from: Data(#"{"externalMaxKB":5}"#.utf8)).externalMaxKB, 128)
+        XCTAssertEqual(try JSONDecoder().decode(ArtifactSettings.self, from: Data(#"{"externalMaxKB":"big"}"#.utf8)).externalMaxKB, 2048)
+        XCTAssertEqual(try JSONDecoder().decode(ArtifactSettings.self, from: Data("{}".utf8)).externalMaxKB, 2048, "settings saved before this existed")
+    }
+
+    func testTheTwoCapsAreIndependent() throws {
+        var s = ArtifactSettings()
+        s.externalMaxKB = 512
+        let back = try JSONDecoder().decode(ArtifactSettings.self, from: JSONEncoder().encode(s))
+        XCTAssertEqual(back.externalMaxKB, 512)
+        XCTAssertEqual(back.maxOutputKB, 20)
+    }
+
+    func testExternalSliderStepsLandOnTheEnds() {
+        let step = ArtifactOutputBudget.externalStepKB
+        XCTAssertEqual((ArtifactOutputBudget.externalMaxKB - ArtifactOutputBudget.externalMinKB) % step, 0)
+        XCTAssertEqual((ArtifactOutputBudget.externalDefaultKB - ArtifactOutputBudget.externalMinKB) % step, 0)
+    }
+
     func testTheDefaultIsInsideTheSliderRangeAndOnAStep() {
         let d = ArtifactOutputBudget.defaultKB
         XCTAssertTrue((ArtifactOutputBudget.minKB...ArtifactOutputBudget.maxKB).contains(d))

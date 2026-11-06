@@ -65,9 +65,9 @@ An `app` artifact is one self-contained HTML document (no external `src`/`href`,
 
 The **…** menu (top right of New Artifact / Update) hands the request to another AI and takes its page back, for apps that need a stronger builder than Gemini. No API key is needed. The menu shows only before generating, and on update only for an HTML page (`ArtifactDraftModel.canUseExternalAI`): a table or chart is JSON blocks, which another AI answering in HTML cannot replace.
 
-- **Copy artifact prompt rules** (`ArtifactDraftModel.exportPrompt()`): asks for ONE complete HTML document and nothing else (no envelope, no code fence). It carries the sandbox rules (`ArtifactPrompts.sandboxRules`, the same text the in-app prompt uses, so the two cannot drift), the live capability manual, the request, and on update the whole `CURRENT PAGE:`. It tells the AI the page may be at most 2 MB. The Gemini format picker does not apply to it.
+- **Copy artifact prompt rules** (`ArtifactDraftModel.exportPrompt()`): describes ONE self-contained HTML page and says nothing about how to deliver it: a full AI app (Claude, ChatGPT) makes an interactive page as an artifact or a file its own way, and forcing plain text is an API limitation that does not apply there. It carries the sandbox rules (`ArtifactPrompts.sandboxRules`, the same text the in-app prompt uses, so the two cannot drift), the live capability manual, the request, and on update the whole `CURRENT PAGE:`. It tells the AI the person's external size cap. The Gemini format picker does not apply to it.
 - **Upload/paste artifact** (`ArtifactImportSheet` → `ArtifactDraftModel.importExternal`): paste, or choose an `.html`/text file. `ArtifactImport.normalize` takes the HTML document out of the chat text and fence around it (title from `<title>`, requests from the `palabra.call("…")` names it uses) and wraps it as an app; an old-style envelope still works. It then runs the same parse, lint, capability filter and approval as a Gemini answer (`ArtifactGenerator.importDraft`, no AI call). Pages from another AI are always apps.
-- **Size:** an external page may be up to 2 MB (`ArtifactOutputBudget.externalMaxKB`; storage accepts the same, `ArtifactLimits.maxPayloadBytes`). The Settings → Artifacts size is what Gemini writes in the app and does not apply to imports. Pasted text over 2 MB + 64 KB is refused. Refining a large imported app with Gemini fails as "too large to extend" (Gemini cannot return 500 KB within its cap); export the update instead.
+- **Size:** Settings → Artifacts has two sliders. *In-App AI Output* (8 to 128 KB, 20 by default) is what Gemini writes. *External AI Output* (`ArtifactSettings.externalMaxKB`, 128 KB to 2 MB in 128 KB steps, 2 MB by default) is the most a page from another AI may be: the prompt states it and the import enforces it (storage accepts up to 2 MB, `ArtifactLimits.maxPayloadBytes`). Pasted text over the cap + 64 KB of chat is refused. Refining a large imported app with Gemini fails as "too large to extend" (Gemini cannot return 500 KB within its cap); export the update instead.
 - On update the artifact's kind must stay the same; a pasted spec cannot replace an app.
 
 ## Files in Storage
@@ -84,7 +84,7 @@ Artifacts live in the database, and are also written as real files so the Storag
 |---|---|
 | Stored payload | 2 MB (2,097,152 B), `ArtifactLimits.maxPayloadBytes` (what an external AI may write) |
 | In-app AI output size | Settings → Artifacts → Maximum File Size, 8 to 128 KB (default 20, the user's decision), `ArtifactSettings.maxOutputKB` |
-| External AI page | up to 2 MB (`externalMinKB` 128 to `externalMaxKB` 2048) |
+| External AI page | Settings → Artifacts → External AI Output, 128 KB to 2 MB (default 2 MB), `ArtifactSettings.externalMaxKB` |
 | Versions kept | newest 20 per artifact |
 | Artifact state (ticks, `storage.*`) | 256 KB total, key ≤ 64 chars |
 | Capability args | 64 KB encoded |

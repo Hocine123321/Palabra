@@ -7,8 +7,8 @@ final class ArtifactImportTests: XCTestCase {
         makeCapability("storage.set", .local),
     ])
 
-    private func importText(_ text: String, expectedKind: ArtifactKind? = nil, settingKB: Int = ArtifactOutputBudget.defaultKB) -> Result<ArtifactDraft, ArtifactGenError> {
-        ArtifactGenerator(ai: MockAIClient(), registry: registry, allowedKinds: [.spec, .app], maxOutputKB: settingKB)
+    private func importText(_ text: String, expectedKind: ArtifactKind? = nil, settingKB: Int = ArtifactOutputBudget.defaultKB, externalKB: Int = ArtifactOutputBudget.externalDefaultKB) -> Result<ArtifactDraft, ArtifactGenError> {
+        ArtifactGenerator(ai: MockAIClient(), registry: registry, allowedKinds: [.spec, .app], maxOutputKB: settingKB, externalMaxKB: externalKB)
             .importDraft(text, fixedTitle: nil, expectedKind: expectedKind, userPrompt: "asked")
     }
 
@@ -70,6 +70,13 @@ final class ArtifactImportTests: XCTestCase {
         let over = "<html>" + String(repeating: "a", count: pad + 1) + "</html>"
         XCTAssertTrue(isInvalidApp(importText(over)))
         XCTAssertNotNil(draft(importText(fits + "\nHope that helps!")), "chat after the page is ignored, not counted")
+    }
+
+    func testTheExternalSliderLimitsWhatCanBeImported() {
+        let page = "<html>" + String(repeating: "a", count: 300 * 1024) + "</html>"
+        XCTAssertNotNil(draft(importText(page, externalKB: 512)), "300 KB fits in a 512 KB cap")
+        XCTAssertTrue(isInvalidApp(importText(page, externalKB: 256)), "300 KB does not fit in a 256 KB cap")
+        XCTAssertNotNil(draft(importText(page)), "the default cap is 2 MB")
     }
 
     func testImportAcceptsAPageFarAboveTheInAppCap() {

@@ -28,6 +28,8 @@ struct ArtifactGenerator {
     var maxOutputKB: Int = ArtifactOutputBudget.defaultKB
     /// Set for a pasted external answer: its own byte limit (up to 2 MB), instead of the in-app AI's setting.
     var appByteLimit: Int?
+    /// The person's cap for a page from another AI (Settings → Artifacts), in KB.
+    var externalMaxKB = ArtifactOutputBudget.externalDefaultKB
 
     /// The size an app's HTML may reach: the external limit when there is one, else the in-app setting.
     private var allowedAppBytes: Int { appByteLimit ?? ArtifactOutputBudget.bytes(forKB: maxOutputKB) }
@@ -55,11 +57,11 @@ struct ArtifactGenerator {
 
     /// Turns an answer pasted from an external AI (Claude, ChatGPT) into a draft. No AI call, so no key is needed.
     /// Goes through the same parser, lint, capability filter and spec validation as a Gemini answer. The in-app size setting
-    /// is what Gemini is asked to write, so it does not apply here: an external answer may be up to 2 MB (what storage accepts).
+    /// is what Gemini is asked to write, so it does not apply here: an external answer may be as big as the person's external cap (up to 2 MB, what storage accepts).
     func importDraft(_ text: String, fixedTitle: String?, expectedKind: ArtifactKind?, userPrompt: String) -> Result<ArtifactDraft, ArtifactGenError> {
-        guard text.utf8.count <= ArtifactImport.maxInputBytes else { return .failure(.invalidApp("the pasted text is far too large")) }
+        guard text.utf8.count <= ArtifactOutputBudget.externalBytes(forKB: externalMaxKB) + ArtifactImport.chatSlackBytes else { return .failure(.invalidApp("the pasted text is far too large")) }
         var external = self
-        external.appByteLimit = ArtifactOutputBudget.storageMaxBytes
+        external.appByteLimit = ArtifactOutputBudget.externalBytes(forKB: externalMaxKB)
         switch ArtifactEnvelopeParser.parse(ArtifactImport.normalize(text, registry: registry)) {
         case .failure(let error): return .failure(error)
         case .success(let envelope): return external.build(envelope, fixedTitle: fixedTitle, expectedKind: expectedKind, userPrompt: userPrompt)

@@ -782,7 +782,7 @@
 "That photo could not be read." = "تعذّرت قراءة هذه الصورة.";
 
 "Artifacts Settings" = "إعدادات المحتويات";
-"AI Output" = "مخرجات الذكاء الاصطناعي";
+"In-App AI Output" = "مخرجات الذكاء الاصطناعي داخل التطبيق";
 "Maximum File Size" = "الحد الأقصى لحجم الملف";
 "Reset to Default" = "إعادة التعيين إلى الافتراضي";
 "The most the in-app AI may write for one artifact (8 to 128 KB, 20 KB by default). Bigger files take longer, use more of your quota and can be cut off if the model cannot write that much. Pages you bring from another AI can be up to 2 MB." = "أقصى ما يكتبه الذكاء الاصطناعي داخل التطبيق لمحتوى واحد (من 8 إلى 128 كيلوبايت، والافتراضي 20 كيلوبايت). الملفات الأكبر تستغرق وقتًا أطول وتستهلك حصة أكبر وقد تُقطع إذا لم يستطع النموذج كتابتها. أما الصفحات التي تجلبها من ذكاء اصطناعي آخر فيمكن أن تصل إلى 2 ميغابايت.";
@@ -836,3 +836,6 @@
 "Use this page" = "استخدام هذه الصفحة";
 "That file couldn't be read as text." = "تعذّرت قراءة هذا الملف كنص.";
 "Paste from clipboard" = "لصق من الحافظة";
+
+"External AI Output" = "مخرجات الذكاء الاصطناعي الخارجي";
+"The most a page from another AI app (Claude, ChatGPT) may be when you upload or paste it. The copied prompt tells that AI the same limit." = "أقصى حجم لصفحة من تطبيق ذكاء اصطناعي آخر (Claude أو ChatGPT) عند رفعها أو لصقها. الموجّه المنسوخ يخبر ذلك الذكاء بالحد نفسه.";

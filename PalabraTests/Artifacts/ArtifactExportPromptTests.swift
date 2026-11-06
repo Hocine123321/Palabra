@@ -12,21 +12,21 @@ final class ArtifactExportPromptTests: XCTestCase {
         ArtifactPrompts.exportPrompt(userPrompt: request, registry: registry, language: language)
     }
 
-    func testExportAsksForOneHTMLDocumentAndNothingElse() {
-        let text = export()
-        XCTAssertTrue(text.contains("<!DOCTYPE html>"))
-        XCTAssertTrue(text.contains("</html>"))
-        XCTAssertTrue(text.contains("nothing else"))
-        XCTAssertTrue(text.contains("no Markdown code fence"))
-        XCTAssertTrue(text.contains("<title>"), "the page's name comes from its title")
+    /// The person is in a full AI app, which delivers an interactive page as an artifact or a file. Nothing in the prompt may force
+    /// it to paste the HTML as plain text: that limit belongs to the API route, not to this one.
+    func testExportDoesNotForceTheAnswerAsText() {
+        let text = export().lowercased()
+        for forbidden in ["nothing else", "no markdown", "code fence", "as plain text", "starts with <!doctype", "ends with </html>", "no explanation", "reply with the complete html"] {
+            XCTAssertFalse(text.contains(forbidden), "the prompt must not say: \(forbidden)")
+        }
     }
 
-    func testExportHasNoEnvelope() {
+    func testExportLetsTheAIDeliverItTheNormalWay() {
         let text = export()
-        XCTAssertFalse(text.contains("---PAYLOAD---"))
-        XCTAssertFalse(text.contains("---END---"))
-        XCTAssertFalse(text.contains("\"kind\""))
-        XCTAssertFalse(text.contains("BLOCKS you may use"), "no JSON spec blocks: the answer is a page")
+        XCTAssertTrue(text.contains("the way you normally make an interactive page"))
+        XCTAssertTrue(text.contains("an artifact, a file"))
+        XCTAssertTrue(text.contains("<title>"), "the page's name comes from its title")
+        XCTAssertTrue(text.contains("ONE self-contained HTML page"))
     }
 
     func testExportContainsTheRequestAndEveryCapability() {
@@ -48,11 +48,20 @@ final class ArtifactExportPromptTests: XCTestCase {
         }
     }
 
-    func testExportStatesTheExternalLimitNotTheInAppOne() {
-        let text = export()
-        XCTAssertTrue(text.contains("At most 2 MB"))
-        XCTAssertFalse(text.contains("At most 20 KB"))
-        XCTAssertFalse(text.contains("120 KB"))
+    func testExportStatesThePersonsExternalLimitNotTheInAppOne() {
+        XCTAssertTrue(export().contains("At most 2 MB"), "the default external cap")
+        let small = ArtifactPrompts.exportPrompt(userPrompt: "x", registry: registry, language: .english, maxKB: 512)
+        XCTAssertTrue(small.contains("At most 512 KB"))
+        XCTAssertFalse(small.contains("At most 2 MB"))
+        XCTAssertFalse(export().contains("At most 20 KB"))
+    }
+
+    func testDescribeLimit() {
+        XCTAssertEqual(ArtifactPrompts.describeLimit(kb: 2048), "2 MB")
+        XCTAssertEqual(ArtifactPrompts.describeLimit(kb: 1024), "1 MB")
+        XCTAssertEqual(ArtifactPrompts.describeLimit(kb: 640), "640 KB")
+        XCTAssertEqual(ArtifactPrompts.describeLimit(kb: 99_999), "2 MB", "clamped to the range")
+        XCTAssertEqual(ArtifactPrompts.describeLimit(kb: 1), "128 KB")
     }
 
     func testExportWritesTheLanguageRequested() {
@@ -65,7 +74,8 @@ final class ArtifactExportPromptTests: XCTestCase {
         XCTAssertTrue(text.contains("add a score"))
         XCTAssertTrue(text.contains("TITLE: Trainer"))
         XCTAssertTrue(text.contains("CURRENT PAGE:\n<html>old</html>"))
-        XCTAssertTrue(text.contains("complete new HTML document"))
+        XCTAssertTrue(text.contains("complete new page"))
+        XCTAssertFalse(text.lowercased().contains("code fence"))
     }
 
     func testInAppInstructionUsesTheSettingNotTheExportSize() {

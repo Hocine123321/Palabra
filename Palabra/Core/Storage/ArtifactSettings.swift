@@ -16,6 +16,12 @@ enum ArtifactOutputBudget {
     /// External AI.
     static let externalMinKB = 128
     static let externalMaxKB = 2_048
+    static let externalStepKB = 128
+    /// The user's decision: a page from another AI may use everything storage accepts unless the person lowers it.
+    static let externalDefaultKB = 2_048
+
+    static func clampedExternalKB(_ kb: Int) -> Int { min(externalMaxKB, max(externalMinKB, kb)) }
+    static func externalBytes(forKB kb: Int) -> Int { clampedExternalKB(kb) * 1024 }
 
     /// The most one artifact version can hold on disk: the external maximum (2 MB).
     static let storageMaxBytes = externalMaxKB * 1024
@@ -52,6 +58,8 @@ struct ArtifactSettings: Codable, Equatable, Sendable {
 
     /// The most the in-app AI is asked to write for one artifact, in KB (8...128, 20 by default).
     var maxOutputKB: Int = ArtifactOutputBudget.defaultKB
+    /// The most a page brought from another AI (Claude, ChatGPT) may be, in KB (128...2048, 2048 by default).
+    var externalMaxKB: Int = ArtifactOutputBudget.externalDefaultKB
     /// Whether interactive "app" artifacts may be created. Saved apps keep running either way.
     var allowAppArtifacts: Bool = true
     /// The Format the draft screen starts on.
@@ -66,10 +74,12 @@ struct ArtifactSettings: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = ArtifactSettings()
         maxOutputKB = ArtifactOutputBudget.clampedKB((try? c.decodeIfPresent(Int.self, forKey: .maxOutputKB)) ?? d.maxOutputKB)
+        externalMaxKB = ArtifactOutputBudget.clampedExternalKB((try? c.decodeIfPresent(Int.self, forKey: .externalMaxKB)) ?? d.externalMaxKB)
         allowAppArtifacts = (try? c.decodeIfPresent(Bool.self, forKey: .allowAppArtifacts)) ?? d.allowAppArtifacts
         defaultFormat = (try? c.decodeIfPresent(DefaultFormat.self, forKey: .defaultFormat)) ?? d.defaultFormat
     }
 
+    var externalBytes: Int { ArtifactOutputBudget.externalBytes(forKB: externalMaxKB) }
     var outputBytes: Int { ArtifactOutputBudget.bytes(forKB: maxOutputKB) }
     var outputTokens: Int { ArtifactOutputBudget.tokens(forKB: maxOutputKB) }
 }

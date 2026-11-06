@@ -1,12 +1,13 @@
 import Foundation
 
 /// Prepares an answer pasted from an external AI so the normal envelope parser can read it.
-/// The answer may be the envelope itself (the export prompt asks for it), or just a page of HTML,
-/// possibly with chat text and a code fence around it.
+/// The answer is normally a page of HTML (copied from an artifact, a file or a chat reply), possibly with chat text and a code
+/// fence around it. An old-style envelope is still accepted.
 enum ArtifactImport {
-    /// Anything longer is refused before parsing (a mis-paste, not an app): the 2 MB an artifact may hold, plus room for the
-    /// chat text and code fence an AI puts around a page.
-    static let maxInputBytes = ArtifactOutputBudget.storageMaxBytes + 64 * 1024
+    /// Room for the chat text a pasted answer may carry around the page.
+    static let chatSlackBytes = 64 * 1024
+    /// The most text ever read: the biggest page storage accepts, plus the chat around it.
+    static let maxInputBytes = ArtifactOutputBudget.storageMaxBytes + chatSlackBytes
 
     private static let titlePattern = try? NSRegularExpression(pattern: #"<title[^>]*>(.*?)</title>"#, options: [.caseInsensitive, .dotMatchesLineSeparators])
     private static let callPattern = try? NSRegularExpression(pattern: #"palabra\.call\(\s*["']([A-Za-z0-9_.]+)["']"#)

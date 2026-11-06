@@ -66,18 +66,19 @@ enum ArtifactPrompts {
     - Style with the CSS variables --ink, --ink-secondary, --surface, --accent, --error, --background (they follow light and dark mode). Use palabra.locale ("en" or "ar") for the page's own text and palabra.dir ("ltr" or "rtl") for layout: set it on <html dir>.
     """
 
-    /// What the person copies into Claude, ChatGPT or another AI: a request for ONE complete HTML page, with the sandbox rules and the
-    /// capabilities the page may call. The answer is a plain HTML document (no envelope to get right); `ArtifactImport` wraps it.
-    /// `userPrompt` is what the person wants (or, on update, the change plus the current page). The size is the external range
-    /// (up to 2 MB), not the Settings → Artifacts cap, which only limits what Gemini writes in the app.
-    static func exportPrompt(userPrompt: String, registry: CapabilityRegistry, language: SupportedLanguage) -> String {
+    /// What the person copies into Claude, ChatGPT or another full AI app. It describes what the page must be and what it can
+    /// call, and nothing about how to deliver it: those apps make an interactive page as an artifact or a file, their own way, and
+    /// the person brings it back with Upload/paste (`ArtifactImport` copes with a file, a pasted page or a page inside chat text).
+    /// `userPrompt` is what the person wants (or, on update, the change plus the current page). The size is the person's external
+    /// cap (Settings → Artifacts), not the cap for the in-app AI.
+    static func exportPrompt(userPrompt: String, registry: CapabilityRegistry, language: SupportedLanguage, maxKB: Int = externalMaxKB) -> String {
         """
-        You build "artifacts" for Palabra, an app that helps one person learn Spanish. An artifact here is ONE self-contained HTML page (a table, chart, roadmap, checklist, practice game, simulator or tracker) that the app saves and shows in a sandbox.
+        Build an interactive page for Palabra, an app that helps one person learn Spanish. It is ONE self-contained HTML page (a table, chart, roadmap, checklist, practice game, simulator or tracker). Palabra saves it and runs it in a sandbox, so it must follow the rules below.
 
-        OUTPUT: reply with the complete HTML document and nothing else: it starts with <!DOCTYPE html> and ends with </html>. No explanation before or after it, and no Markdown code fence. Put the page's name in <title>.
+        Make it the way you normally make an interactive page or app (an artifact, a file, whatever your app does). The person will take the finished HTML to Palabra themselves. Give the page a good <title>: it becomes its name.
 
         RULES
-        - At most \(externalMaxKB / 1024) MB, and only as large as the request needs: a focused page is better than a padded one.
+        - At most \(describeLimit(kb: maxKB)), and only as large as the request needs: a focused page is better than a padded one.
         \(sandboxRules)
         - Write all visible text in \(language.instructionName). Spanish words and phrases stay in Spanish.
         - Never invent the user's own data (their words, counts or progress): read it with palabra.call from the capabilities below. Teaching content you write yourself (weekday names, a study roadmap) is fine.
@@ -90,6 +91,12 @@ enum ArtifactPrompts {
         """
     }
 
+    /// "512 KB" or "2 MB".
+    static func describeLimit(kb: Int) -> String {
+        let clamped = ArtifactOutputBudget.clampedExternalKB(kb)
+        return clamped % 1024 == 0 ? "\(clamped / 1024) MB" : "\(clamped) KB"
+    }
+
     /// The most an external AI is told it may write (the storage maximum, 2 MB).
     static let externalMaxKB = ArtifactOutputBudget.externalMaxKB
 
@@ -98,7 +105,7 @@ enum ArtifactPrompts {
         """
         Change request: \(change)
 
-        Apply the change and reply with the complete new HTML document. Keep everything the change request does not touch, and keep the same <title>.
+        Apply the change and give me the complete new page, not just the changed parts. Keep everything the change request does not touch, and keep the same <title>.
 
         TITLE: \(currentTitle)
         CURRENT PAGE:

@@ -108,7 +108,7 @@ final class ArtifactDraftModel {
             guard let current = currentSnapshot(artifactID), current.kind == .app else { return nil }
             userPrompt = ArtifactPrompts.externalUpdateRequest(change: asked, currentTitle: current.title, currentHTML: String(decoding: current.payload, as: UTF8.self))
         }
-        return ArtifactPrompts.exportPrompt(userPrompt: userPrompt, registry: environment.capabilities, language: environment.aiLanguage)
+        return ArtifactPrompts.exportPrompt(userPrompt: userPrompt, registry: environment.capabilities, language: environment.aiLanguage, maxKB: environment.artifactSettings.externalMaxKB)
     }
 
     /// Whether the copy-prompt route can work at all: always when creating, and when updating only for an HTML page.
@@ -126,7 +126,8 @@ final class ArtifactDraftModel {
         let settings = environment.artifactSettings
         let generator = ArtifactGenerator(
             ai: environment.ai, registry: environment.capabilities, language: environment.aiLanguage,
-            allowedKinds: settings.allowAppArtifacts ? [.spec, .app] : [.spec]
+            allowedKinds: settings.allowAppArtifacts ? [.spec, .app] : [.spec],
+            externalMaxKB: settings.externalMaxKB
         )
         let asked = String(request.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.maxInput))
         let label = asked.isEmpty ? Self.importedLabel : asked

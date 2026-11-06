@@ -37,9 +37,37 @@ struct ArtifactsSettingsView: View {
                 }
                 .disabled(environment.artifactSettings.maxOutputKB == ArtifactOutputBudget.defaultKB)
             } header: {
-                Text("AI Output")
+                Text("In-App AI Output")
             } footer: {
                 Text("The most the in-app AI may write for one artifact (8 to 128 KB, 20 KB by default). Bigger files take longer, use more of your quota and can be cut off if the model cannot write that much. Pages you bring from another AI can be up to 2 MB.")
+            }
+            .themedSection()
+
+            Section {
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    HStack {
+                        Text("Maximum File Size")
+                        Spacer()
+                        Text(verbatim: ArtifactPrompts.describeLimit(kb: environment.artifactSettings.externalMaxKB))
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
+                    Slider(
+                        value: externalSizeBinding,
+                        in: Double(ArtifactOutputBudget.externalMinKB)...Double(ArtifactOutputBudget.externalMaxKB),
+                        step: Double(ArtifactOutputBudget.externalStepKB)
+                    )
+                    .accessibilityIdentifier("artifactExternalMaxSizeSlider")
+                    .accessibilityValue(Text(verbatim: ArtifactPrompts.describeLimit(kb: environment.artifactSettings.externalMaxKB)))
+                }
+                Button("Reset to Default") {
+                    env.artifactSettings.externalMaxKB = ArtifactOutputBudget.externalDefaultKB
+                }
+                .disabled(environment.artifactSettings.externalMaxKB == ArtifactOutputBudget.externalDefaultKB)
+            } header: {
+                Text("External AI Output")
+            } footer: {
+                Text("The most a page from another AI app (Claude, ChatGPT) may be when you upload or paste it. The copied prompt tells that AI the same limit.")
             }
             .themedSection()
 
@@ -76,6 +104,13 @@ struct ArtifactsSettingsView: View {
         Binding(
             get: { Double(environment.artifactSettings.maxOutputKB) },
             set: { environment.artifactSettings.maxOutputKB = ArtifactOutputBudget.clampedKB(Int($0)) }
+        )
+    }
+
+    private var externalSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(environment.artifactSettings.externalMaxKB) },
+            set: { environment.artifactSettings.externalMaxKB = ArtifactOutputBudget.clampedExternalKB(Int($0)) }
         )
     }
 

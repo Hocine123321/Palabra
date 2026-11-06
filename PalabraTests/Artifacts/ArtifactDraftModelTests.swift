@@ -167,15 +167,15 @@ final class ArtifactDraftModelTests: XCTestCase {
 
     // MARK: External AI export and import
 
-    func testExportPromptForCreateAsksForHTMLAndIncludesTheRequest() async {
+    func testExportPromptForCreateDescribesAnHTMLPageAndIncludesTheRequest() async {
         let (env, _) = await makeEnvironment(withKey: false)
         let model = ArtifactDraftModel(environment: env)
         model.format = .app
         model.request = "verb trainer"
         let prompt = model.exportPrompt() ?? ""
         XCTAssertTrue(prompt.contains("verb trainer"))
-        XCTAssertTrue(prompt.contains("<!DOCTYPE html>"), "it asks for an HTML document")
-        XCTAssertTrue(prompt.contains("</html>"))
+        XCTAssertTrue(prompt.contains("self-contained HTML page"), "it asks for an HTML page")
+        XCTAssertFalse(prompt.lowercased().contains("code fence"), "it does not dictate how a full AI app delivers the page")
         XCTAssertFalse(prompt.contains("---PAYLOAD---"), "no envelope for the other AI to get wrong")
         XCTAssertFalse(prompt.contains("---END---"))
         XCTAssertFalse(prompt.contains("FORMAT:"), "the Gemini format picker does not apply to another AI")
@@ -204,6 +204,26 @@ final class ArtifactDraftModelTests: XCTestCase {
         XCTAssertNil(model.exportPrompt())
     }
 
+    func testThePromptCarriesThePersonsExternalCap() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        env.artifactSettings.externalMaxKB = 640
+        let model = ArtifactDraftModel(environment: env)
+        model.request = "verb trainer"
+        XCTAssertTrue((model.exportPrompt() ?? "").contains("At most 640 KB"))
+    }
+
+    func testAnImportFollowsThePersonsExternalCap() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        env.artifactSettings.externalMaxKB = 128
+        let model = ArtifactDraftModel(environment: env)
+        model.importExternal("<html><head><title>Big</title></head><body>" + String(repeating: "a", count: 200 * 1024) + "</body></html>")
+        guard case .failed = model.phase else { return XCTFail("200 KB must not fit a 128 KB cap, got \(model.phase)") }
+        env.artifactSettings.externalMaxKB = 512
+        model.dismissFailure()
+        model.importExternal("<html><head><title>Big</title></head><body>" + String(repeating: "a", count: 200 * 1024) + "</body></html>")
+        XCTAssertEqual(model.phase, .preview)
+    }
+
     func testCreatingAlwaysOffersTheExternalRoute() async {
         let (env, _) = await makeEnvironment(withKey: false)
         XCTAssertTrue(ArtifactDraftModel(environment: env).canUseExternalAI)
@@ -223,6 +243,7 @@ final class ArtifactDraftModelTests: XCTestCase {
 
     func testAPageOverTheInAppCapIsImportedAndSaved() async {
         let (env, _) = await makeEnvironment(withKey: false)
+        env.artifactSettings.externalMaxKB = ArtifactOutputBudget.externalMaxKB
         let model = ArtifactDraftModel(environment: env)
         // 600 KB: far above Gemini's 128 KB maximum, inside the 2 MB an external page may be.
         model.importExternal("<html><head><title>Big</title></head><body>" + String(repeating: "a", count: 600_000) + "</body></html>")
