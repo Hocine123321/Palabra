@@ -50,7 +50,7 @@ enum ArtifactPrompts {
         \(payloadMarker)
         <html>…</html>
         \(endMarker)
-        - At most \(ArtifactOutputBudget.clampedKB(maxKB)) KB. No external URLs of any kind (no CDN, web fonts, web images, requests to the web): inline all CSS and JavaScript; images only as data: URIs.
+        - At most \(ArtifactOutputBudget.clampedKB(maxKB)) KB, and only as large as the request needs: a small app is better than a padded one. No external URLs of any kind (no CDN, web fonts, web images, requests to the web): inline all CSS and JavaScript; images only as data: URIs.
         - Never use localStorage, sessionStorage or cookies. Save with palabra.call("storage.set",{key,value}) and read with palabra.call("storage.get",{key}).
         - Talk to the app only through palabra.call(name, args). It returns a Promise that resolves to the value and rejects with {code, message}. Always handle the rejection and show a friendly message.
         - palabra.granted lists the capabilities the person allowed; if one you need is missing, say so in the page.

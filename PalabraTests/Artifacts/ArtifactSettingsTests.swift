@@ -4,7 +4,8 @@ import XCTest
 final class ArtifactSettingsTests: XCTestCase {
     func testDefaults() {
         let s = ArtifactSettings.default
-        XCTAssertEqual(s.maxOutputKB, 20)
+        XCTAssertEqual(s.maxOutputKB, 128, "the user's decision: default maximum output is 128 KB")
+        XCTAssertEqual(s.outputBytes, 131_072)
         XCTAssertTrue(s.allowAppArtifacts)
         XCTAssertEqual(s.defaultFormat, .auto)
     }
@@ -21,7 +22,7 @@ final class ArtifactSettingsTests: XCTestCase {
     func testDecodingIsTolerant() throws {
         XCTAssertEqual(try JSONDecoder().decode(ArtifactSettings.self, from: Data("{}".utf8)), .default)
         let s = try JSONDecoder().decode(ArtifactSettings.self, from: Data(#"{"maxOutputKB":"lots","defaultFormat":"from-the-future","allowAppArtifacts":false}"#.utf8))
-        XCTAssertEqual(s.maxOutputKB, 20)
+        XCTAssertEqual(s.maxOutputKB, 128)
         XCTAssertEqual(s.defaultFormat, .auto)
         XCTAssertFalse(s.allowAppArtifacts)
     }
@@ -90,6 +91,14 @@ final class ArtifactSettingsTests: XCTestCase {
         XCTAssertEqual(GeminiClient.structuredMaxTokens(model: model(limit: 65_536), requested: 3000), 8192)
     }
 
+    func testTimeoutGrowsWithTheOutputBudgetButStaysBounded() {
+        XCTAssertEqual(GeminiClient.structuredTimeout(maxTokens: 8192), 90, "other callers keep exactly the old 90 seconds")
+        XCTAssertEqual(GeminiClient.structuredTimeout(maxTokens: 1000), 90)
+        XCTAssertEqual(GeminiClient.structuredTimeout(maxTokens: 20_000), 230, accuracy: 0.01)
+        XCTAssertGreaterThan(GeminiClient.structuredTimeout(maxTokens: ArtifactOutputBudget.tokens(forKB: 128)), 300 - 1)
+        XCTAssertEqual(GeminiClient.structuredTimeout(maxTokens: 1_000_000), 300, "bounded")
+    }
+
     // MARK: lint and prompt
 
     func testLintHonoursTheSetting() {
@@ -116,17 +125,18 @@ final class ArtifactSettingsTests: XCTestCase {
         let registry = CapabilityRegistry([makeCapability("library.words", .read)])
         let big = ArtifactPrompts.systemInstruction(registry: registry, language: .english, allowedKinds: [.spec, .app], maxKB: 100)
         XCTAssertTrue(big.contains("At most 100 KB"))
-        XCTAssertFalse(big.contains("At most 20 KB"))
+        XCTAssertFalse(big.contains("At most 128 KB"))
         let capped = ArtifactPrompts.systemInstruction(registry: registry, language: .english, allowedKinds: [.spec, .app], maxKB: 5000)
         XCTAssertTrue(capped.contains("At most 128 KB"))
         let standard = ArtifactPrompts.systemInstruction(registry: registry, language: .english, allowedKinds: [.spec, .app])
-        XCTAssertTrue(standard.contains("At most 20 KB"))
+        XCTAssertTrue(standard.contains("At most 128 KB"))
     }
 
     // MARK: generator wiring
 
     private final class BudgetRecorder: AIClient, @unchecked Sendable {
         var seenTokens: [Int?] = []
+        var seenPrompts: [String] = []
         var reply = ""
         func listModels(apiKey: String) async -> Result<[AIModel], AIError> { .success([]) }
         func generateWord(_ input: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<WordContent, AIError> { .failure(.malformedResponse) }
@@ -134,6 +144,7 @@ final class ArtifactSettingsTests: XCTestCase {
         func synthesizeSpeech(_ text: String, apiKey: String, model: AIModel) async -> Result<Data, AIError> { .failure(.malformedResponse) }
         func generateJSON(prompt: String, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
             seenTokens.append(ArtifactOutputBudget.requestedTokens)
+            seenPrompts.append(prompt)
             return .success(reply)
         }
         func generateJSON(prompt: String, image: AIImage, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> { .failure(.malformedResponse) }
@@ -159,6 +170,9 @@ final class ArtifactSettingsTests: XCTestCase {
         var small = ArtifactGenerator(ai: client, registry: CapabilityRegistry([]), allowedKinds: [.spec, .app])
         small.maxOutputKB = 20
         guard case .failure = await small.create(request: "big app", apiKey: "k", model: model) else { return XCTFail("30 KB must not fit in 20 KB") }
+        XCTAssertEqual(client.seenPrompts.count, 2, "one retry, no more")
+        XCTAssertTrue(client.seenPrompts[1].contains("larger than 20 KB"), "the retry names the person's real limit")
+        client.seenPrompts = []
         var large = small
         large.maxOutputKB = 64
         guard case .success(let draft) = await large.create(request: "big app", apiKey: "k", model: model) else { return XCTFail("30 KB fits in 64 KB") }

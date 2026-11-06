@@ -5,7 +5,8 @@ enum ArtifactOutputBudget {
     static let minKB = 8
     static let maxKB = 128
     static let stepKB = 4
-    static let defaultKB = 20
+    /// The user's decision: the default maximum output is 128 KB (131,072 bytes). It is a ceiling, not a target.
+    static let defaultKB = 128
     /// Roughly how many UTF-8 bytes of HTML or JSON one output token holds (code is dense: about 3).
     static let bytesPerToken = 3.0
     /// Headroom for the envelope (title, requests, markers) and for the model going over the stated size.

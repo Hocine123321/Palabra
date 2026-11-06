@@ -137,8 +137,17 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
         return min(wanted, model.outputTokenLimit ?? wanted)
     }
 
+    /// How long a structured call may wait for its (non-streamed) reply: 90 s as before, and longer for a big output budget,
+    /// because the reply arrives only when the model has finished writing (about 100 tokens a second is a safe floor).
+    static func structuredTimeout(maxTokens: Int) -> TimeInterval {
+        // Callers that ask for nothing special (up to the old 8192 cap) keep exactly the old 90 seconds.
+        guard maxTokens > 8192 else { return 90 }
+        return min(300, max(90, Double(maxTokens) / 100 + 30))
+    }
+
     private func generateStructured(prompt: String, image: AIImage?, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
         let maxTokens = Self.structuredMaxTokens(model: model, requested: ArtifactOutputBudget.requestedTokens)
+        let timeout = Self.structuredTimeout(maxTokens: maxTokens)
         // The picture goes first, then the instruction about it.
         var parts: [[String: Any]] = []
         if let image { parts.append(["inlineData": ["mimeType": image.mimeType, "data": image.data.base64EncodedString()]]) }
@@ -155,11 +164,11 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
                 "generationConfig": config
             ]
         }
-        switch await callGenerate(model: model, apiKey: apiKey, body: body(useSchema: true), timeout: 90) {
+        switch await callGenerate(model: model, apiKey: apiKey, body: body(useSchema: true), timeout: timeout) {
         case .success(let text):
             return .success(stripCodeFences(text))
         case .failure(let error) where schema != nil && shouldRetryWithoutSchema(error):
-            switch await callGenerate(model: model, apiKey: apiKey, body: body(useSchema: false), timeout: 90) {
+            switch await callGenerate(model: model, apiKey: apiKey, body: body(useSchema: false), timeout: timeout) {
             case .success(let text): return .success(stripCodeFences(text))
             case .failure(let error2): return .failure(error2)
             }

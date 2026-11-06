@@ -66,7 +66,7 @@ An `app` artifact is one self-contained HTML document (no external `src`/`href`,
 | What | Limit |
 |---|---|
 | Stored payload | 128 KB (131,072 B), `ArtifactLimits.maxPayloadBytes` |
-| AI output size | Settings → Artifacts → Maximum File Size, 8 to 128 KB (default 20), `ArtifactSettings.maxOutputKB` |
+| AI output size | Settings → Artifacts → Maximum File Size, 8 to 128 KB (default 128, the user's decision), `ArtifactSettings.maxOutputKB` |
 | Versions kept | newest 20 per artifact |
 | Artifact state (ticks, `storage.*`) | 256 KB total, key ≤ 64 chars |
 | Capability args | 64 KB encoded |
@@ -97,6 +97,6 @@ Add one `Capability` to a provider in `App/CapabilityProviders.swift` (name, cla
 
 ## Settings → Artifacts
 
-- `ArtifactSettings` (Core/Storage, UserDefaults key `artifactSettings`, tolerant JSON decoder: add fields, never rename): `maxOutputKB` (8...128, step 4, default 20), `allowAppArtifacts`, `defaultFormat`. `AppEnvironment.artifactSettings` mirrors it; the screen is `Features/Settings/ArtifactsSettingsView`.
+- `ArtifactSettings` (Core/Storage, UserDefaults key `artifactSettings`, tolerant JSON decoder: add fields, never rename): `maxOutputKB` (8...128, step 4, default 128), `allowAppArtifacts`, `defaultFormat`. `AppEnvironment.artifactSettings` mirrors it; the screen is `Features/Settings/ArtifactsSettingsView`.
 - **How the size reaches the AI without changing `AIClient`:** `ArtifactGenerator` runs `generateJSON` inside `ArtifactOutputBudget.$requestedTokens.withValue(...)` (a `@TaskLocal`), and `GeminiClient.structuredMaxTokens` raises `maxOutputTokens` from 8192 to the requested value, never above the model's `outputTokenLimit` and never below 8192. Every other caller is unchanged. The size also goes into the prompt ("At most N KB") and into the app lint, which never exceeds the storage ceiling.
 - Tokens per KB use 3 bytes per token plus 1,024 of headroom (`ArtifactOutputBudget`). A model that cannot write that much gets a warning on the settings page; its output is cut off and the generator reports it as truncated, as before.

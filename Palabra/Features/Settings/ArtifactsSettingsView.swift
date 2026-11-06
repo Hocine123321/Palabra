@@ -8,11 +8,7 @@ struct ArtifactsSettingsView: View {
         @Bindable var env = environment
         Form {
             Section {
-                Stepper(
-                    value: $env.artifactSettings.maxOutputKB,
-                    in: ArtifactOutputBudget.minKB...ArtifactOutputBudget.maxKB,
-                    step: ArtifactOutputBudget.stepKB
-                ) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     HStack {
                         Text("Maximum File Size")
                         Spacer()
@@ -20,14 +16,14 @@ struct ArtifactsSettingsView: View {
                             .monospacedDigit()
                             .foregroundStyle(Theme.inkSecondary)
                     }
+                    Slider(
+                        value: sizeBinding,
+                        in: Double(ArtifactOutputBudget.minKB)...Double(ArtifactOutputBudget.maxKB),
+                        step: Double(ArtifactOutputBudget.stepKB)
+                    )
+                    .accessibilityIdentifier("artifactMaxSizeSlider")
+                    .accessibilityValue(Text(verbatim: "\(environment.artifactSettings.maxOutputKB) KB"))
                 }
-                .accessibilityIdentifier("artifactMaxSizeStepper")
-                Slider(
-                    value: sizeBinding,
-                    in: Double(ArtifactOutputBudget.minKB)...Double(ArtifactOutputBudget.maxKB),
-                    step: Double(ArtifactOutputBudget.stepKB)
-                )
-                .accessibilityIdentifier("artifactMaxSizeSlider")
                 if let reachable = modelReachableKB {
                     Label {
                         Text("Your model can write about \(reachable) KB at most, so bigger artifacts will be cut off.")
@@ -48,7 +44,7 @@ struct ArtifactsSettingsView: View {
             .themedSection()
 
             Section {
-                Picker("Default Format", selection: $env.artifactSettings.defaultFormat) {
+                Picker("Default Format", selection: formatBinding) {
                     Text("Auto").tag(ArtifactSettings.DefaultFormat.auto)
                     Text("Page").tag(ArtifactSettings.DefaultFormat.page)
                     if environment.artifactSettings.allowAppArtifacts {
@@ -80,6 +76,17 @@ struct ArtifactsSettingsView: View {
         Binding(
             get: { Double(environment.artifactSettings.maxOutputKB) },
             set: { environment.artifactSettings.maxOutputKB = ArtifactOutputBudget.clampedKB(Int($0)) }
+        )
+    }
+
+    /// A saved `.app` while apps are off would have no matching row in the picker: show it as Auto.
+    private var formatBinding: Binding<ArtifactSettings.DefaultFormat> {
+        Binding(
+            get: {
+                let saved = environment.artifactSettings.defaultFormat
+                return saved == .app && !environment.artifactSettings.allowAppArtifacts ? .auto : saved
+            },
+            set: { environment.artifactSettings.defaultFormat = $0 }
         )
     }
 
