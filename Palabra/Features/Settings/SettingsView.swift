@@ -200,6 +200,19 @@ struct SettingsView: View {
             }
             .themedSection()
 
+            Section("Storage") {
+                NavigationLink {
+                    StorageView()
+                } label: {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "internaldrive", tint: Theme.tileTints[3], size: 30)
+                        Text("Storage")
+                    }
+                }
+                .accessibilityIdentifier("storageSettingsLink")
+            }
+            .themedSection()
+
             Section("Study") {
                 Stepper(value: newCardsBinding, in: 0...100, step: 5) {
                     Text("New cards per day: \(environment.newCardsPerDay)")

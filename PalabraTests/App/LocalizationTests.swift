@@ -66,6 +66,22 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveStorageKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Storage", "Total", "Measuring…", "Browse Files", "Copied: %@", "Clear Clipboard",
+            "Application Support", "Documents", "Caches", "Temporary", "This folder is empty.", "This folder can't be read.",
+            "Paste Here", "New Folder", "Import File", "Name", "Create", "Rename", "Delete this item?",
+            "%@ will be removed from this device. This can't be undone.", "Couldn't Finish", "OK", "Locked", "Copy", "Share",
+            "Paste Into Folder", "Delete", "Cancel",
+            "The live library database is locked: it can't be changed, renamed or deleted here. For a safe backup of your library use Export in Settings.",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+        // The messages the file browser shows come from `StorageError.message`.
+        let errors: [StorageError] = [.protected, .outsideStorage, .invalidName, .notFound, .alreadyExists, .failed("x")]
+        for error in errors { XCTAssertFalse((table[error.message] ?? "").isEmpty, "missing Arabic string: \(error.message)") }
+    }
+
     func testArabicStringsHaveNewArtifactPageKeys() throws {
         let table = try arabicTable()
         var keys = [

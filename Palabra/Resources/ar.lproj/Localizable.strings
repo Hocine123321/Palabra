@@ -794,3 +794,36 @@
 "Saved Artifacts" = "المحتويات المحفوظة";
 "Space Used" = "المساحة المستخدمة";
 
+
+/* Storage */
+"Storage" = "التخزين";
+"Total" = "الإجمالي";
+"Measuring…" = "جارٍ القياس…";
+"Browse Files" = "استعراض الملفات";
+"The live library database is locked: it can't be changed, renamed or deleted here. For a safe backup of your library use Export in Settings." = "قاعدة بيانات المكتبة الحية مقفلة: لا يمكن تعديلها أو إعادة تسميتها أو حذفها من هنا. للحصول على نسخة احتياطية آمنة لمكتبتك استخدم التصدير من الإعدادات.";
+"Copied: %@" = "تم النسخ: %@";
+"Clear Clipboard" = "مسح الحافظة";
+"Application Support" = "دعم التطبيق";
+"Documents" = "المستندات";
+"Caches" = "الذاكرة المؤقتة";
+"Temporary" = "مؤقت";
+"This folder is empty." = "هذا المجلد فارغ.";
+"This folder can't be read." = "تعذّرت قراءة هذا المجلد.";
+"Paste Here" = "لصق هنا";
+"New Folder" = "مجلد جديد";
+"Import File" = "استيراد ملف";
+"Name" = "الاسم";
+"Create" = "إنشاء";
+"Rename" = "إعادة تسمية";
+"Delete this item?" = "حذف هذا العنصر؟";
+"%@ will be removed from this device. This can't be undone." = "سيُحذف %@ من هذا الجهاز. لا يمكن التراجع عن ذلك.";
+"Couldn't Finish" = "تعذّر الإكمال";
+"OK" = "حسنًا";
+"Locked" = "مقفل";
+"Paste Into Folder" = "لصق داخل المجلد";
+"This is part of the live library and can't be changed here. You can still copy it out." = "هذا جزء من المكتبة الحية ولا يمكن تغييره من هنا. لكن يمكنك نسخه.";
+"That location is outside the app's storage." = "هذا الموقع خارج تخزين التطبيق.";
+"That name can't be used." = "لا يمكن استخدام هذا الاسم.";
+"That item no longer exists." = "هذا العنصر لم يعد موجودًا.";
+"Something with that name already exists." = "يوجد عنصر بهذا الاسم بالفعل.";
+"The operation failed." = "فشلت العملية.";

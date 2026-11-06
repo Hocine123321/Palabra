@@ -243,6 +243,11 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 - The App ID is optional and the person's own, in the Keychain (`KeychainStore.wolfram()`). UI tests: `-UITestStub` uses `StubMathSolver` / `StubTextRecognizer`; `-UITestNoSolveKey` starts without an App ID.
 - Spec: `docs/features/solve.md`.
 
+## Storage (Settings → Storage)
+
+- A sandbox file browser (Application Support, Documents, Caches, Temporary) with usage totals. **The live SwiftData / SQLite files are read-only**: `StoragePolicy` marks them and `StorageBrowser` refuses to delete, rename, replace or add next to them. Any new mutating operation must go through the policy and the root-containment check; add a test that it refuses a live file and a `..` / symlink path.
+- New strings need Arabic keys (including every `StorageError.message`). Spec: `docs/features/storage.md`.
+
 ## Adding a feature (for example a study tool)
 
 1. Create `Palabra/Features/<Name>/` with the same sub-folders it needs (`Domain`, `Storage`, `AI`, screens) and a matching `PalabraTests/<Name>/`.
