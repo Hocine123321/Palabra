@@ -41,6 +41,9 @@ final class BookNode {
     private let ribbonMaterial = SCNMaterial()
     private var dirty = Set<Int>()
     private var layoutDirty = true
+    private var layoutRequested = false
+    /// How many times the whole book has been laid out (tests count these to prove an animation lays out once per frame).
+    private(set) var layoutCount = 0
     private let spineRadius: Double
     /// Gutter dip factor (1 = the web scene's look; reading poses lower it).
     var gutterScale = 1.0 { didSet { if gutterScale != oldValue { markAllDirty() } } }
@@ -244,10 +247,26 @@ final class BookNode {
     func setCoverOpen(_ p: Double) {
         shape.coverOpen = p
         // A leaf's shape does not depend on how far the cover is open (`BookShape.deform` never reads `coverOpen`), so the
-        // leaves are NOT rebuilt here. This used to dirty every leaf, which allocated two new meshes per leaf on every frame
-        // of the open and close animation and made the camera move stutter.
-        layout()
+        // leaves are NOT rebuilt here. (This used to dirty every leaf, which allocated two new meshes per leaf on every frame
+        // of the open and close animation.) The new pose is laid out once, with everything else that moved this frame.
+        requestLayout()
     }
+
+    /// Several animations move one book in the same frame (the lid and every leaf turning back). Each used to rebuild the
+    /// whole book on its own, so a close with N leaves laid it out N + 1 times per frame; the recording of the close showed
+    /// the frame rate falling to about 37 fps exactly there. Animations ask for a layout and the controller flushes it once
+    /// per frame.
+    func requestLayout() { layoutRequested = true }
+
+    /// Lays the book out if anything asked for it since the last layout. Returns whether it did.
+    @discardableResult
+    func flushLayout() -> Bool {
+        guard layoutRequested else { return false }
+        layout()
+        return true
+    }
+
+    var needsLayout: Bool { layoutRequested }
 
     func surfaceY(side: Int) -> Double { shape.surfaceY(side: side) }
 
@@ -295,6 +314,8 @@ final class BookNode {
 
     /// Re-poses the cover, spine, blocks, ribbon and every leaf whose shape changed.
     func layout() {
+        layoutRequested = false
+        layoutCount += 1
         let open = shape.coverOpen
         let heights = shape.blockHeights()
         for (i, side) in [1, -1].enumerated() {
@@ -318,18 +339,23 @@ final class BookNode {
         layoutRibbon()
     }
 
-    private func placeBlock(node: SCNNode, height: Double, side: Int) {
-        let block = shape.block(height: height, side: side)
-        node.isHidden = !block.visible
-        guard block.visible else { return }
-        // Fixed normals: foot faces +z, head faces -z, the fore edge faces +x.
+    /// Fixed normals: foot faces +z, head faces -z, the fore edge faces +x. They never change, so they are built once rather
+    /// than on every layout.
+    private static let blockNormals: [SIMD3<Float>] = {
         var normals = [SIMD3<Float>](repeating: .zero, count: BookDims.blockVertexCount)
         for i in 0..<BookShape.blockHeadBase { normals[BookShape.blockFootBase + i] = SIMD3(0, 0, 1) }
         for i in 0..<(BookShape.blockForeBase - BookShape.blockHeadBase) { normals[BookShape.blockHeadBase + i] = SIMD3(0, 0, -1) }
         for i in 0..<4 { normals[BookShape.blockForeBase + i] = SIMD3(1, 0, 0) }
+        return normals
+    }()
+
+    private func placeBlock(node: SCNNode, height: Double, side: Int) {
+        let block = shape.block(height: height, side: side)
+        node.isHidden = !block.visible
+        guard block.visible else { return }
         var mesh = MeshData()
         mesh.positions = block.positions
-        mesh.normals = normals
+        mesh.normals = Self.blockNormals
         mesh.uvs = block.uvs.map { SIMD2($0.x, $0.y) }
         mesh.elements = [BookShape.blockIndices]
         // The left stack (side -1) and a mirrored book each flip x.

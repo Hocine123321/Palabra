@@ -285,6 +285,64 @@ final class BookSceneControllerTests: XCTestCase {
         assertPose(controller.camera.pose, controller.readTarget(controller.pageIndex))
     }
 
+    /// The recording of the close showed the frame rate falling to about 37 fps as the leaves started to turn back: every
+    /// turning leaf and the lid each laid the whole book out on their own. Now a frame lays it out at most once.
+    func testAFrameLaysTheBookOutAtMostOnce() async throws {
+        let controller = await realMotionController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        for _ in 0..<600 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        // Turn several leaves over so the close has many to bring back.
+        for leaf in 0..<min(5, entry.node.leafCount) { entry.node.setLeafProgress(leaf, 1) }
+        entry.node.layout()
+        controller.closeBook()
+        var worst = 0
+        var frames = 0
+        while controller.tweens.isActive, frames < 900 {
+            let before = entry.node.layoutCount
+            controller.tick(dt: 1.0 / 60)
+            worst = max(worst, entry.node.layoutCount - before)
+            frames += 1
+        }
+        XCTAssertEqual(controller.state.mode, .menu)
+        XCTAssertLessThanOrEqual(worst, 1, "a frame laid the book out \(worst) times")
+    }
+
+    /// Coalescing must not lose the final state: the book ends laid out with its leaves flat and the lid shut.
+    func testCloseEndsWithEveryLeafFlatAndTheBookLaidOut() async throws {
+        let controller = await realMotionController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        for _ in 0..<600 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        for leaf in 0..<min(4, entry.node.leafCount) { entry.node.setLeafProgress(leaf, 1) }
+        entry.node.layout()
+        controller.closeBook()
+        for _ in 0..<900 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        for leaf in 0..<entry.node.leafCount { XCTAssertEqual(entry.node.leafProgress(leaf), 0, accuracy: 1e-9, "leaf \(leaf)") }
+        XCTAssertFalse(entry.node.needsLayout, "an animation left a layout request unflushed")
+    }
+
+    /// Not an assertion on speed (CI machines vary): prints how long one whole-book layout takes with 0, 3 and all leaves moving,
+    /// so a slow frame in a screen recording can be matched to its cause. Fails only if a layout is absurdly slow.
+    func testLayoutCostIsReported() async throws {
+        let controller = await realMotionController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        for _ in 0..<600 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        func measure(_ moving: Int) -> Double {
+            let runs = 20
+            let start = CFAbsoluteTimeGetCurrent()
+            for r in 0..<runs {
+                for leaf in 0..<min(moving, entry.node.leafCount) { entry.node.setLeafProgress(leaf, 0.2 + 0.01 * Double(r % 5) + 0.1 * Double(leaf % 3)) }
+                entry.node.layout()
+            }
+            return (CFAbsoluteTimeGetCurrent() - start) * 1000 / Double(runs)
+        }
+        let none = measure(0), few = measure(3), all = measure(entry.node.leafCount)
+        print("LAYOUT_COST leaves=\(entry.node.leafCount) none=\(String(format: "%.2f", none))ms three=\(String(format: "%.2f", few))ms all=\(String(format: "%.2f", all))ms")
+        XCTAssertLessThan(all, 250, "one whole-book layout took \(all) ms")
+    }
+
     func testOpeningThenCloseRequestClosesAfterOpen() async throws {
         let (controller, _) = await makeController()
         let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })

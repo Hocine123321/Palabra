@@ -454,6 +454,7 @@ final class BookSceneController {
         tweens.add(duration: plan.lidDuration, delay: plan.lidDelay, ease: .inOut, onUpdate: { t in entry.node.setCoverOpen(t) }, onDone: { [weak self] in
             guard let self else { return }
             self.state.mode = .reading
+            entry.node.flushLayout()
             self.reframeAfterTransition()
             self.afterNavigate()
             if self.closeAfterOpen {
@@ -576,10 +577,10 @@ final class BookSceneController {
         let from = entry.node.leafProgress(leaf)
         leafTweens[key] = tweens.add(duration: duration, delay: delay, ease: .inOutSine, onUpdate: { t in
             entry.node.setLeafProgress(leaf, BookMath.lerp(from, to, t))
-            entry.node.layout()
+            entry.node.requestLayout()
         }, onDone: { [weak self] in
             entry.node.setLeafProgress(leaf, to)
-            entry.node.layout()
+            entry.node.requestLayout()
             self?.leafTweens[key] = nil
             if self?.enhancementFlags.haptics == true { Haptics.leafLanded() }
         })
@@ -668,6 +669,7 @@ final class BookSceneController {
             for other in entries where other !== entry { other.node.root.position = SCNVector3(0, 0, -6) }
             setLeavesInstant(entry, page: index)
             entry.node.setCoverOpen(1)
+            entry.node.flushLayout()
             afterNavigate()
             moveCamera(readTarget(index), duration: 0)
         }
@@ -838,6 +840,8 @@ final class BookSceneController {
     func tick(dt: Double) {
         let step = min(0.05, dt)
         tweens.update(dt: step)
+        // Everything the tweens moved this frame is laid out once.
+        for entry in entries { entry.node.flushLayout() }
         if state.mode == .menu { hoverStep(dt: step) }
         settlePeek()
         stepFreeView(dt: step)
