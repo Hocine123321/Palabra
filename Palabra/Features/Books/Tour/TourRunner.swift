@@ -168,7 +168,7 @@ final class TourRunner {
         }
         let finished = TourReport(
             date: Date(), device: UIDevice.current.model, osVersion: UIDevice.current.systemVersion,
-            refreshRate: UIScreen.main.maximumFramesPerSecond, engine: shelf.preferences.sceneEngine.rawValue,
+            refreshRate: UIScreen.main.maximumFramesPerSecond, engine: "native",
             quality: originals.quality.rawValue, appearance: originals.dark ? "dark" : "light", recorded: videoURL != nil,
             steps: results, warnings: Task.isCancelled ? ["Stopped before the end"] : [], residentMemoryMB: Self.residentMemoryMB()
         )
