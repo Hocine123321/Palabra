@@ -839,3 +839,18 @@
 
 "External AI Output" = "مخرجات الذكاء الاصطناعي الخارجي";
 "The most a page from another AI app (Claude, ChatGPT) may be when you upload or paste it. The copied prompt tells that AI the same limit." = "أقصى حجم لصفحة من تطبيق ذكاء اصطناعي آخر (Claude أو ChatGPT) عند رفعها أو لصقها. الموجّه المنسوخ يخبر ذلك الذكاء بالحد نفسه.";
+
+"Capabilities" = "الإمكانات";
+"What the AI is handed to build with, and what pages and interactive apps can actually use." = "ما يُمنح للذكاء الاصطناعي ليبني به، وما تستطيع الصفحات والتطبيقات التفاعلية استخدامه فعلاً.";
+"These are the only ways an artifact can reach your data. The AI is told about them when it builds one, and the app checks every call against what you allowed." = "هذه هي الطرق الوحيدة التي يصل بها المحتوى إلى بياناتك. يُخبَر الذكاء الاصطناعي بها عند البناء، ويتحقق التطبيق من كل استدعاء وفق ما سمحتَ به.";
+"Interactive apps" = "التطبيقات التفاعلية";
+"Pages" = "الصفحات";
+"Can use everything below. You are asked once, before an app can use anything except its own storage." = "يمكنها استخدام كل ما يلي. يُطلب إذنك مرة واحدة قبل أن يستخدم التطبيق أي شيء عدا مساحته الخاصة.";
+"Only show your data in tables and charts, so they can read it and nothing more. They never ask." = "تعرض بياناتك فقط في جداول ومخططات، فتقرأها ولا تفعل شيئاً غير ذلك. لا تطلب إذناً أبداً.";
+"Takes" = "تأخذ";
+"Gives back" = "تُرجع";
+"Reads your data · never asks" = "تقرأ بياناتك · لا تطلب إذناً";
+"Reads your data · asks first" = "تقرأ بياناتك · تطلب الإذن أولاً";
+"Changes your data · asks first" = "تغيّر بياناتك · تطلب الإذن أولاً";
+"Uses your AI quota · asks first" = "تستخدم حصة الذكاء الاصطناعي · تطلب الإذن أولاً";
+"Its own storage · never asks" = "مساحتها الخاصة · لا تطلب إذناً";

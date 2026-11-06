@@ -70,6 +70,11 @@ The **…** menu (top right of New Artifact / Update) hands the request to anoth
 - **Size:** Settings → Artifacts has two sliders. *In-App AI Output* (8 to 128 KB, 20 by default) is what Gemini writes. *External AI Output* (`ArtifactSettings.externalMaxKB`, 128 KB to 2 MB in 128 KB steps, 2 MB by default) is the most a page from another AI may be: the prompt states it and the import enforces it (storage accepts up to 2 MB, `ArtifactLimits.maxPayloadBytes`). Pasted text over the cap + 64 KB of chat is refused. Refining a large imported app with Gemini fails as "too large to extend" (Gemini cannot return 500 KB within its cap); export the update instead.
 - On update the artifact's kind must stay the same; a pasted spec cannot replace an app.
 
+## Capabilities and approval
+
+- **Settings → Artifacts → Capabilities** (`ArtifactCapabilitiesView`, data from `CapabilityCatalog`) lists what the AI is handed and what each kind can use: *Interactive apps* (every capability; asks first for all but their own storage) and *Pages* (reads only; never asks). Both groups are collapsed and expand to each capability's summary, arguments and return value. The catalog is built from `GrantPolicy` and the live registry, so it cannot disagree with the real rules.
+- **A page is asked about everything it uses.** `ArtifactCapabilityScan` reads the HTML and counts every quoted string equal to a registered capability name (`"x"`, `'x'`, `` `x` ``), merged with whatever the envelope declared (`ArtifactGenerator.buildApp`). An imported page from another AI app has no envelope, and may call a capability through a variable or helper, so relying on the declared list left it un-requested: no approval card, nothing granted, and every call failed as `notGranted`. `ArtifactDetailView.requests` applies the same scan to saved apps, so apps imported before this fix get their card the next time they open.
+
 ## Files in Storage
 
 Artifacts live in the database, and are also written as real files so the Storage page can show them: `Application Support/Artifacts/<Title> (<id>)/v<N>.html` (or `.json` for tables and charts), one file per kept version. Settings → Storage has an **Artifacts** row that opens the folder.

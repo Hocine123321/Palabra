@@ -88,6 +88,18 @@ struct ArtifactsSettingsView: View {
             .themedSection()
 
             Section {
+                NavigationLink {
+                    ArtifactCapabilitiesView()
+                } label: {
+                    Label("Capabilities", systemImage: "puzzlepiece.extension")
+                }
+                .accessibilityIdentifier("artifactCapabilitiesLink")
+            } footer: {
+                Text("What the AI is handed to build with, and what pages and interactive apps can actually use.")
+            }
+            .themedSection()
+
+            Section {
                 LabeledContent("Saved Artifacts") { Text(verbatim: "\(artifactCount)").monospacedDigit() }
                 LabeledContent("Space Used") { Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(storedBytes), countStyle: .file)).monospacedDigit() }
             } header: {

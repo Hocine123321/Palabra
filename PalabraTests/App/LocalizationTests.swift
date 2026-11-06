@@ -49,6 +49,13 @@ final class LocalizationTests: XCTestCase {
             "Interactive apps run in a locked-down web view and ask permission before using your data. Turning them off only stops new ones; saved apps keep working.",
             "Your model can write about %lld KB at most, so bigger artifacts will be cut off.",
             "The most a page from another AI app (Claude, ChatGPT) may be when you upload or paste it. The copied prompt tells that AI the same limit.",
+            "Capabilities", "Interactive apps", "Pages", "Takes", "Gives back",
+            "What the AI is handed to build with, and what pages and interactive apps can actually use.",
+            "These are the only ways an artifact can reach your data. The AI is told about them when it builds one, and the app checks every call against what you allowed.",
+            "Can use everything below. You are asked once, before an app can use anything except its own storage.",
+            "Only show your data in tables and charts, so they can read it and nothing more. They never ask.",
+            "Reads your data · never asks", "Reads your data · asks first", "Changes your data · asks first",
+            "Uses your AI quota · asks first", "Its own storage · never asks",
         ]
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }

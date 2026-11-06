@@ -149,6 +149,13 @@ struct ArtifactDetailView: View {
         .accessibilityIdentifier("artifactErrors")
     }
 
+    /// An app is asked about everything its page uses, not only what was saved as requested: apps saved before the page was read
+    /// (or from an AI that declared nothing) would otherwise run with calls that fail as "not allowed" and no way to allow them.
+    static func requests(saved: [String], kind: ArtifactKind, payload: Data, registry: CapabilityRegistry) -> [String] {
+        guard kind == .app else { return saved }
+        return ArtifactCapabilityScan.merged(declared: saved, html: String(decoding: payload, as: UTF8.self), registry: registry)
+    }
+
     private func reload() {
         guard let artifact = environment.artifacts.artifact(id: artifactID) else {
             snapshot = nil
@@ -161,7 +168,7 @@ struct ArtifactDetailView: View {
             kind: artifact.kind,
             spec: artifact.kind == .spec ? try? JSONDecoder().decode(ArtifactSpec.self, from: payload) : nil,
             html: artifact.kind == .app ? String(decoding: payload, as: UTF8.self) : "",
-            requests: version?.requestedNames ?? [],
+            requests: Self.requests(saved: version?.requestedNames ?? [], kind: artifact.kind, payload: payload, registry: environment.capabilities),
             granted: Set(artifact.grantedNames)
         )
         log.clear()

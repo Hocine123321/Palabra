@@ -141,8 +141,9 @@ struct ArtifactGenerator {
         case .failure(let error):
             return .failure(.invalidApp(error.detail))
         case .success(let html):
-            // Only registered capabilities survive; storage.* needs no request but is harmless.
-            let requests = Set(envelope.requests).filter { registry.capability(named: $0) != nil }.sorted()
+            // Only registered capabilities survive. What the AI declared is not trusted on its own: the page is read too, so a
+            // capability it uses but did not list (or any page from another AI app, which declares nothing) still gets approved.
+            let requests = ArtifactCapabilityScan.merged(declared: envelope.requests, html: html, registry: registry)
             return .success(ArtifactDraft(kind: .app, title: fixedTitle ?? envelope.title, payload: Data(html.utf8), requests: requests, prompt: userPrompt))
         }
     }
