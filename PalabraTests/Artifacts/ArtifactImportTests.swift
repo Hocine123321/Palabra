@@ -66,7 +66,10 @@ final class ArtifactImportTests: XCTestCase {
         let pad = limit - "<html></html>".utf8.count
         let fits = "<html>" + String(repeating: "a", count: pad) + "</html>"
         XCTAssertNotNil(draft(importText(fits)))
-        XCTAssertTrue(isInvalidApp(importText(fits + "a")))
+        // One byte more INSIDE the page. (Text after `</html>` is chat, which the importer drops, so it would not make it bigger.)
+        let over = "<html>" + String(repeating: "a", count: pad + 1) + "</html>"
+        XCTAssertTrue(isInvalidApp(importText(over)))
+        XCTAssertNotNil(draft(importText(fits + "\nHope that helps!")), "chat after the page is ignored, not counted")
     }
 
     func testImportAcceptsAPageFarAboveTheInAppCap() {
