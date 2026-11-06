@@ -225,6 +225,11 @@ final class ArtifactDraftModel {
     }
 
     private func execute(_ operation: Operation, repaired: Bool) async {
+        // A pasted answer makes no AI call, so it needs no key, no model and no repair: it never waits in `.generating`.
+        if case .importExternal(let text) = operation {
+            importExternal(text)
+            return
+        }
         phase = .generating
         let key: String
         let model: AIModel
@@ -267,6 +272,8 @@ final class ArtifactDraftModel {
                 return
             }
             result = await generator.update(kind: draft.kind, currentTitle: draft.title, currentPayload: draft.payload, change: change, apiKey: key, model: model)
+        case .importExternal:
+            return   // handled above, before the key is asked for
         }
         switch result {
         case .success(let value):
