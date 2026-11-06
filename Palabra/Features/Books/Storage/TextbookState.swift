@@ -10,14 +10,6 @@ enum ReaderTextSize: Int, Codable, CaseIterable, Identifiable, Sendable {
     var id: Int { rawValue }
 }
 
-/// How the Books tab shows the books: the 3D desk (default) or the original flat pages.
-enum BooksViewStyle: String, Codable, CaseIterable, Identifiable, Sendable {
-    case desk
-    case classic
-
-    var id: String { rawValue }
-}
-
 /// How hard the 3D desk works: `saver` lowers the pixel density and drops shadows to spare the battery.
 enum SceneQuality: String, Codable, CaseIterable, Identifiable, Sendable {
     case standard
@@ -26,24 +18,15 @@ enum SceneQuality: String, Codable, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 }
 
-/// Which renderer draws the 3D desk: the original Three.js scene in a web view, or the native SceneKit one.
-enum SceneEngine: String, Codable, CaseIterable, Identifiable, Sendable {
-    case original
-    case native
-
-    var id: String { rawValue }
-}
 
 struct ReaderPreferences: Codable, Equatable {
     var recallLevel: RecallLevel = .essential
     var textSize: ReaderTextSize = .standard
-    var viewStyle: BooksViewStyle = .desk
     var sceneQuality: SceneQuality = .standard
     /// Pinch to zoom and drag to move the camera while reading (native desk only).
     var freeView = true
     /// Extra effects on the native desk (soft shadows, depth of field, dust, lamp glow); Battery saver turns them off anyway.
     var enhancements = true
-    var sceneEngine: SceneEngine = .original
 
     init() {}
 
@@ -52,11 +35,9 @@ struct ReaderPreferences: Codable, Equatable {
         let defaults = ReaderPreferences()
         recallLevel = (try? c.decodeIfPresent(RecallLevel.self, forKey: .recallLevel)) ?? defaults.recallLevel
         textSize = (try? c.decodeIfPresent(ReaderTextSize.self, forKey: .textSize)) ?? defaults.textSize
-        viewStyle = (try? c.decodeIfPresent(BooksViewStyle.self, forKey: .viewStyle)) ?? defaults.viewStyle
         sceneQuality = (try? c.decodeIfPresent(SceneQuality.self, forKey: .sceneQuality)) ?? defaults.sceneQuality
         freeView = (try? c.decodeIfPresent(Bool.self, forKey: .freeView)) ?? defaults.freeView
         enhancements = (try? c.decodeIfPresent(Bool.self, forKey: .enhancements)) ?? defaults.enhancements
-        sceneEngine = (try? c.decodeIfPresent(SceneEngine.self, forKey: .sceneEngine)) ?? defaults.sceneEngine
     }
 }
 

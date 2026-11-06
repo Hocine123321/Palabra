@@ -6,7 +6,7 @@ import UIKit
 /// `steps.json` (what was tried, whether the control was there, when) on the `ci-recordings` branch.
 /// Not part of the normal UI test run (see the workflow); run it on its own with `-only-testing:PalabraUITests/BooksTourUITests`.
 class BooksTourUITests: XCTestCase {
-    /// Extra launch arguments (the native-engine subclass adds `-UITestNativeBooks`).
+    /// Extra launch arguments (the dark-mode subclass adds `-UITestDark`).
     var extraArguments: [String] { [] }
 
     private struct Step: Encodable {

@@ -9,6 +9,9 @@ enum ChatLimits {
     static let maxCallsPerReply = 5
     static let maxRoundsPerMessage = 4
     static let maxTitleLength = 40
+    /// A photo is sent at this size (a book page needs the detail); the copy kept in the chat is a thumbnail.
+    static let photoPixelSize = 1800
+    static let thumbnailPixelSize = 360
 }
 
 /// One thing the assistant did (a read, already run) or proposes to do (a write, waiting for the person).
@@ -62,8 +65,10 @@ struct ChatTurn: Identifiable, Codable, Equatable, Sendable {
     var status: Status
     var errorText: String?
     var actions: [ChatAction]
+    /// A small JPEG of the photo the person attached (the full photo is only sent, never stored).
+    var thumbnail: Data?
 
-    init(id: UUID = UUID(), role: Role, text: String, createdAt: Date = Date(), status: Status = .sent, errorText: String? = nil, actions: [ChatAction] = []) {
+    init(id: UUID = UUID(), role: Role, text: String, createdAt: Date = Date(), status: Status = .sent, errorText: String? = nil, actions: [ChatAction] = [], thumbnail: Data? = nil) {
         self.id = id
         self.role = role
         self.text = text
@@ -71,9 +76,10 @@ struct ChatTurn: Identifiable, Codable, Equatable, Sendable {
         self.status = status
         self.errorText = errorText
         self.actions = actions
+        self.thumbnail = thumbnail
     }
 
-    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, status, errorText, actions }
+    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, status, errorText, actions, thumbnail }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -84,6 +90,7 @@ struct ChatTurn: Identifiable, Codable, Equatable, Sendable {
         status = try c.decodeIfPresent(Status.self, forKey: .status) ?? .sent
         errorText = try c.decodeIfPresent(String.self, forKey: .errorText)
         actions = try c.decodeIfPresent([ChatAction].self, forKey: .actions) ?? []
+        thumbnail = try c.decodeIfPresent(Data.self, forKey: .thumbnail)
     }
 }
 

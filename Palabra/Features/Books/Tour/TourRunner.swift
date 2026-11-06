@@ -91,13 +91,6 @@ final class TourRunner {
 
     var isRunning: Bool { phase == .running }
 
-    /// Why the tour cannot start, or nil.
-    static func unavailableReason(preferences: ReaderPreferences) -> String? {
-        if preferences.viewStyle != .desk { return "Switch the Books view to the 3D desk first." }
-        if preferences.sceneEngine != .native { return "Pull a test needs the Native engine." }
-        return nil
-    }
-
     func start(host: TourHost, shelf: BookShelf, recorder: TourRecording, wantsVideo: Bool = true, directory: URL? = nil) {
         guard phase != .running else { return }
         phase = .running

@@ -415,6 +415,10 @@ final class AppEnvironment {
             registry: capabilities,
             language: { [weak self] in self?.aiLanguage ?? .english },
             settings: { [weak self] in self?.assistantSettings ?? .default },
+            generateWithImage: { [weak self] prompt, system, image in
+                guard let self else { return .failure(.unknown(nil, "The app was closed.")) }
+                return await self.chatGenerate(prompt: prompt, system: system, image: image)
+            },
             generate: { [weak self] prompt, system in
                 guard let self else { return .failure(.unknown(nil, "The app was closed.")) }
                 return await self.chatGenerate(prompt: prompt, system: system)
@@ -427,10 +431,15 @@ final class AppEnvironment {
         for conversation in chat.conversations() { chat.delete(id: conversation.id) }
     }
 
-    private func chatGenerate(prompt: String, system: String) async -> Result<String, AIError> {
+    private func chatGenerate(prompt: String, system: String, image: AIImage? = nil) async -> Result<String, AIError> {
         guard hasAPIKey, let key = apiKey else { return .failure(.missingAPIKey) }
         guard let model = selectedModel else { return .failure(.noModelSelected) }
-        let result = await ai.generateJSON(prompt: prompt, systemInstruction: system, schema: nil, apiKey: key, model: model, temperature: 0.5)
+        let result: Result<String, AIError>
+        if let image {
+            result = await ai.generateJSON(prompt: prompt, image: image, systemInstruction: system, schema: nil, apiKey: key, model: model, temperature: 0.5)
+        } else {
+            result = await ai.generateJSON(prompt: prompt, systemInstruction: system, schema: nil, apiKey: key, model: model, temperature: 0.5)
+        }
         // Fix the selection so the Retry button works next time.
         if case .failure(.modelUnavailable) = result { await repairMissingModel() }
         return result

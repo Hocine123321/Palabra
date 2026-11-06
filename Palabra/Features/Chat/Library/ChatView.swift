@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// One conversation: messages, the assistant's actions with Apply / Not now, and the input bar.
@@ -47,6 +48,9 @@ struct ChatView: View {
 private struct ChatContent: View {
     @Bindable var session: ChatSession
     @FocusState private var focused: Bool
+    @State private var showLibrary = false
+    @State private var showCamera = false
+    @State private var photoItem: PhotosPickerItem?
 
     private var starters: [String] {
         session.isLinkedToWord
@@ -107,39 +111,125 @@ private struct ChatContent: View {
     }
 
     private var canSend: Bool {
-        !session.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !session.isBusy
+        let hasText = !session.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return (hasText || session.attachment != nil) && !session.isBusy
     }
 
-    /// A floating glass capsule over the conversation. The field and the send button
-    /// sit on flat fills inside it, never on more glass.
+    /// The most the field grows before it scrolls inside itself.
+    private static let maxLines = 6
+    /// A fixed corner, so a tall field stays a rounded card instead of turning into a huge pill that clips its own text.
+    private static let barCorner: CGFloat = 24
+
+    /// A floating glass card over the conversation. The field and the buttons sit on flat fills
+    /// inside it, never on more glass.
     private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
-            TextField("Message…", text: $session.draft, axis: .vertical)
-                .lineLimit(1...5)
-                .textFieldStyle(.plain)
-                .focused($focused)
-                .padding(.vertical, Theme.Spacing.sm)
-                .accessibilityIdentifier("chatField")
-            Button {
-                Task { await session.send() }
-            } label: {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(canSend ? Theme.onTint : Theme.inkSecondary)
-                    .frame(width: 38, height: 38)
-                    .background(canSend ? Theme.accent : Theme.fill, in: Circle())
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            if let attachment = session.attachment { attachmentPreview(attachment) }
+            if let problem = session.attachmentProblem {
+                Text(LocalizedStringKey(problem))
+                    .font(.caption)
+                    .foregroundStyle(Theme.error)
+                    .padding(.leading, Theme.Spacing.xs)
             }
-            .buttonStyle(.plain)
-            .disabled(!canSend)
-            .accessibilityLabel("Send")
-            .accessibilityIdentifier("chatSendButton")
+            HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
+                if session.canAttachPhotos { attachMenu }
+                TextField("Message…", text: $session.draft, axis: .vertical)
+                    .lineLimit(1...Self.maxLines)
+                    .textFieldStyle(.plain)
+                    .focused($focused)
+                    .padding(.vertical, Theme.Spacing.sm)
+                    // Growing and shrinking follows the text at once; animating it makes the bar lag and jump.
+                    .transaction { $0.animation = nil }
+                    .accessibilityIdentifier("chatField")
+                Button {
+                    Task { await session.send() }
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(canSend ? Theme.onTint : Theme.inkSecondary)
+                        .frame(width: 38, height: 38)
+                        .background(canSend ? Theme.accent : Theme.fill, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSend)
+                .accessibilityLabel("Send")
+                .accessibilityIdentifier("chatSendButton")
+            }
         }
-        .padding(.leading, Theme.Spacing.md)
+        .padding(.leading, Theme.Spacing.xs + 2)
         .padding(.trailing, Theme.Spacing.xs + 2)
         .padding(.vertical, Theme.Spacing.xs + 2)
-        .glassCapsule()
+        .background { GlassBackground(cornerRadius: Self.barCorner) }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.bottom, Theme.Spacing.sm)
+        .photosPicker(isPresented: $showLibrary, selection: $photoItem, matching: .images)
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) { await session.attachPhoto(data) }
+                photoItem = nil
+            }
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker(
+                onPhoto: { data in
+                    showCamera = false
+                    Task { await session.attachPhoto(data) }
+                },
+                onCancel: { showCamera = false }
+            )
+            .ignoresSafeArea()
+        }
+    }
+
+    /// Photos for the next message: a picture of a page of a book, to pull its words into the library.
+    private var attachMenu: some View {
+        Menu {
+            if CameraPicker.isAvailable {
+                Button { showCamera = true } label: { Label("Take Photo", systemImage: "camera.fill") }
+                    .accessibilityIdentifier("chatTakePhoto")
+            }
+            Button { showLibrary = true } label: { Label("Choose Photo", systemImage: "photo.on.rectangle") }
+                .accessibilityIdentifier("chatChoosePhoto")
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Theme.accentDeep)
+                .frame(width: 38, height: 38)
+                .background(Theme.fill, in: Circle())
+        }
+        .disabled(session.isBusy)
+        .accessibilityLabel("Add Photo")
+        .accessibilityIdentifier("chatAttachButton")
+    }
+
+    private func attachmentPreview(_ attachment: ChatAttachment) -> some View {
+        HStack {
+            ZStack(alignment: .topTrailing) {
+                if let image = UIImage(data: attachment.thumbnail) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 64, height: 64)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
+                        .accessibilityLabel("Attached photo")
+                }
+                Button { session.removeAttachment() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Theme.onTint, Theme.inkSecondary)
+                }
+                .buttonStyle(.plain)
+                .offset(x: 6, y: -6)
+                .accessibilityLabel("Remove photo")
+                .accessibilityIdentifier("chatRemoveAttachment")
+            }
+            .padding(.leading, Theme.Spacing.xs)
+            .padding(.top, Theme.Spacing.xs)
+            Spacer(minLength: 0)
+        }
+        .accessibilityIdentifier("chatAttachmentPreview")
     }
 }
 
@@ -166,12 +256,25 @@ private struct ChatTurnView: View {
         case .user:
             HStack {
                 Spacer(minLength: 48)
-                Text(verbatim: turn.text)
-                    .textSelection(.enabled)
-                    .foregroundStyle(Theme.onTint)
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .padding(.vertical, Theme.Spacing.sm + 4)
-                    .background(Theme.accent, in: bubbleShape(tightLeading: false))
+                VStack(alignment: .trailing, spacing: Theme.Spacing.xs) {
+                    if let data = turn.thumbnail, let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 220, maxHeight: 220)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+                            .accessibilityLabel("Attached photo")
+                            .accessibilityIdentifier("chatTurnPhoto")
+                    }
+                    if !turn.text.isEmpty {
+                        Text(verbatim: turn.text)
+                            .textSelection(.enabled)
+                            .foregroundStyle(Theme.onTint)
+                            .padding(.horizontal, Theme.Spacing.md)
+                            .padding(.vertical, Theme.Spacing.sm + 4)
+                            .background(Theme.accent, in: bubbleShape(tightLeading: false))
+                    }
+                }
             }
         case .assistant:
             assistant

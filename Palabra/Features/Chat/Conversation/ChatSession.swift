@@ -10,16 +10,24 @@ final class ChatSession {
 
     /// (prompt, system instruction) -> the raw reply. The app supplies the key, model and retries.
     typealias Generate = @MainActor (_ prompt: String, _ system: String) async -> Result<String, AIError>
+    /// The same call with a photo attached.
+    typealias GenerateWithImage = @MainActor (_ prompt: String, _ system: String, _ image: AIImage) async -> Result<String, AIError>
 
     let conversationID: UUID
     private(set) var title: String
     private(set) var turns: [ChatTurn]
     private(set) var phase: Phase = .idle
     var draft: String = ""
+    /// A photo waiting to be sent with the next message, and why the last one could not be attached.
+    private(set) var attachment: ChatAttachment?
+    private(set) var attachmentProblem: String?
 
     @ObservationIgnored private let repository: ChatRepository
     @ObservationIgnored private let registry: CapabilityRegistry
     @ObservationIgnored private let generate: Generate
+    @ObservationIgnored private let generateWithImage: GenerateWithImage?
+    /// The latest photo of this chat, kept in memory so follow-up messages ("add the first five") still see it.
+    @ObservationIgnored private var currentPhoto: AIImage?
     @ObservationIgnored private let language: @MainActor () -> SupportedLanguage
     @ObservationIgnored private let linkedWord: (id: UUID, title: String)?
     @ObservationIgnored private let now: () -> Date
@@ -34,6 +42,7 @@ final class ChatSession {
         language: @escaping @MainActor () -> SupportedLanguage,
         settings: @escaping @MainActor () -> AssistantSettings = { .default },
         now: @escaping () -> Date = { Date() },
+        generateWithImage: GenerateWithImage? = nil,
         generate: @escaping Generate
     ) {
         conversationID = conversation.id
@@ -46,6 +55,7 @@ final class ChatSession {
         self.settings = settings
         self.now = now
         self.generate = generate
+        self.generateWithImage = generateWithImage
         chatCapabilityNames = Set(registry.all.filter { $0.kind == .read || $0.kind == .write }.map(\.name))
     }
 
@@ -56,6 +66,9 @@ final class ChatSession {
     }
 
     var isBusy: Bool { phase != .idle }
+
+    /// True when the app can read photos (a key and a model are available to send them with).
+    var canAttachPhotos: Bool { generateWithImage != nil }
 
     /// True when the chat was opened from a word's page.
     var isLinkedToWord: Bool { linkedWord != nil }
@@ -70,15 +83,39 @@ final class ChatSession {
 
     // MARK: - Person's actions
 
+    /// Prepares a photo (from the library or the camera) to go with the next message.
+    func attachPhoto(_ data: Data) async {
+        attachmentProblem = nil
+        let prepared = await Task.detached(priority: .userInitiated) {
+            (full: PhotoPreparer.prepare(data, maxPixelSize: ChatLimits.photoPixelSize),
+             thumbnail: PhotoPreparer.prepare(data, maxPixelSize: ChatLimits.thumbnailPixelSize))
+        }.value
+        guard let full = prepared.full, let thumbnail = prepared.thumbnail else {
+            attachmentProblem = "That photo could not be read."
+            return
+        }
+        attachment = ChatAttachment(image: full, thumbnail: thumbnail.data)
+    }
+
+    func removeAttachment() {
+        attachment = nil
+        attachmentProblem = nil
+    }
+
     func send(_ text: String? = nil) async {
         let trimmed = (text ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isBusy else { return }
+        let photo = generateWithImage == nil ? nil : attachment
+        guard !trimmed.isEmpty || photo != nil, !isBusy else { return }
         draft = ""
+        attachment = nil
+        attachmentProblem = nil
+        if let photo { currentPhoto = photo.image }
         // Typing on instead of tapping a card means "not that".
         if let index = pendingTurnIndex { markPending(in: index, as: .declined) }
-        turns.append(ChatTurn(role: .user, text: String(trimmed.prefix(ChatLimits.maxTextLength)), createdAt: now()))
+        turns.append(ChatTurn(role: .user, text: String(trimmed.prefix(ChatLimits.maxTextLength)), createdAt: now(), thumbnail: photo?.thumbnail))
         if title == ChatConversation.defaultTitle, linkedWord == nil {
-            title = String(trimmed.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression).prefix(ChatLimits.maxTitleLength))
+            let source = trimmed.isEmpty ? "Photo" : trimmed
+            title = String(source.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression).prefix(ChatLimits.maxTitleLength))
         }
         persist()
         await run()
@@ -111,6 +148,7 @@ final class ChatSession {
     func clear() {
         guard !isBusy else { return }
         turns = []
+        currentPhoto = nil
         persist()
     }
 
@@ -127,11 +165,18 @@ final class ChatSession {
                 language: language(),
                 linkedWord: linkedWord,
                 settings: current,
-                autoApplies: !current.askBeforeChanging
+                autoApplies: !current.askBeforeChanging,
+                hasPhoto: currentPhoto != nil && generateWithImage != nil
             )
             let prompt = ChatPrompts.transcript(turns: turns)
+            let photo = generateWithImage == nil ? nil : currentPhoto
+            let plain = generate, withImage = generateWithImage
+            let call: (String) async -> Result<String, AIError> = { text in
+                if let photo, let withImage { return await withImage(text, system, photo) }
+                return await plain(text, system)
+            }
             let reply: ChatReply
-            switch await generate(prompt, system) {
+            switch await call(prompt) {
             case .failure(let error):
                 appendFailure(error)
                 return
@@ -141,7 +186,7 @@ final class ChatSession {
                     reply = parsed
                 case .failure(let problem):
                     // One automatic retry with the concrete problem; then fall back to the text alone.
-                    switch await generate(prompt + ChatPrompts.retryAddendum(problem.detail), system) {
+                    switch await call(prompt + ChatPrompts.retryAddendum(problem.detail)) {
                     case .failure(let error):
                         appendFailure(error)
                         return
@@ -234,4 +279,10 @@ final class ChatSession {
         case .rateLimited: return "rate limited"
         }
     }
+}
+
+/// A photo prepared for the next message: the full picture that is sent, and a small copy that stays in the chat.
+struct ChatAttachment: Equatable, Sendable {
+    let image: AIImage
+    let thumbnail: Data
 }

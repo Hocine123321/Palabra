@@ -22,31 +22,16 @@ struct BooksSceneScreen: View {
                 .frame(maxHeight: .infinity)
                 .background { ScreenBackdrop(style: .rich) }
             } else if let model {
-                if model.failure != nil {
-                    // The 3D view couldn't start: the plain shelf still works.
-                    BookshelfView()
-                        .accessibilityIdentifier("booksFallback")
-                } else {
-                    scene(model)
-                }
+                scene(model)
             } else {
                 Color.clear
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .task(id: shelf.preferences.sceneEngine) {
+        .task {
             // A tour that was cut short by the app being killed left a copy of the person's Books state: put it back first.
             TourSafety.restoreIfNeeded(into: shelf)
-            // Changing the engine in Settings starts a fresh scene (the old model's view is gone with the navigation).
-            model = BooksSceneModel(shelf: shelf)
-        }
-    }
-
-    @ViewBuilder
-    private func sceneView(_ model: BooksSceneModel, engine: SceneEngine) -> some View {
-        switch engine {
-        case .original: BooksSceneView(model: model, reducedMotion: reduceMotion)
-        case .native: NativeBooksSceneView(model: model, reducedMotion: reduceMotion)
+            if model == nil { model = BooksSceneModel(shelf: shelf) }
         }
     }
 
@@ -55,7 +40,7 @@ struct BooksSceneScreen: View {
         return GeometryReader { proxy in
             let safe = proxy.safeAreaInsets
             ZStack {
-                sceneView(model, engine: preferences.sceneEngine)
+                NativeBooksSceneView(model: model, reducedMotion: reduceMotion)
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .opacity(model.isReady ? 1 : 0)

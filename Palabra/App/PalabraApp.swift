@@ -106,14 +106,8 @@ struct PalabraApp: App {
                 // `-UITestSpeech <text>` is what the stub "hears" in a speaking question.
                 speech: StubSpeechListener(heard: arguments.firstIndex(of: "-UITestSpeech").flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil })
             )
-            // `-UITestNativeBooks` draws the Books desk with the native SceneKit engine instead of the web one.
-            if arguments.contains("-UITestNativeBooks") { env.books.preferences.sceneEngine = .native }
             // `-UITestDark` forces the dark appearance.
             if arguments.contains("-UITestDark") { env.appearanceMode = .dark }
-            // `-UITestLampLumens N` overrides the dark-mode lamp strength (exposure tuning).
-            if let i = arguments.firstIndex(of: "-UITestLampLumens"), i + 1 < arguments.count, let value = Double(arguments[i + 1]) {
-                SceneLighting.lampLumensOverride = value
-            }
             if !arguments.contains("-UITestNoKey") {
                 env.selectedModelID = StubAIClient.sampleModels.first?.id
                 env.selectedTTSModelID = StubAIClient.sampleModels.last?.id
@@ -151,19 +145,14 @@ struct PalabraApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if Self.launchArguments.contains("-UITestSceneKitSpike") {
-                // Throwaway rendering check for the native Books scene (Debug builds only; see SceneKitSpikeView).
-                SceneKitSpikeView().ignoresSafeArea()
-            } else {
-                RootView()
-                    .environment(environment)
-                    .modelContainer(container)
-                    .alert("Your library couldn't be opened", isPresented: $showStoreProblem) {
-                        Button("Close", role: .cancel) {}
-                    } message: {
-                        Text("Palabra is using a temporary library, so anything you add will be lost when the app closes. Close the app and open it again. If this keeps happening, don't delete the app: your saved words are still on this device.")
-                    }
-            }
+            RootView()
+                .environment(environment)
+                .modelContainer(container)
+                .alert("Your library couldn't be opened", isPresented: $showStoreProblem) {
+                    Button("Close", role: .cancel) {}
+                } message: {
+                    Text("Palabra is using a temporary library, so anything you add will be lost when the app closes. Close the app and open it again. If this keeps happening, don't delete the app: your saved words are still on this device.")
+                }
         }
     }
 }

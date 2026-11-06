@@ -58,34 +58,23 @@ final class TextbookStateTests: XCTestCase {
         XCTAssertNil(without.progress["history"]?.bookmarkPageID)
     }
 
-    func testTheDeskIsTheDefaultAndSettingsSurviveUnknownValues() throws {
+    func testSettingsSurviveUnknownValuesAndOldKeys() throws {
         let fresh = try decode("{}")
-        XCTAssertEqual(fresh.preferences.viewStyle, .desk)
         XCTAssertEqual(fresh.preferences.sceneQuality, .standard)
-        let saved = try decode(#"{"preferences":{"viewStyle":"classic","sceneQuality":"saver","textSize":1}}"#)
-        XCTAssertEqual(saved.preferences.viewStyle, .classic)
+        XCTAssertTrue(fresh.preferences.freeView)
+        XCTAssertTrue(fresh.preferences.enhancements)
+        let saved = try decode(#"{"preferences":{"sceneQuality":"saver","textSize":1,"freeView":false,"enhancements":false}}"#)
         XCTAssertEqual(saved.preferences.sceneQuality, .saver)
         XCTAssertEqual(saved.preferences.textSize, .larger)
-        let odd = try decode(#"{"preferences":{"viewStyle":"hologram","sceneQuality":7,"textSize":1}}"#)
-        XCTAssertEqual(odd.preferences.viewStyle, .desk, "an unknown style falls back instead of losing the other settings")
-        XCTAssertEqual(odd.preferences.sceneQuality, .standard)
-        XCTAssertEqual(odd.preferences.textSize, .larger)
-    }
-
-    func testEngineAndFreeViewDefaultsAndTolerance() throws {
-        let fresh = try decode("{}")
-        XCTAssertEqual(fresh.preferences.sceneEngine, .original)
-        XCTAssertTrue(fresh.preferences.freeView)
-        let saved = try decode(#"{"preferences":{"sceneEngine":"native","freeView":false,"textSize":1}}"#)
-        XCTAssertEqual(saved.preferences.sceneEngine, .native)
         XCTAssertFalse(saved.preferences.freeView)
-        let odd = try decode(#"{"preferences":{"sceneEngine":"vulkan","freeView":"yes","textSize":1}}"#)
-        XCTAssertEqual(odd.preferences.sceneEngine, .original)
+        XCTAssertFalse(saved.preferences.enhancements)
+        let odd = try decode(#"{"preferences":{"sceneQuality":7,"freeView":"yes","enhancements":3,"textSize":1}}"#)
+        XCTAssertEqual(odd.preferences.sceneQuality, .standard)
         XCTAssertTrue(odd.preferences.freeView)
+        XCTAssertTrue(odd.preferences.enhancements)
         XCTAssertEqual(odd.preferences.textSize, .larger)
-        // Older saved settings without the new keys keep everything else.
-        let old = try decode(#"{"preferences":{"viewStyle":"classic","sceneQuality":"saver"}}"#)
-        XCTAssertEqual(old.preferences.viewStyle, .classic)
-        XCTAssertEqual(old.preferences.sceneEngine, .original)
+        // Settings saved while the old engine and the classic shelf existed still load: their keys are ignored.
+        let old = try decode(#"{"preferences":{"viewStyle":"classic","sceneEngine":"original","sceneQuality":"saver"}}"#)
+        XCTAssertEqual(old.preferences.sceneQuality, .saver)
     }
 }

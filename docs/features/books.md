@@ -9,11 +9,16 @@ Everything works offline: lessons are bundled with the app, reading position and
 
 ## The 3D desk (what the person sees)
 
-The Books tab is a real 3D scene (Three.js / WebGL), not flat artwork: a desk, a lamp, two physical books (History in
-oxblood leather, Geography as a teal atlas) with covers, spine, a page block you can see the thickness of, and individually
-animated leaves. The scene runs in a `WKWebView` (`BooksSceneView`) from one offline file, `Resources/Books3D/books3d.html`;
-SwiftUI draws the 2D layer over it (`SceneHUD`). Lessons are laid out onto the 3D pages as crisp canvas textures at runtime
-from the same JSON the app validates.
+The Books tab is a real 3D scene drawn natively with SceneKit, not flat artwork: a desk, a lamp, two physical books (History
+in oxblood leather, Geography as a teal atlas) with covers, spine, a page block you can see the thickness of, and individually
+animated leaves. `NativeBooksSceneView` hosts the scene (`BookSceneController` runs it); SwiftUI draws the 2D layer over it
+(`SceneHUD`). Lessons are laid out onto the 3D pages as crisp bitmaps at runtime (`Native/Layout`, `Native/Art`) from the same
+JSON the app validates. The earlier Three.js / web view version and the flat "Classic pages" shelf have been removed.
+
+- **Free view**: pinch to zoom out or in and drag to move the camera; double-tap or the recenter button comes back (Settings).
+- **Extra effects**: soft contact shadows, dust motes, lamp glow, ribbon sway, a light tap when a page lands (Settings; Battery
+  saver and Reduce Motion switch them off; they never touch the page being read).
+- **Pull a test**: Settings → Books runs a scripted tour of the whole tab, records the screen and writes a log.
 
 - **Menu**: both books lie on the desk under a perspective camera with lighting and shadows. Tap a book (or its button, which
   is what VoiceOver and the UI tests use) and the camera flies in while the cover swings open. Geography has no lessons yet,
@@ -45,41 +50,22 @@ scrolls down the page, so text stays as large as in portrait.
 
 ## Settings (Settings > Books > Books Settings)
 
-- **View**: *3D desk* (default) or *Classic pages* (the original flat shelf, detail page and reader; `BookshelfView`). The
-  choice is saved in `TextbookState.preferences.viewStyle`.
 - **3D desk quality**: *Standard* or *Battery saver* (lower pixel density, no shadows). Sent to the scene as `setQuality`.
+- **Free view**, **Extra effects** and **Pull a test**: see above.
 - **Reading**: text size and Memorize level (the same values the reader's own controls change).
 - **Reading progress**: reset a book's read pages and bookmark. Lessons are never touched.
 
-## The bridge (Swift <-> scene)
+## The bridge (app <-> scene)
 
 `Features/Books/Scene/BooksBridge.swift` defines both directions as plain data:
 
-- scene -> Swift (`SceneMessage`): `ready`, `state`, `visit`, `term`, `termClose`, `bookmark`, `preference`, `empty`, `error`.
+- scene -> app (`SceneMessage`): `ready`, `state`, `visit`, `term`, `termClose`, `bookmark`, `preference`, `empty`.
   `BooksSceneModel` saves `visit` / `bookmark` / `preference` into `BookShelf` (`TextbookState`).
-- Swift -> scene (`SceneCommand`): `openBook`, `closeBook`, `next`, `prev`, `goto`, `setRecall`, `setLevel`,
-  `togglePageReveal`, `setTool`, `setFocus`, `setTextSize`, `setInsets`, `setAppearance`, `closeTerm`. The names are matched in
-  `web/books3d/src/app.js`; a unit test checks that the scene still knows each one.
-- `BooksScenePayload` hands the scene the raw catalogue, the lesson files, the saved progress, bookmarks and preferences.
+- app -> scene (`SceneCommand`): `openBook`, `closeBook`, `next`, `previous`, `goTo`, `setRecall`, `setLevel`,
+  `togglePageReveal`, `setTool`, `setFocus`, `setTextSize`, `setInsets`, `setAppearance`, `setQuality`, `closeTerm`,
+  `setFreeView`, `resetView`, `setEnhancements`. `BookSceneController.handle` runs them.
 
-Nothing here talks to the network. The hard rule still stands: **no AI, no OCR, no upload, no chat, no lesson generator.**
-
-## Building the scene
-
-The scene's sources are in `web/books3d/` (Three.js, plain JS, esbuild). The result is committed as
-`Palabra/Resources/Books3D/books3d.html`, because the iOS build has no Node step. After changing anything in `web/books3d`:
-
-```
-cd web/books3d
-npm ci          # once
-npm test        # page layout never drops a block, recall rules, resume rules, bundled lessons load
-npm run build   # rewrites Palabra/Resources/Books3D/books3d.html (single file, fonts inlined)
-```
-
-CI (`scene` job) runs the tests, rebuilds, and fails when the committed bundle differs from what the sources produce.
-`web/books3d/dev/` has a standalone harness for looking at a rendered page without the app. `npm run preview` writes
-`web/books3d/dist/palabra-desk.html`: the scene plus the bundled lessons and a browser version of the controls, one file you can open
-in any browser (then run `npm run build` again so the app bundle is the one committed).
+Nothing here talks to the network. The hard rule still stands: **no AI, no OCR, no upload, no chat, no lesson generator** in Books.
 
 ## Where things live
 
@@ -90,11 +76,11 @@ Palabra/Resources/Books/
 Palabra/Features/Books/
   Domain/    InlineMarkup, LessonModels (Lesson, Block...), LessonValidator, BookModels, BookLibrary (loader), RecallState
   Storage/   TextbookState (+ store), BookShelf (observable, on AppEnvironment as `books`)
-  Scene/     BooksBridge (messages, commands, payload), BooksSceneModel, BooksSceneView (WKWebView)
-  Views/     BooksRootView, BooksSceneScreen, SceneHUD (the 2D layer), then the text reader: BookshelfView, BookDetailView,
-             BookReaderView, ReaderChrome, BookPageView, BlockViews, RichText
-Palabra/Resources/Books3D/books3d.html   the built 3D scene (do not edit by hand)
-web/books3d/                             the scene's sources, tests and build
+  Scene/     BooksBridge (messages and commands), BooksSceneModel
+  Native/    Core (pure math), Layout + Art (page layout and bitmaps), Scene (SceneKit nodes, controller, input, tools, effects)
+  Tour/      Pull a test: script, runner, recorder, report
+  Views/     BooksRootView, BooksSceneScreen, SceneHUD (the 2D layer), then the text reader behind "Read as text":
+             BookDetailView, BookReaderView, ReaderChrome, BookPageView, BlockViews, RichText
 scripts/validate-lessons.py      the same validation rules, run by CI before the build
 ```
 

@@ -1,32 +1,5 @@
 import SwiftUI
 
-extension BooksViewStyle {
-    var title: LocalizedStringKey {
-        switch self {
-        case .desk: return "3D desk"
-        case .classic: return "Classic pages"
-        }
-    }
-
-    var detail: LocalizedStringKey {
-        switch self {
-        case .desk:
-            return "The books lie on a 3D desk. Turn real pages, pick up a magnifying glass, a ruler and a bookmark. Uses more battery."
-        case .classic:
-            return "Flat pages in a plain list, the way the Books tab used to look. Lighter on the battery."
-        }
-    }
-}
-
-extension SceneEngine {
-    var title: LocalizedStringKey {
-        switch self {
-        case .original: return "Original (web)"
-        case .native: return "Native (new)"
-        }
-    }
-}
-
 extension SceneQuality {
     var title: LocalizedStringKey {
         switch self {
@@ -36,8 +9,7 @@ extension SceneQuality {
     }
 }
 
-/// Everything about the Books tab that can be tweaked: how the books are shown, how the 3D desk is drawn, how pages read,
-/// and clearing reading progress.
+/// Everything about the Books tab that can be tweaked: how the 3D desk is drawn, how pages read, and clearing reading progress.
 struct BooksSettingsView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var resetTarget: Book?
@@ -46,77 +18,43 @@ struct BooksSettingsView: View {
         @Bindable var shelf = environment.books
         Form {
             Section {
-                Picker("View", selection: $shelf.preferences.viewStyle) {
-                    ForEach(BooksViewStyle.allCases) { style in
-                        Text(style.title).tag(style)
+                Picker("Quality", selection: $shelf.preferences.sceneQuality) {
+                    ForEach(SceneQuality.allCases) { quality in
+                        Text(quality.title).tag(quality)
                     }
                 }
-                .pickerStyle(.inline)
-                .labelsHidden()
-                .accessibilityIdentifier("booksViewStylePicker")
+                .accessibilityIdentifier("booksQualityPicker")
             } header: {
-                Text("View")
+                Text("3D desk")
             } footer: {
-                Text(shelf.preferences.viewStyle.detail)
+                Text("Battery saver draws the desk with fewer pixels and no shadows.")
             }
             .themedSection()
 
-            if shelf.preferences.viewStyle == .desk {
-                Section {
-                    Picker("Quality", selection: $shelf.preferences.sceneQuality) {
-                        ForEach(SceneQuality.allCases) { quality in
-                            Text(quality.title).tag(quality)
-                        }
-                    }
-                    .accessibilityIdentifier("booksQualityPicker")
-                } header: {
-                    Text("3D desk")
-                } footer: {
-                    Text("Battery saver draws the desk with fewer pixels and no shadows.")
-                }
-                .themedSection()
-
-                Section {
-                    Picker("Engine", selection: $shelf.preferences.sceneEngine) {
-                        ForEach(SceneEngine.allCases) { engine in
-                            Text(engine.title).tag(engine)
-                        }
-                    }
-                    .accessibilityIdentifier("booksEnginePicker")
-                    Toggle("Free view", isOn: $shelf.preferences.freeView)
-                        .accessibilityIdentifier("booksFreeViewToggle")
-                    Toggle("Extra effects", isOn: $shelf.preferences.enhancements)
-                        .accessibilityIdentifier("booksEnhancementsToggle")
-                } header: {
-                    Text("Native desk")
-                } footer: {
-                    Text("Free view lets you pinch to zoom out or in and drag to move the view while you read. Extra effects add soft shadows, depth of field, dust and lamp glow to the desk; they never touch the page you read, and Battery saver turns them off.")
-                }
-                .themedSection()
+            Section {
+                Toggle("Free view", isOn: $shelf.preferences.freeView)
+                    .accessibilityIdentifier("booksFreeViewToggle")
+                Toggle("Extra effects", isOn: $shelf.preferences.enhancements)
+                    .accessibilityIdentifier("booksEnhancementsToggle")
+            } footer: {
+                Text("Free view lets you pinch to zoom out or in and drag to move the view while you read. Extra effects add soft shadows, depth of field, dust and lamp glow to the desk; they never touch the page you read, and Battery saver turns them off.")
             }
+            .themedSection()
 
-            if shelf.preferences.viewStyle == .desk {
-                let reason = TourRunner.unavailableReason(preferences: shelf.preferences)
-                Section {
-                    Button {
-                        shelf.tourRequested = true
-                        environment.router.tab = .books
-                    } label: {
-                        Text("Pull a test")
-                    }
-                    .disabled(reason != nil)
-                    .accessibilityIdentifier("pullATestButton")
-                } header: {
-                    Text("Test")
-                } footer: {
-                    if let reason {
-                        Text(LocalizedStringKey(reason))
-                    } else {
-                        Text("Runs a scripted walk through the Books tab, records the screen and writes a log you can share.")
-                    }
+            Section {
+                Button {
+                    shelf.tourRequested = true
+                    environment.router.tab = .books
+                } label: {
+                    Text("Pull a test")
                 }
-                .themedSection()
+                .accessibilityIdentifier("pullATestButton")
+            } header: {
+                Text("Test")
+            } footer: {
+                Text("Runs a scripted walk through the Books tab, records the screen and writes a log you can share.")
             }
+            .themedSection()
 
             Section("Reading") {
                 Picker("Text size", selection: $shelf.preferences.textSize) {

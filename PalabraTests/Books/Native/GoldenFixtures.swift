@@ -1,8 +1,8 @@
 import Foundation
 import XCTest
 
-/// Numbers produced by the real Three.js scene code (`web/books3d/scripts/gen-native-golden.mjs`) that the native Swift scene
-/// must reproduce. Regenerate with `cd web/books3d && node scripts/gen-native-golden.mjs`.
+/// Numbers produced by the original Three.js scene code (kept in `native-golden.json`; the web scene itself has been removed)
+/// that the native Swift scene must reproduce. They are the reference for the book geometry and camera framing.
 struct Golden: Decodable {
     struct Constants: Decodable {
         let pw: Double, ph: Double, coverT: Double, sx: Int, sz: Int, blockCols: Int, gutterDip: Double, fov: Double

@@ -102,13 +102,4 @@ final class TourScriptTests: XCTestCase {
         XCTAssertEqual(TourContext.point(on: path, at: 0.75), CGPoint(x: 10, y: 5))
         XCTAssertEqual(TourContext.point(on: path, at: 1), CGPoint(x: 10, y: 10))
     }
-
-    func testUnavailableReasons() {
-        var p = ReaderPreferences()
-        XCTAssertNotNil(TourRunner.unavailableReason(preferences: p))
-        p.sceneEngine = .native
-        XCTAssertNil(TourRunner.unavailableReason(preferences: p))
-        p.viewStyle = .classic
-        XCTAssertNotNil(TourRunner.unavailableReason(preferences: p))
-    }
 }

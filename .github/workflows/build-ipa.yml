@@ -68,30 +68,6 @@ jobs:
           name: archive-log
           path: build/archive.log
 
-  # The 3D scene (web/books3d) is built into one HTML file that the app bundles. Test it, rebuild it, and fail when the
-  # committed bundle is not what the sources produce (so the app never ships a stale scene).
-  scene:
-    if: inputs.scope != 'review'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web/books3d
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/books3d/package-lock.json
-      - run: npm ci
-      - name: Scene tests
-        run: npm test
-      - name: Rebuild the bundle
-        run: npm run build
-      - name: Bundle is current
-        working-directory: .
-        run: git diff --exit-code -- Palabra/Resources/Books3D/books3d.html
-
   # One job, one build. The default run is every unit test plus a short UI smoke set (launch and persistence; [books] adds the 3D Books reading flow). The full UI suite (about 30 launches, ~20 min) runs only on request: start the workflow by hand, or put
   # [ui] in the commit message. Keeps the job around 10 minutes and the Actions usage low.
   tests:
@@ -144,7 +120,7 @@ jobs:
           # No secrets here: only the live smoke test below gets the API key.
           ARGS="-only-testing:PalabraTests -skip-testing:PalabraTests/LiveSmokeTests"
           if [ "$FULL_UI" = "1" ]; then
-            ARGS="$ARGS -only-testing:PalabraUITests -skip-testing:PalabraUITests/BooksTourUITests -skip-testing:PalabraUITests/NativeBooksTourUITests -skip-testing:PalabraUITests/NativeBooksDarkTourUITests -skip-testing:PalabraUITests/NativeDarkExposureUITests"
+            ARGS="$ARGS -only-testing:PalabraUITests -skip-testing:PalabraUITests/BooksTourUITests -skip-testing:PalabraUITests/BooksDarkTourUITests"
           else
             ARGS="$ARGS -only-testing:PalabraUITests/LaunchUITests -only-testing:PalabraUITests/PersistenceUITests"
             # The 3D Books reading flow is the slowest UI test (~2 min); add it with [books] in the commit message.

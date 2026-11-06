@@ -5,7 +5,7 @@ enum ChatPrompts {
     static let actionLinePrefix = "  ["
     static let transcriptBudget = 24_000
 
-    static func systemInstruction(manual: String, language: SupportedLanguage, linkedWord: (id: UUID, title: String)?, settings: AssistantSettings = .default, autoApplies: Bool = false) -> String {
+    static func systemInstruction(manual: String, language: SupportedLanguage, linkedWord: (id: UUID, title: String)?, settings: AssistantSettings = .default, autoApplies: Bool = false, hasPhoto: Bool = false) -> String {
         var text = """
         You are the assistant inside Palabra, an iPhone app for learning Spanish vocabulary. You help the user learn Spanish and manage their word library, flashcard decks and review list.
 
@@ -33,6 +33,9 @@ enum ChatPrompts {
         if let linkedWord {
             text += "\n\nThe user opened this chat from the word \"\(linkedWord.title)\" (id \(linkedWord.id.uuidString)). Questions without another subject are about that word; call library.word with that id when you need its full explanation."
         }
+        if hasPhoto {
+            text += "\n\nThe user's latest photo is attached to this request (for example a page of a Spanish book). Read the Spanish words and phrases on it. List the useful words you find (skip very common ones unless asked) with a short meaning each, and offer to add them to the library with the words capability; when there are many, propose the most useful ten or so and ask. Never invent words that are not in the photo, and say so plainly when the photo is unreadable."
+        }
         return text
     }
 
@@ -42,7 +45,7 @@ enum ChatPrompts {
         for turn in turns where turn.status == .sent {
             switch turn.role {
             case .user:
-                blocks.append("USER: \(turn.text)")
+                blocks.append("USER: " + (turn.thumbnail != nil ? "[photo attached] " : "") + turn.text)
             case .assistant:
                 var block = "ASSISTANT: \(turn.text)"
                 for action in turn.actions { block += "\n" + line(for: action) }

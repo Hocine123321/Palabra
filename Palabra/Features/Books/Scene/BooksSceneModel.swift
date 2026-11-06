@@ -3,23 +3,20 @@ import Observation
 import UIKit
 
 /// Connects the 3D scene to the rest of the app: keeps the scene's state for the HUD, saves what the scene reports into the
-/// `BookShelf`, and sends the scene commands. The web view itself only provides `run` (evaluate a line of JavaScript).
+/// `BookShelf`, and sends the scene commands to the native desk's controller.
 @MainActor
 @Observable
 final class BooksSceneModel {
     private(set) var state = SceneState()
     private(set) var isReady = false
     private(set) var activeTerm: ActiveTerm?
-    /// Set when the scene could not start; the shelf then falls back to reading as text.
-    private(set) var failure: String?
     /// A short message about the last tap (a book without lessons, say). The HUD clears it.
     var notice: String?
 
     @ObservationIgnored private let shelf: BookShelf
-    /// The recorded self-test ("Pull a test"); only runs on the native desk.
+    /// The recorded self-test ("Pull a test").
     let tour = TourRunner()
-    @ObservationIgnored var run: ((String) -> Void)?
-    /// Set instead of `run` when the native SceneKit desk draws the scene: commands go straight to its controller.
+    /// The SceneKit desk's controller; commands go straight to it.
     @ObservationIgnored private(set) var native: BookSceneController?
     @ObservationIgnored private var queued: [SceneCommand] = []
     @ObservationIgnored private var started = false
@@ -31,18 +28,6 @@ final class BooksSceneModel {
     }
 
     // MARK: Starting
-
-    /// Called once the page has loaded: hands the scene the books and the reading state.
-    func start(reducedMotion: Bool) {
-        guard !started else { return }
-        started = true
-        do {
-            let payload = try BooksScenePayload.make(source: shelf.source, state: shelf.state)
-            run?(BooksScenePayload.loadScript(payload: payload, reducedMotion: reducedMotion))
-        } catch {
-            failure = "\(error)"
-        }
-    }
 
     /// Starts the native desk: builds its controller from the shelf and loads the books. The view draws `controller.scene`.
     @discardableResult
@@ -73,10 +58,6 @@ final class BooksSceneModel {
         tour.start(host: AppTourHost(model: self, controller: native), shelf: shelf, recorder: ReplayKitTourRecorder())
     }
 
-    func fail(_ message: String) {
-        failure = message
-    }
-
     // MARK: Commands
 
     func send(_ command: SceneCommand) {
@@ -90,11 +71,7 @@ final class BooksSceneModel {
     }
 
     private func dispatch(_ command: SceneCommand) {
-        if let native {
-            Task { await native.handle(command) }
-        } else {
-            run?(command.javaScript)
-        }
+        if let native { Task { await native.handle(command) } }
     }
 
     // MARK: Messages from the scene
@@ -125,8 +102,6 @@ final class BooksSceneModel {
             if let size { shelf.preferences.textSize = size }
         case .empty:
             notice = "No lessons yet"
-        case .error(let message):
-            failure = message
         }
     }
 

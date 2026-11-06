@@ -1,6 +1,6 @@
 import XCTest
 
-/// The Books tab: a 3D desk drawn by WebGL in a web view, with SwiftUI controls over it. The 3D books can't be queried, so the
+/// The Books tab: a 3D desk drawn by SceneKit, with SwiftUI controls over it. The 3D books can't be queried, so the
 /// tests drive the controls the app puts over the scene (they do exactly what tapping the books does).
 final class BooksUITests: XCTestCase {
     private func launch() -> XCUIApplication {
@@ -109,23 +109,5 @@ final class BooksUITests: XCTestCase {
         element(app, "readAsText").tap()
         app.buttons["التاريخ"].firstMatch.tap()
         XCTAssertTrue(element(app, "bookStart").waitForExistence(timeout: 10), "the lesson list is one tap away")
-    }
-
-    func testClassicPagesCanBeTurnedOnInSettings() {
-        let app = launch()
-        app.tabBars.buttons["Settings"].tap()
-        let link = element(app, "booksSettingsLink")
-        var scrolls = 0
-        while !link.waitForExistence(timeout: 2), scrolls < 8 { app.swipeUp(); scrolls += 1 }
-        XCTAssertTrue(link.exists, "Books Settings is in the Settings list")
-        link.tap()
-        element(app, "Classic pages").tap()
-        app.navigationBars.buttons.firstMatch.tap()
-        app.tabBars.buttons["Books"].tap()
-        let cover = element(app, "bookCover.history")
-        XCTAssertTrue(cover.waitForExistence(timeout: 10))
-        cover.tap()
-        XCTAssertTrue(element(app, "bookStart").waitForExistence(timeout: 10), "the flat shelf opens the lesson list")
-        XCTAssertFalse(element(app, "booksLoading").exists, "no 3D desk in classic mode")
     }
 }

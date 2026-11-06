@@ -775,3 +775,8 @@
 "Needs a look" = "يحتاج إلى مراجعة";
 "Video" = "فيديو";
 "Log" = "السجل";
+
+"Add Photo" = "إضافة صورة";
+"Remove photo" = "إزالة الصورة";
+"Attached photo" = "صورة مرفقة";
+"That photo could not be read." = "تعذّرت قراءة هذه الصورة.";
