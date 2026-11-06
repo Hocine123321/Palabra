@@ -785,7 +785,7 @@
 "AI Output" = "مخرجات الذكاء الاصطناعي";
 "Maximum File Size" = "الحد الأقصى لحجم الملف";
 "Reset to Default" = "إعادة التعيين إلى الافتراضي";
-"The most the AI may write for one artifact (8 to 128 KB). Bigger files take longer, use more of your quota and can be cut off if the model cannot write that much." = "أقصى ما يكتبه الذكاء الاصطناعي لمحتوى واحد (من 8 إلى 128 كيلوبايت). الملفات الأكبر تستغرق وقتًا أطول وتستهلك حصة أكبر وقد تُقطع إذا لم يستطع النموذج كتابتها.";
+"The most the in-app AI may write for one artifact (8 to 128 KB, 20 KB by default). Bigger files take longer, use more of your quota and can be cut off if the model cannot write that much. Pages you bring from another AI can be up to 2 MB." = "أقصى ما يكتبه الذكاء الاصطناعي داخل التطبيق لمحتوى واحد (من 8 إلى 128 كيلوبايت، والافتراضي 20 كيلوبايت). الملفات الأكبر تستغرق وقتًا أطول وتستهلك حصة أكبر وقد تُقطع إذا لم يستطع النموذج كتابتها. أما الصفحات التي تجلبها من ذكاء اصطناعي آخر فيمكن أن تصل إلى 2 ميغابايت.";
 "Your model can write about %lld KB at most, so bigger artifacts will be cut off." = "أقصى ما يكتبه نموذجك نحو %lld كيلوبايت، لذلك ستُقطع المحتويات الأكبر.";
 "Creating" = "الإنشاء";
 "Default Format" = "الصيغة الافتراضية";
@@ -828,10 +828,11 @@
 "Something with that name already exists." = "يوجد عنصر بهذا الاسم بالفعل.";
 "The operation failed." = "فشلت العملية.";
 
-"Copy prompt for Claude" = "نسخ الموجّه لـ Claude";
 "Prompt copied" = "تم نسخ الموجّه";
-"Paste Claude's answer" = "لصق إجابة Claude";
-"Paste the answer here" = "الصق الإجابة هنا";
+"Copy artifact prompt rules" = "نسخ قواعد موجّه المحتوى";
+"Upload/paste artifact" = "رفع/لصق المحتوى";
+"Paste the HTML page here" = "الصق صفحة HTML هنا";
+"Choose file" = "اختيار ملف";
+"Use this page" = "استخدام هذه الصفحة";
+"That file couldn't be read as text." = "تعذّرت قراءة هذا الملف كنص.";
 "Paste from clipboard" = "لصق من الحافظة";
-"Use this answer" = "استخدام هذه الإجابة";
-"Works with Claude, ChatGPT and other AIs. No API key needed." = "يعمل مع Claude وChatGPT وغيرهما. لا يحتاج إلى مفتاح API.";

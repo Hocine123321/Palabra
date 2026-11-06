@@ -1,12 +1,25 @@
 import Foundation
 
-/// How big an artifact the AI may write, in KB. The hard ceiling is what storage accepts.
+/// How big an artifact may be, in KB. Two separate ranges, because two different writers fill them:
+///  - the in-app AI (Gemini): 8...128 KB in Settings, 20 KB by default (a reply that small comes back quickly and rarely truncates);
+///  - an external AI (Claude, ChatGPT), whose answer the person pastes in: 128 KB...2 MB, since it is not limited by our token
+///    budget and a richer page is the point of using it.
+/// The hard ceiling is what storage accepts, which is the external maximum.
 enum ArtifactOutputBudget {
+    /// In-app AI.
     static let minKB = 8
     static let maxKB = 128
     static let stepKB = 4
-    /// The user's decision: the default maximum output is 128 KB (131,072 bytes). It is a ceiling, not a target.
-    static let defaultKB = 128
+    /// The user's decision: Gemini writes up to 20 KB unless the person raises it (to 128 KB at most).
+    static let defaultKB = 20
+
+    /// External AI.
+    static let externalMinKB = 128
+    static let externalMaxKB = 2_048
+
+    /// The most one artifact version can hold on disk: the external maximum (2 MB).
+    static let storageMaxBytes = externalMaxKB * 1024
+
     /// Roughly how many UTF-8 bytes of HTML or JSON one output token holds (code is dense: about 3).
     static let bytesPerToken = 3.0
     /// Headroom for the envelope (title, requests, markers) and for the model going over the stated size.
@@ -37,7 +50,7 @@ struct ArtifactSettings: Codable, Equatable, Sendable {
         case auto, page, app
     }
 
-    /// The most the AI is asked to write for one artifact, in KB (8...128).
+    /// The most the in-app AI is asked to write for one artifact, in KB (8...128, 20 by default).
     var maxOutputKB: Int = ArtifactOutputBudget.defaultKB
     /// Whether interactive "app" artifacts may be created. Saved apps keep running either way.
     var allowAppArtifacts: Bool = true

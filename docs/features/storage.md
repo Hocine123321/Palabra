@@ -21,9 +21,16 @@ Features/Storage/
   StoragePolicy.swift       StorageRoot (4 sandbox roots) + StoragePolicy (protection, names, unique names, containment)
   StorageBrowser.swift      list / totalSize / delete / createFolder / rename / copy / importFile, StorageItem, StorageError
   StorageModel.swift        StorageFolderModel (@Observable, work off the main thread), StorageClipboard, StorageOverview
-  StorageView.swift         usage per root + links into the roots
+  StorageView.swift         usage per root + an Artifacts shortcut + links into the roots
   StorageFolderView.swift   one folder: rows, context menu (Copy, Share, Rename, Delete), toolbar (Paste, New Folder, Import)
 ```
+
+## The Artifacts folder
+
+`Application Support/Artifacts` holds a readable copy of every saved artifact (one folder per artifact, one file per version),
+written by `ArtifactFileMirror` (see `docs/features/artifacts.md`). Settings → Storage has an **Artifacts** row that opens it
+directly (created on demand, so it never opens empty-handed on a fresh install). It is a copy, not live data: the policy lets
+the person delete, rename or copy out of it, and the next launch writes back anything that was removed.
 
 ## Path safety
 

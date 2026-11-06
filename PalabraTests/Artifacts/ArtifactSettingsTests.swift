@@ -4,8 +4,8 @@ import XCTest
 final class ArtifactSettingsTests: XCTestCase {
     func testDefaults() {
         let s = ArtifactSettings.default
-        XCTAssertEqual(s.maxOutputKB, 128, "the user's decision: default maximum output is 128 KB")
-        XCTAssertEqual(s.outputBytes, 131_072)
+        XCTAssertEqual(s.maxOutputKB, 20, "the user's decision: the in-app AI writes 20 KB unless the person raises it")
+        XCTAssertEqual(s.outputBytes, 20_480)
         XCTAssertTrue(s.allowAppArtifacts)
         XCTAssertEqual(s.defaultFormat, .auto)
     }
@@ -22,7 +22,7 @@ final class ArtifactSettingsTests: XCTestCase {
     func testDecodingIsTolerant() throws {
         XCTAssertEqual(try JSONDecoder().decode(ArtifactSettings.self, from: Data("{}".utf8)), .default)
         let s = try JSONDecoder().decode(ArtifactSettings.self, from: Data(#"{"maxOutputKB":"lots","defaultFormat":"from-the-future","allowAppArtifacts":false}"#.utf8))
-        XCTAssertEqual(s.maxOutputKB, 128)
+        XCTAssertEqual(s.maxOutputKB, 20, "an unreadable size falls back to the default")
         XCTAssertEqual(s.defaultFormat, .auto)
         XCTAssertFalse(s.allowAppArtifacts)
     }
@@ -48,7 +48,25 @@ final class ArtifactSettingsTests: XCTestCase {
         XCTAssertEqual(ArtifactOutputBudget.clampedKB(1), 8)
         XCTAssertEqual(ArtifactOutputBudget.clampedKB(500), 128)
         XCTAssertEqual(ArtifactOutputBudget.bytes(forKB: 128), 131_072)
-        XCTAssertEqual(ArtifactLimits.maxPayloadBytes, 131_072, "storage must accept the largest size the setting allows")
+        XCTAssertEqual(ArtifactLimits.maxPayloadBytes, 2_097_152, "storage must accept the largest external page: 2 MB")
+        XCTAssertGreaterThanOrEqual(ArtifactLimits.maxPayloadBytes, ArtifactOutputBudget.bytes(forKB: ArtifactOutputBudget.maxKB))
+    }
+
+    func testTheTwoSizeRanges() {
+        // In-app AI: 8 to 128 KB, 20 by default. External AI: 128 KB to 2 MB.
+        XCTAssertEqual(ArtifactOutputBudget.minKB, 8)
+        XCTAssertEqual(ArtifactOutputBudget.maxKB, 128)
+        XCTAssertEqual(ArtifactOutputBudget.defaultKB, 20)
+        XCTAssertEqual(ArtifactOutputBudget.externalMinKB, 128)
+        XCTAssertEqual(ArtifactOutputBudget.externalMaxKB, 2048)
+        XCTAssertEqual(ArtifactOutputBudget.storageMaxBytes, 2 * 1024 * 1024)
+        XCTAssertEqual(ArtifactOutputBudget.externalMinKB, ArtifactOutputBudget.maxKB, "the ranges meet: the in-app maximum is where the external range starts")
+    }
+
+    func testTheDefaultIsInsideTheSliderRangeAndOnAStep() {
+        let d = ArtifactOutputBudget.defaultKB
+        XCTAssertTrue((ArtifactOutputBudget.minKB...ArtifactOutputBudget.maxKB).contains(d))
+        XCTAssertEqual((d - ArtifactOutputBudget.minKB) % ArtifactOutputBudget.stepKB, 0, "the slider can land exactly on the default")
     }
 
     func testTokensGrowWithSizeAndCoverTheBytes() {
@@ -129,7 +147,7 @@ final class ArtifactSettingsTests: XCTestCase {
         let capped = ArtifactPrompts.systemInstruction(registry: registry, language: .english, allowedKinds: [.spec, .app], maxKB: 5000)
         XCTAssertTrue(capped.contains("At most 128 KB"))
         let standard = ArtifactPrompts.systemInstruction(registry: registry, language: .english, allowedKinds: [.spec, .app])
-        XCTAssertTrue(standard.contains("At most 128 KB"))
+        XCTAssertTrue(standard.contains("At most 20 KB"), "with no size given, the in-app default applies")
     }
 
     // MARK: generator wiring

@@ -452,8 +452,14 @@ final class AppEnvironment {
         review.deleteOrphans(validWordIDs: Set(repository.wordSummaries().map(\.id)))
     }
 
-    static func live(modelContext: ModelContext) -> AppEnvironment {
-        AppEnvironment(
+    /// `mirrorArtifacts` is false when the real store could not be opened: the temporary one is empty, and syncing against it
+    /// would remove the readable copies of artifacts that are still safe on disk.
+    static func live(modelContext: ModelContext, mirrorArtifacts: Bool = true) -> AppEnvironment {
+        // Artifacts also live as files in Application Support/Artifacts, so the Storage page can show them. Brought up to date
+        // once here (files for artifacts saved before the folder existed; none for deleted ones).
+        let artifactRepository = SwiftDataArtifactRepository(context: modelContext, mirror: mirrorArtifacts ? ArtifactFileMirror() : nil)
+        artifactRepository.syncMirror()
+        return AppEnvironment(
             ai: GeminiClient(),
             repository: SwiftDataWordRepository(context: modelContext),
             catalogue: ModelCatalogue(),
@@ -464,7 +470,7 @@ final class AppEnvironment {
             modelHealth: ModelHealthStore(defaults: .standard),
             resilient: true,
             cardRepository: SwiftDataCardRepository(context: modelContext),
-            artifactRepository: SwiftDataArtifactRepository(context: modelContext),
+            artifactRepository: artifactRepository,
             reviewRepository: SwiftDataReviewRepository(context: modelContext),
             chatRepository: SwiftDataChatRepository(context: modelContext),
             solveTool: SolveTool.live(context: modelContext),

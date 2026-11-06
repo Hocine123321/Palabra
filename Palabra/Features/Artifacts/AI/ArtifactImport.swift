@@ -4,8 +4,9 @@ import Foundation
 /// The answer may be the envelope itself (the export prompt asks for it), or just a page of HTML,
 /// possibly with chat text and a code fence around it.
 enum ArtifactImport {
-    /// Anything longer is refused before parsing (a mis-paste, not an app).
-    static let maxInputCharacters = 1_000_000
+    /// Anything longer is refused before parsing (a mis-paste, not an app): the 2 MB an artifact may hold, plus room for the
+    /// chat text and code fence an AI puts around a page.
+    static let maxInputBytes = ArtifactOutputBudget.storageMaxBytes + 64 * 1024
 
     private static let titlePattern = try? NSRegularExpression(pattern: #"<title[^>]*>(.*?)</title>"#, options: [.caseInsensitive, .dotMatchesLineSeparators])
     private static let callPattern = try? NSRegularExpression(pattern: #"palabra\.call\(\s*["']([A-Za-z0-9_.]+)["']"#)

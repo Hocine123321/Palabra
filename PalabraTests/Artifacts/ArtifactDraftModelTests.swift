@@ -167,26 +167,67 @@ final class ArtifactDraftModelTests: XCTestCase {
 
     // MARK: External AI export and import
 
-    func testExportPromptForCreateIncludesFormatLineAndRequest() async {
+    func testExportPromptForCreateAsksForHTMLAndIncludesTheRequest() async {
         let (env, _) = await makeEnvironment(withKey: false)
         let model = ArtifactDraftModel(environment: env)
         model.format = .app
         model.request = "verb trainer"
         let prompt = model.exportPrompt() ?? ""
-        XCTAssertTrue(prompt.contains("FORMAT: build this as kind \"app\""))
         XCTAssertTrue(prompt.contains("verb trainer"))
-        XCTAssertTrue(prompt.contains("---PAYLOAD---"))
+        XCTAssertTrue(prompt.contains("<!DOCTYPE html>"), "it asks for an HTML document")
+        XCTAssertTrue(prompt.contains("</html>"))
+        XCTAssertFalse(prompt.contains("---PAYLOAD---"), "no envelope for the other AI to get wrong")
+        XCTAssertFalse(prompt.contains("---END---"))
+        XCTAssertFalse(prompt.contains("FORMAT:"), "the Gemini format picker does not apply to another AI")
     }
 
-    func testExportPromptForUpdateIncludesCurrentPayload() async {
+    func testExportPromptForUpdateIncludesTheCurrentPage() async {
         let (env, _) = await makeEnvironment(withKey: false)
         guard case .success(let artifact) = artifacts.create(title: "Practice", kind: .app, payload: Data("<html><body>stored page</body></html>".utf8), requested: [], prompt: "p", now: Date()) else { return XCTFail("create failed") }
         let model = ArtifactDraftModel(environment: env, mode: .update(artifactID: artifact.id))
         model.request = "add a score"
+        XCTAssertTrue(model.canUseExternalAI)
         let prompt = model.exportPrompt() ?? ""
-        XCTAssertTrue(prompt.contains("CURRENT PAYLOAD:"))
+        XCTAssertTrue(prompt.contains("CURRENT PAGE:"))
         XCTAssertTrue(prompt.contains("stored page"))
         XCTAssertTrue(prompt.contains("add a score"))
+        XCTAssertTrue(prompt.contains("TITLE: Practice"))
+    }
+
+    /// A table or chart (spec) is JSON blocks, not a page: another AI answering with HTML could not replace it, so no prompt is offered.
+    func testASpecArtifactCannotBeUpdatedThroughAnotherAI() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        guard case .success(let artifact) = artifacts.create(title: "Table", kind: .spec, payload: Data(#"{"blocks":[{"type":"text","text":"x"}]}"#.utf8), requested: [], prompt: "p", now: Date()) else { return XCTFail("create failed") }
+        let model = ArtifactDraftModel(environment: env, mode: .update(artifactID: artifact.id))
+        model.request = "add a column"
+        XCTAssertFalse(model.canUseExternalAI)
+        XCTAssertNil(model.exportPrompt())
+    }
+
+    func testCreatingAlwaysOffersTheExternalRoute() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        XCTAssertTrue(ArtifactDraftModel(environment: env).canUseExternalAI)
+    }
+
+    func testAPlainHTMLPageIsImportedAsAnAppWithItsTitleAndCalls() async {
+        let (env, client) = await makeEnvironment(withKey: false)
+        let model = ArtifactDraftModel(environment: env)
+        let page = "Here you go!\n```html\n<!DOCTYPE html><html><head><title>Verb Trainer</title></head><body><script>palabra.call(\"library.words\", {})</script></body></html>\n```"
+        model.importExternal(page)
+        XCTAssertEqual(model.phase, .preview)
+        XCTAssertEqual(model.draft?.kind, .app)
+        XCTAssertEqual(model.draft?.title, "Verb Trainer")
+        XCTAssertEqual(model.draft?.requests, ["library.words"])
+        XCTAssertTrue(client.generateJSONCalls.isEmpty)
+    }
+
+    func testAPageOverTheInAppCapIsImportedAndSaved() async {
+        let (env, _) = await makeEnvironment(withKey: false)
+        let model = ArtifactDraftModel(environment: env)
+        // 600 KB: far above Gemini's 128 KB maximum, inside the 2 MB an external page may be.
+        model.importExternal("<html><head><title>Big</title></head><body>" + String(repeating: "a", count: 600_000) + "</body></html>")
+        XCTAssertEqual(model.phase, .preview)
+        XCTAssertNotNil(model.save(), "storage accepts what the import accepted")
     }
 
     func testExportPromptNilWhenRequestTooShort() async {

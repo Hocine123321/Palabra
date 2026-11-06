@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 enum ArtifactLimits {
-    /// What storage accepts, and the most Settings → Artifacts can ask the AI for (128 KB).
-    static let maxPayloadBytes = ArtifactOutputBudget.maxKB * 1024
+    /// What storage accepts: the largest an external AI may write (2 MB). The in-app AI is held to its own, smaller setting.
+    static let maxPayloadBytes = ArtifactOutputBudget.storageMaxBytes
     static let maxVersions = 20
     static let maxStateBytes = 262_144
     static let maxStateKeyLength = 64
@@ -43,10 +43,29 @@ final class SwiftDataArtifactRepository: ArtifactRepository {
     private let context: ModelContext
     /// Keeps an in-memory container alive when this repository owns it.
     private let retainedContainer: ModelContainer?
+    /// The readable copy of every artifact in the Storage page. `nil` in tests and previews, which must not touch real folders.
+    private let mirror: ArtifactFileMirror?
 
-    init(context: ModelContext, retaining container: ModelContainer? = nil) {
+    init(context: ModelContext, retaining container: ModelContainer? = nil, mirror: ArtifactFileMirror? = nil) {
         self.context = context
         self.retainedContainer = container
+        self.mirror = mirror
+    }
+
+    /// Writes the artifact's files (one per kept version) from what the database holds now. Never fails a save.
+    private func mirrorArtifact(_ id: UUID) {
+        guard let mirror, let artifact = artifact(id: id) else { return }
+        let kept = versions(artifactID: id).map { (number: $0.number, payload: $0.payload) }
+        mirror.sync(id: id, title: artifact.title, kind: artifact.kind, versions: kept)
+    }
+
+    /// Brings the whole folder in line with the database: files for artifacts saved before the folder existed (or deleted from it by
+    /// hand), and no folders for artifacts that are gone. Call once at launch.
+    func syncMirror() {
+        guard let mirror else { return }
+        let all = artifacts()
+        for artifact in all { mirrorArtifact(artifact.id) }
+        mirror.prune(keeping: Set(all.map(\.id)))
     }
 
     /// A private in-memory store: the default for tests and previews that don't care about artifacts.
@@ -80,6 +99,7 @@ final class SwiftDataArtifactRepository: ArtifactRepository {
         context.insert(artifact)
         context.insert(ArtifactVersion(artifactID: artifact.id, number: 1, payload: payload, requested: requested, prompt: prompt, createdAt: now))
         Persistence.save(context)
+        mirrorArtifact(artifact.id)
         return .success(artifact)
     }
 
@@ -98,6 +118,7 @@ final class SwiftDataArtifactRepository: ArtifactRepository {
             context.delete(old)
         }
         Persistence.save(context)
+        mirrorArtifact(artifactID)
         return .success(version)
     }
 
@@ -125,6 +146,7 @@ final class SwiftDataArtifactRepository: ArtifactRepository {
         for entry in stateEntries(artifactID: id) { context.delete(entry) }
         if let artifact = artifact(id: id) { context.delete(artifact) }
         Persistence.save(context)
+        mirror?.remove(id: id)
     }
 
     func stateValue(artifactID: UUID, key: String) -> Data? {

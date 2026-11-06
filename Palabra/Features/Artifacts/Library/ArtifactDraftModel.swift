@@ -92,8 +92,9 @@ final class ArtifactDraftModel {
 
     // MARK: External AI (Claude, ChatGPT)
 
-    /// The prompt to copy into another AI: Gemini's own rules plus the request (and, on update, the current payload).
-    /// `nil` until the request is long enough. Needs no API key.
+    /// The prompt to copy into another AI: a request for one complete HTML page, with the sandbox rules, the capabilities it may call,
+    /// and the person's request (on update, the current page too). `nil` until the request is long enough, and for a table-style
+    /// ("spec") artifact being updated, which is JSON and not a page another AI can edit. Needs no API key.
     func exportPrompt() -> String? {
         let trimmed = request.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= ArtifactGeneratorLimits.minRequestLength else { return nil }
@@ -101,12 +102,21 @@ final class ArtifactDraftModel {
         let userPrompt: String
         switch mode {
         case .create:
-            userPrompt = format.apply(to: asked)
+            // The format picker (page or app) steers Gemini's JSON; another AI always gets the HTML request as the person typed it.
+            userPrompt = asked
         case .update(let artifactID):
-            guard let current = currentSnapshot(artifactID) else { return nil }
-            userPrompt = ArtifactPrompts.updatePrompt(change: asked, currentTitle: current.title, currentPayload: String(decoding: current.payload, as: UTF8.self))
+            guard let current = currentSnapshot(artifactID), current.kind == .app else { return nil }
+            userPrompt = ArtifactPrompts.externalUpdateRequest(change: asked, currentTitle: current.title, currentHTML: String(decoding: current.payload, as: UTF8.self))
         }
         return ArtifactPrompts.exportPrompt(userPrompt: userPrompt, registry: environment.capabilities, language: environment.aiLanguage)
+    }
+
+    /// Whether the copy-prompt route can work at all: always when creating, and when updating only for an HTML page.
+    var canUseExternalAI: Bool {
+        switch mode {
+        case .create: return true
+        case .update(let artifactID): return currentSnapshot(artifactID)?.kind == .app
+        }
     }
 
     /// Turns the other AI's answer into the draft, then shows the usual preview (approval card, Refine, Save). Needs no API key.

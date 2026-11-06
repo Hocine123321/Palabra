@@ -29,7 +29,11 @@ struct ArtifactDraftView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    if let model, model.phase == .input, model.canUseExternalAI { externalAIMenu(model) }
+                }
             }
+            .overlay(alignment: .top) { copiedBanner }
         }
         .onAppear {
             if model == nil {
@@ -108,7 +112,6 @@ struct ArtifactDraftView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: Theme.Spacing.sm) {
-                externalAIRow(model)
                 Button {
                     Task { await model.generate() }
                 } label: {
@@ -132,38 +135,52 @@ struct ArtifactDraftView: View {
         }
     }
 
-    /// Build it with Claude or ChatGPT instead: copy the prompt out, paste the answer back in. No API key needed.
-    private func externalAIRow(_ model: ArtifactDraftModel) -> some View {
-        VStack(spacing: Theme.Spacing.xs) {
-            HStack(spacing: Theme.Spacing.sm) {
-                Button {
-                    guard let prompt = model.exportPrompt() else { return }
-                    UIPasteboard.general.string = prompt
-                    promptCopied = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(2))
-                        promptCopied = false
-                    }
-                } label: {
-                    Text(promptCopied ? LocalizedStringKey("Prompt copied") : LocalizedStringKey("Copy prompt for Claude"))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-                .disabled(model.exportPrompt() == nil)
-                .accessibilityIdentifier("copyArtifactPromptButton")
-                Button {
-                    showImport = true
-                } label: {
-                    Text("Paste Claude's answer").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-                .accessibilityIdentifier("pasteArtifactAnswerButton")
+    /// Build it with Claude, ChatGPT or any other AI instead: copy the rules out, bring the page back. No API key needed.
+    private func externalAIMenu(_ model: ArtifactDraftModel) -> some View {
+        Menu {
+            Button {
+                guard let prompt = model.exportPrompt() else { return }
+                UIPasteboard.general.string = prompt
+                showCopied()
+            } label: {
+                Label("Copy artifact prompt rules", systemImage: "doc.on.doc")
             }
-            Text("Works with Claude, ChatGPT and other AIs. No API key needed.")
-                .font(.caption2)
-                .foregroundStyle(Theme.inkSecondary)
+            .disabled(model.exportPrompt() == nil)
+            .accessibilityIdentifier("copyArtifactPromptButton")
+            Button {
+                showImport = true
+            } label: {
+                Label("Upload/paste artifact", systemImage: "square.and.arrow.down")
+            }
+            .accessibilityIdentifier("pasteArtifactAnswerButton")
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .accessibilityLabel(Text("More"))
+        }
+        .accessibilityIdentifier("artifactExternalMenu")
+    }
+
+    /// A short confirmation after the prompt is copied (a menu closes when an item is tapped, so it cannot show it itself).
+    @ViewBuilder
+    private var copiedBanner: some View {
+        if promptCopied {
+            Text("Prompt copied")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.xs)
+                .background(.thinMaterial, in: Capsule())
+                .padding(.top, Theme.Spacing.sm)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .accessibilityIdentifier("artifactPromptCopiedBanner")
+        }
+    }
+
+    private func showCopied() {
+        withAnimation { promptCopied = true }
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation { promptCopied = false }
         }
     }
 

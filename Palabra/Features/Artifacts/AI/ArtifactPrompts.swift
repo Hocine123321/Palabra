@@ -50,33 +50,61 @@ enum ArtifactPrompts {
         \(payloadMarker)
         <html>…</html>
         \(endMarker)
-        - At most \(ArtifactOutputBudget.clampedKB(maxKB)) KB, and only as large as the request needs: a small app is better than a padded one. No external URLs of any kind (no CDN, web fonts, web images, requests to the web): inline all CSS and JavaScript; images only as data: URIs.
-        - Never use localStorage, sessionStorage or cookies. Save with palabra.call("storage.set",{key,value}) and read with palabra.call("storage.get",{key}).
-        - Talk to the app only through palabra.call(name, args). It returns a Promise that resolves to the value and rejects with {code, message}. Always handle the rejection and show a friendly message.
-        - palabra.granted lists the capabilities the person allowed; if one you need is missing, say so in the page.
-        - Style with the CSS variables --ink, --ink-secondary, --surface, --accent, --error, --background (they follow light and dark mode). Use palabra.locale ("en" or "ar") for the page's own text and palabra.dir ("ltr" or "rtl") for layout: set it on <html dir>.
+        - At most \(ArtifactOutputBudget.clampedKB(maxKB)) KB, and only as large as the request needs: a small app is better than a padded one.
+        \(sandboxRules)
 
         """
     }
 
-    /// What the person copies into Claude, ChatGPT or another AI: the same rules Gemini gets (so they cannot drift), the
-    /// request, and an instruction to answer in the envelope only. `userPrompt` is the request as the generator would send it
-    /// (including a `FORMAT:` line, or the update prompt with the current payload). The size is not the Settings → Artifacts
-    /// cap (that limits what Gemini writes in the app): an external AI may use nearly all of what storage accepts.
+    /// What an HTML page must obey to run in the sandbox, whoever wrote it. Shared by the in-app prompt (Gemini) and the one the
+    /// person copies into another AI, so the two cannot drift.
+    static let sandboxRules = """
+    - No external URLs of any kind (no CDN, web fonts, web images, requests to the web): inline all CSS and JavaScript; images only as data: URIs.
+    - Never use localStorage, sessionStorage or cookies. Save with palabra.call("storage.set",{key,value}) and read with palabra.call("storage.get",{key}).
+    - Talk to the app only through palabra.call(name, args). It returns a Promise that resolves to the value and rejects with {code, message}. Always handle the rejection and show a friendly message.
+    - palabra.granted lists the capabilities the person allowed; if one you need is missing, say so in the page.
+    - Style with the CSS variables --ink, --ink-secondary, --surface, --accent, --error, --background (they follow light and dark mode). Use palabra.locale ("en" or "ar") for the page's own text and palabra.dir ("ltr" or "rtl") for layout: set it on <html dir>.
+    """
+
+    /// What the person copies into Claude, ChatGPT or another AI: a request for ONE complete HTML page, with the sandbox rules and the
+    /// capabilities the page may call. The answer is a plain HTML document (no envelope to get right); `ArtifactImport` wraps it.
+    /// `userPrompt` is what the person wants (or, on update, the change plus the current page). The size is the external range
+    /// (up to 2 MB), not the Settings → Artifacts cap, which only limits what Gemini writes in the app.
     static func exportPrompt(userPrompt: String, registry: CapabilityRegistry, language: SupportedLanguage) -> String {
-        let rules = systemInstruction(registry: registry, language: language, allowedKinds: [.spec, .app], maxKB: externalAppMaxKB)
-        return """
-        \(rules)
+        """
+        You build "artifacts" for Palabra, an app that helps one person learn Spanish. An artifact here is ONE self-contained HTML page (a table, chart, roadmap, checklist, practice game, simulator or tracker) that the app saves and shows in a sandbox.
+
+        OUTPUT: reply with the complete HTML document and nothing else: it starts with <!DOCTYPE html> and ends with </html>. No explanation before or after it, and no Markdown code fence. Put the page's name in <title>.
+
+        RULES
+        - At most \(externalMaxKB / 1024) MB, and only as large as the request needs: a focused page is better than a padded one.
+        \(sandboxRules)
+        - Write all visible text in \(language.instructionName). Spanish words and phrases stay in Spanish.
+        - Never invent the user's own data (their words, counts or progress): read it with palabra.call from the capabilities below. Teaching content you write yourself (weekday names, a study roadmap) is fine.
+
+        CAPABILITIES the page may call with palabra.call (a capability that changes data or uses the AI asks the person for approval first):
+        \(registry.manual(including: [.read, .write, .ai, .local]))
 
         REQUEST:
         \(userPrompt)
-
-        Answer with the artifact in exactly the output format above: nothing before it, nothing after it, no code fences, no commentary.
         """
     }
 
-    /// What an external AI is told to stay under: a little below the 128 KB storage ceiling, as headroom.
-    static let externalAppMaxKB = 120
+    /// The most an external AI is told it may write (the storage maximum, 2 MB).
+    static let externalMaxKB = ArtifactOutputBudget.externalMaxKB
+
+    /// The request for changing a saved page in another AI: the whole current HTML plus the change; the answer is the complete new page.
+    static func externalUpdateRequest(change: String, currentTitle: String, currentHTML: String) -> String {
+        """
+        Change request: \(change)
+
+        Apply the change and reply with the complete new HTML document. Keep everything the change request does not touch, and keep the same <title>.
+
+        TITLE: \(currentTitle)
+        CURRENT PAGE:
+        \(currentHTML)
+        """
+    }
 
     /// The prompt for changing an existing artifact: the whole current payload plus the change.
     static func updatePrompt(change: String, currentTitle: String, currentPayload: String) -> String {

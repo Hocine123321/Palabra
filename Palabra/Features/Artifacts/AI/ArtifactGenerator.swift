@@ -24,8 +24,13 @@ struct ArtifactGenerator {
     let registry: CapabilityRegistry
     var language: SupportedLanguage = .english
     var allowedKinds: Set<ArtifactKind> = [.spec]
-    /// Settings → Artifacts: the most the AI may write for one artifact.
+    /// Settings → Artifacts: the most the in-app AI may write for one artifact.
     var maxOutputKB: Int = ArtifactOutputBudget.defaultKB
+    /// Set for a pasted external answer: its own byte limit (up to 2 MB), instead of the in-app AI's setting.
+    var appByteLimit: Int?
+
+    /// The size an app's HTML may reach: the external limit when there is one, else the in-app setting.
+    private var allowedAppBytes: Int { appByteLimit ?? ArtifactOutputBudget.bytes(forKB: maxOutputKB) }
 
     func create(request: String, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
         let trimmed = request.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -49,12 +54,12 @@ struct ArtifactGenerator {
     }
 
     /// Turns an answer pasted from an external AI (Claude, ChatGPT) into a draft. No AI call, so no key is needed.
-    /// Goes through the same parser, lint, capability filter and spec validation as a Gemini answer. The Settings → Artifacts
-    /// size is what Gemini is asked to write, so it does not apply here: the limit is what storage accepts.
+    /// Goes through the same parser, lint, capability filter and spec validation as a Gemini answer. The in-app size setting
+    /// is what Gemini is asked to write, so it does not apply here: an external answer may be up to 2 MB (what storage accepts).
     func importDraft(_ text: String, fixedTitle: String?, expectedKind: ArtifactKind?, userPrompt: String) -> Result<ArtifactDraft, ArtifactGenError> {
-        guard text.count <= ArtifactImport.maxInputCharacters else { return .failure(.invalidApp("the pasted text is far too large")) }
+        guard text.utf8.count <= ArtifactImport.maxInputBytes else { return .failure(.invalidApp("the pasted text is far too large")) }
         var external = self
-        external.maxOutputKB = ArtifactOutputBudget.maxKB
+        external.appByteLimit = ArtifactOutputBudget.storageMaxBytes
         switch ArtifactEnvelopeParser.parse(ArtifactImport.normalize(text, registry: registry)) {
         case .failure(let error): return .failure(error)
         case .success(let envelope): return external.build(envelope, fixedTitle: fixedTitle, expectedKind: expectedKind, userPrompt: userPrompt)
@@ -127,10 +132,10 @@ struct ArtifactGenerator {
     }
 
     private func buildApp(_ envelope: ArtifactEnvelope, fixedTitle: String?, userPrompt: String) -> Result<ArtifactDraft, ArtifactGenError> {
-        switch ArtifactHTMLLint.check(envelope.payload, maxBytes: ArtifactOutputBudget.bytes(forKB: maxOutputKB)) {
+        switch ArtifactHTMLLint.check(envelope.payload, maxBytes: allowedAppBytes) {
         case .failure(.tooLarge):
-            // The retry names the real limit (the person's setting), not a vague "smaller".
-            return .failure(.invalidApp("the HTML is larger than \(ArtifactOutputBudget.clampedKB(maxOutputKB)) KB; make it much smaller"))
+            // The retry names the real limit (the person's setting, or 2 MB for a pasted answer), not a vague "smaller".
+            return .failure(.invalidApp("the HTML is larger than \(Self.describeSize(allowedAppBytes)); make it much smaller"))
         case .failure(let error):
             return .failure(.invalidApp(error.detail))
         case .success(let html):
@@ -155,6 +160,11 @@ struct ArtifactGenerator {
             guard let payload = try? encoder.encode(valid.spec) else { return .failure(.invalidSpec("the spec could not be encoded")) }
             return .success(ArtifactDraft(kind: .spec, title: fixedTitle ?? envelope.title, payload: payload, requests: valid.requests, prompt: userPrompt))
         }
+    }
+
+    /// "20 KB" or "2 MB".
+    static func describeSize(_ bytes: Int) -> String {
+        bytes >= 1_048_576 && bytes % 1_048_576 == 0 ? "\(bytes / 1_048_576) MB" : "\(bytes / 1024) KB"
     }
 
     private static func describe(_ error: SpecValidationError) -> String {

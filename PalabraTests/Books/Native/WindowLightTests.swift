@@ -121,8 +121,9 @@ final class WindowLightTests: XCTestCase {
         let plainPosition = sun.position
         lighting.setWindowAmount(1)
         XCTAssertGreaterThan(try XCTUnwrap(sun.light?.intensity), plainIntensity)
-        XCTAssertLessThan(sun.position.x, plainPosition.x, "the sun moves toward the window side")
-        XCTAssertNotEqual(sun.position.y, plainPosition.y)
+        // It moves to the window's place: a different spot, and higher than the plain light.
+        XCTAssertNotEqual(sun.position.x, plainPosition.x)
+        XCTAssertGreaterThan(sun.position.y, plainPosition.y, "the window sun is higher than the plain light")
         lighting.setWindowAmount(0)
         XCTAssertEqual(try XCTUnwrap(sun.light?.intensity), plainIntensity, accuracy: 1e-6)
         XCTAssertEqual(sun.position.x, plainPosition.x, accuracy: 1e-5)

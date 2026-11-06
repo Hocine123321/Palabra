@@ -69,13 +69,19 @@ final class ArtifactImportTests: XCTestCase {
         XCTAssertTrue(isInvalidApp(importText(fits + "a")))
     }
 
+    func testImportAcceptsAPageFarAboveTheInAppCap() {
+        // 500 KB: far over Gemini's 128 KB maximum, well inside the 2 MB an external page may be.
+        let html = "<html>" + String(repeating: "a", count: 500_000) + "</html>"
+        XCTAssertNotNil(draft(importText(html)))
+    }
+
     func testImportIgnoresTheInAppGeminiSizeSetting() {
         let html = "<html>" + String(repeating: "a", count: 100_000) + "</html>"
         XCTAssertNotNil(draft(importText(html, settingKB: ArtifactOutputBudget.minKB)))
     }
 
     func testHugePasteIsRejectedWithoutParsing() {
-        let huge = String(repeating: "a", count: ArtifactImport.maxInputCharacters + 1)
+        let huge = String(repeating: "a", count: ArtifactImport.maxInputBytes + 1)
         XCTAssertTrue(isInvalidApp(importText(huge)))
     }
 

@@ -139,7 +139,7 @@ struct PalabraApp: App {
             }
             environment = env
         } else {
-            environment = AppEnvironment.live(modelContext: sharedContext)
+            environment = AppEnvironment.live(modelContext: sharedContext, mirrorArtifacts: !storeFailed)
         }
     }
 

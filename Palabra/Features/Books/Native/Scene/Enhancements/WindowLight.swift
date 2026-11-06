@@ -30,7 +30,7 @@ final class WindowLight {
         ///
         /// Chosen by simulating the shadow of the bars on the desk (`WindowLightTests`): wide enough that the light reaches
         /// every book in the menu, with the bars shading about a fifth of each, in portrait and in landscape, so the window reads on the covers.
-        var width = 5.0
+        var width = 5.2
         var height = 3.6
         /// Direction the sun travels (from the window to the desk), not normalised: about 50 degrees up, from the left.
         var direction = SIMD3<Double>(1, -1.2, -0.2)

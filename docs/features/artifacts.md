@@ -41,7 +41,7 @@ One schema-less `generateJSON` call (`schema: nil`, temperature 0.4):
 
 ## App artifacts (plan B2)
 
-An `app` artifact is one self-contained HTML document (no external `src`/`href`, no `localStorage`; lint in `ArtifactHTMLLint`, ≤ the size set in Settings → Artifacts, at most 128 KB) run in a sandboxed `WKWebView`. Kind cannot change on update.
+An `app` artifact is one self-contained HTML document (no external `src`/`href`, no `localStorage`; lint in `ArtifactHTMLLint`, ≤ the size set in Settings → Artifacts for Gemini, up to 2 MB for a page from another AI) run in a sandboxed `WKWebView`. Kind cannot change on update.
 
 - **Sandbox:** non-persistent data store; CSP meta injected after the doctype; two content-blocking rules (`^https?://`, `^wss?://`; WebKit rules have no groups/alternation); `NavigationGate` allows exactly one navigation; no new windows.
 - **Shim** (document start) defines `window.palabra`: `call(name, args)`, `granted`, `theme`, `locale`, `dir`, and forwards `error`/`unhandledrejection` to the error log.
@@ -63,19 +63,28 @@ An `app` artifact is one self-contained HTML document (no external `src`/`href`,
 
 ## Using Claude or ChatGPT
 
-The create / update sheet can hand the request to another AI and take its answer back, for apps that need a stronger builder than Gemini. No API key is needed.
+The **…** menu (top right of New Artifact / Update) hands the request to another AI and takes its page back, for apps that need a stronger builder than Gemini. No API key is needed. The menu shows only before generating, and on update only for an HTML page (`ArtifactDraftModel.canUseExternalAI`): a table or chart is JSON blocks, which another AI answering in HTML cannot replace.
 
-- **Copy prompt for Claude** (`ArtifactDraftModel.exportPrompt()`): Gemini's own system rules (`ArtifactPrompts.exportPrompt`, built on `systemInstruction`, so the live capability manual never drifts), the request with its `FORMAT:` line, and on update the `CURRENT PAYLOAD:`. It asks for the envelope only, and tells the AI to stay under 120 KB (`externalAppMaxKB`).
-- **Paste Claude's answer** (`ArtifactImportSheet` → `ArtifactDraftModel.importExternal`): `ArtifactImport.normalize` accepts the envelope, a fenced envelope, or plain HTML with chat text around it (title from `<title>`, requests from the `palabra.call("…")` names it uses). It then runs the same parse, lint, capability filter and approval as a Gemini answer (`ArtifactGenerator.importDraft`, no AI call).
-- **Size:** the limit is what storage accepts (`ArtifactLimits.maxPayloadBytes`, 128 KB). The Settings → Artifacts size is what Gemini writes in the app and does not apply to imports. Pasted text over 1,000,000 characters is refused. Refining an imported app with Gemini can still fail as "too large to extend" when the result would exceed the Settings size; export the update instead.
+- **Copy artifact prompt rules** (`ArtifactDraftModel.exportPrompt()`): asks for ONE complete HTML document and nothing else (no envelope, no code fence). It carries the sandbox rules (`ArtifactPrompts.sandboxRules`, the same text the in-app prompt uses, so the two cannot drift), the live capability manual, the request, and on update the whole `CURRENT PAGE:`. It tells the AI the page may be at most 2 MB. The Gemini format picker does not apply to it.
+- **Upload/paste artifact** (`ArtifactImportSheet` → `ArtifactDraftModel.importExternal`): paste, or choose an `.html`/text file. `ArtifactImport.normalize` takes the HTML document out of the chat text and fence around it (title from `<title>`, requests from the `palabra.call("…")` names it uses) and wraps it as an app; an old-style envelope still works. It then runs the same parse, lint, capability filter and approval as a Gemini answer (`ArtifactGenerator.importDraft`, no AI call). Pages from another AI are always apps.
+- **Size:** an external page may be up to 2 MB (`ArtifactOutputBudget.externalMaxKB`; storage accepts the same, `ArtifactLimits.maxPayloadBytes`). The Settings → Artifacts size is what Gemini writes in the app and does not apply to imports. Pasted text over 2 MB + 64 KB is refused. Refining a large imported app with Gemini fails as "too large to extend" (Gemini cannot return 500 KB within its cap); export the update instead.
 - On update the artifact's kind must stay the same; a pasted spec cannot replace an app.
+
+## Files in Storage
+
+Artifacts live in the database, and are also written as real files so the Storage page can show them: `Application Support/Artifacts/<Title> (<id>)/v<N>.html` (or `.json` for tables and charts), one file per kept version. Settings → Storage has an **Artifacts** row that opens the folder.
+
+- `ArtifactFileMirror` writes it from the database (create, new version, restore, delete) and `SwiftDataArtifactRepository.syncMirror()` brings it up to date once at launch (artifacts saved before the folder existed, files deleted by hand). The database stays the source of truth: nothing is read back from the folder, a failed file write never fails a save, and a file edited or deleted in Storage is put right at the next sync.
+- It is ordinary storage, not live data, so the Storage page may delete or copy out of it. `prune` only removes folders named the way the mirror names them; anything else the person puts there stays.
+- Tests and previews build the repository with no mirror, so they never touch the real folder. When the real store could not be opened (`storeFailed`), the mirror is off too: the temporary store is empty and a sync would remove copies of artifacts that are safe on disk.
 
 ## Limits
 
 | What | Limit |
 |---|---|
-| Stored payload | 128 KB (131,072 B), `ArtifactLimits.maxPayloadBytes` |
-| AI output size | Settings → Artifacts → Maximum File Size, 8 to 128 KB (default 128, the user's decision), `ArtifactSettings.maxOutputKB` |
+| Stored payload | 2 MB (2,097,152 B), `ArtifactLimits.maxPayloadBytes` (what an external AI may write) |
+| In-app AI output size | Settings → Artifacts → Maximum File Size, 8 to 128 KB (default 20, the user's decision), `ArtifactSettings.maxOutputKB` |
+| External AI page | up to 2 MB (`externalMinKB` 128 to `externalMaxKB` 2048) |
 | Versions kept | newest 20 per artifact |
 | Artifact state (ticks, `storage.*`) | 256 KB total, key ≤ 64 chars |
 | Capability args | 64 KB encoded |
@@ -106,6 +115,6 @@ Add one `Capability` to a provider in `App/CapabilityProviders.swift` (name, cla
 
 ## Settings → Artifacts
 
-- `ArtifactSettings` (Core/Storage, UserDefaults key `artifactSettings`, tolerant JSON decoder: add fields, never rename): `maxOutputKB` (8...128, step 4, default 128), `allowAppArtifacts`, `defaultFormat`. `AppEnvironment.artifactSettings` mirrors it; the screen is `Features/Settings/ArtifactsSettingsView`.
+- `ArtifactSettings` (Core/Storage, UserDefaults key `artifactSettings`, tolerant JSON decoder: add fields, never rename): `maxOutputKB` (8...128, step 4, default 20), `allowAppArtifacts`, `defaultFormat`. `AppEnvironment.artifactSettings` mirrors it; the screen is `Features/Settings/ArtifactsSettingsView`.
 - **How the size reaches the AI without changing `AIClient`:** `ArtifactGenerator` runs `generateJSON` inside `ArtifactOutputBudget.$requestedTokens.withValue(...)` (a `@TaskLocal`), and `GeminiClient.structuredMaxTokens` raises `maxOutputTokens` from 8192 to the requested value, never above the model's `outputTokenLimit` and never below 8192. Every other caller is unchanged. The size also goes into the prompt ("At most N KB") and into the app lint, which never exceeds the storage ceiling.
 - Tokens per KB use 3 bytes per token plus 1,024 of headroom (`ArtifactOutputBudget`). A model that cannot write that much gets a warning on the settings page; its output is cut off and the generator reports it as truncated, as before.

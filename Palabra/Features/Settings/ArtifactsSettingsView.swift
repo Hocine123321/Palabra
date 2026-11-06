@@ -39,7 +39,7 @@ struct ArtifactsSettingsView: View {
             } header: {
                 Text("AI Output")
             } footer: {
-                Text("The most the AI may write for one artifact (8 to 128 KB). Bigger files take longer, use more of your quota and can be cut off if the model cannot write that much.")
+                Text("The most the in-app AI may write for one artifact (8 to 128 KB, 20 KB by default). Bigger files take longer, use more of your quota and can be cut off if the model cannot write that much. Pages you bring from another AI can be up to 2 MB.")
             }
             .themedSection()
 
