@@ -2,7 +2,7 @@ import Foundation
 
 /// One prepared lesson, decoded from a bundled JSON file (see docs/features/books.md for the format).
 /// Lessons are written outside the app; the app only reads and shows them.
-struct Lesson: Decodable, Equatable, Identifiable {
+struct Lesson: Codable, Equatable, Identifiable {
     var id: String
     /// Bumped by the author when the lesson is rewritten. Reading progress is keyed by page id, so it survives.
     var version: Int
@@ -66,12 +66,12 @@ struct Lesson: Decodable, Equatable, Identifiable {
     }
 }
 
-struct TermDefinition: Decodable, Equatable {
+struct TermDefinition: Codable, Equatable {
     var term: String
     var definition: String
 }
 
-struct LessonPage: Decodable, Equatable, Identifiable {
+struct LessonPage: Codable, Equatable, Identifiable {
     /// Unique inside the lesson, never contains "/". Reading progress is saved under it, so do not rename it later.
     var id: String
     var title: String
@@ -87,42 +87,42 @@ struct LessonPage: Decodable, Equatable, Identifiable {
     }
 }
 
-struct TimelineEvent: Decodable, Equatable {
+struct TimelineEvent: Codable, Equatable {
     var date: String
     var title: String
     var detail: String?
 }
 
-struct StatItem: Decodable, Equatable {
+struct StatItem: Codable, Equatable {
     var label: String
     var value: String
     var unit: String?
     var note: String?
 }
 
-struct ComparisonRow: Decodable, Equatable {
+struct ComparisonRow: Codable, Equatable {
     var label: String
     var cells: [String]
 }
 
-struct FlowStage: Decodable, Equatable {
+struct FlowStage: Codable, Equatable {
     var label: String?
     var nodes: [String]
 }
 
-struct ProcessStep: Decodable, Equatable {
+struct ProcessStep: Codable, Equatable {
     var title: String
     var detail: String?
 }
 
-struct DefinitionItem: Decodable, Equatable {
+struct DefinitionItem: Codable, Equatable {
     /// With an id, the term becomes available to `{{text|id}}` anywhere in the lesson.
     var id: String?
     var term: String
     var definition: String
 }
 
-struct ImagePanel: Decodable, Equatable {
+struct ImagePanel: Codable, Equatable {
     /// Name of an image in the app's asset catalog.
     var name: String
     var caption: String?
@@ -134,7 +134,7 @@ struct ImagePanel: Decodable, Equatable {
 
 /// One building block of a page. Unknown block types decode as `.unsupported`, so a lesson written for a newer app
 /// still opens (that block shows a short notice instead).
-enum Block: Decodable, Equatable {
+enum Block: Codable, Equatable {
     case heading(text: String, level: Int)
     case paragraph(String)
     case list(title: String?, items: [String], ordered: Bool)
@@ -267,5 +267,82 @@ enum Block: Decodable, Equatable {
             break
         }
         return out
+    }
+}
+
+// MARK: - Writing a lesson back out (same keys the decoder reads, see docs/features/books.md)
+
+extension Block {
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        switch self {
+        case .heading(let text, let level):
+            try c.encode("heading", forKey: .type)
+            try c.encode(text, forKey: .text)
+            try c.encode(level, forKey: .level)
+        case .paragraph(let text):
+            try c.encode("paragraph", forKey: .type)
+            try c.encode(text, forKey: .text)
+        case .list(let title, let items, let ordered):
+            try c.encode("list", forKey: .type)
+            try c.encodeIfPresent(title, forKey: .title)
+            try c.encode(items, forKey: .items)
+            try c.encode(ordered, forKey: .ordered)
+        case .keyPoint(let label, let text):
+            try c.encode("keyPoint", forKey: .type)
+            try c.encodeIfPresent(label, forKey: .label)
+            try c.encode(text, forKey: .text)
+        case .quote(let text, let source):
+            try c.encode("quote", forKey: .type)
+            try c.encode(text, forKey: .text)
+            try c.encodeIfPresent(source, forKey: .source)
+        case .timeline(let title, let events):
+            try c.encode("timeline", forKey: .type)
+            try c.encodeIfPresent(title, forKey: .title)
+            try c.encode(events, forKey: .events)
+        case .stats(let title, let items):
+            try c.encode("stats", forKey: .type)
+            try c.encodeIfPresent(title, forKey: .title)
+            try c.encode(items, forKey: .stats)
+        case .comparison(let title, let corner, let columns, let rows):
+            try c.encode("comparison", forKey: .type)
+            try c.encodeIfPresent(title, forKey: .title)
+            try c.encodeIfPresent(corner, forKey: .corner)
+            try c.encode(columns, forKey: .columns)
+            try c.encode(rows, forKey: .rows)
+        case .causeEffect(let title, let stages):
+            try c.encode("causeEffect", forKey: .type)
+            try c.encodeIfPresent(title, forKey: .title)
+            try c.encode(stages, forKey: .stages)
+        case .process(let title, let steps):
+            try c.encode("process", forKey: .type)
+            try c.encodeIfPresent(title, forKey: .title)
+            try c.encode(steps, forKey: .steps)
+        case .definitions(let title, let items):
+            try c.encode("definitions", forKey: .type)
+            try c.encodeIfPresent(title, forKey: .title)
+            try c.encode(items, forKey: .definitions)
+        case .image(let panel):
+            try c.encode("image", forKey: .type)
+            try c.encode(panel.name, forKey: .image)
+            try c.encodeIfPresent(panel.caption, forKey: .caption)
+            try c.encode(panel.alt, forKey: .alt)
+            try c.encodeIfPresent(panel.style, forKey: .style)
+        case .unsupported(let type):
+            try c.encode(type, forKey: .type)
+        }
+    }
+}
+
+enum LessonCoding {
+    /// A lesson as the JSON file the loader reads: readable, stable key order.
+    static func encode(_ lesson: Lesson) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(lesson)
+    }
+
+    static func decode(_ data: Data) throws -> Lesson {
+        try JSONDecoder().decode(Lesson.self, from: data)
     }
 }
