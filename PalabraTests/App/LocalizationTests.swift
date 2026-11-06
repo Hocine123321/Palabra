@@ -40,6 +40,18 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveArtifactsSettingsKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Artifacts Settings", "AI Output", "Maximum File Size", "Reset to Default", "Creating", "Default Format",
+            "Allow Interactive Apps", "Saved Artifacts", "Space Used",
+            "The most the AI may write for one artifact (8 to 128 KB). Bigger files take longer, use more of your quota and can be cut off if the model cannot write that much.",
+            "Interactive apps run in a locked-down web view and ask permission before using your data. Turning them off only stops new ones; saved apps keep working.",
+            "Your model can write about %lld KB at most, so bigger artifacts will be cut off.",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
     func testArabicStringsHaveAssistantSettingsKeys() throws {
         let table = try arabicTable()
         let keys = [

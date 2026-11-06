@@ -43,7 +43,7 @@ final class ArtifactHTMLLintTests: XCTestCase {
         XCTAssertEqual(ArtifactHTMLLint.check(html), .success(html))
     }
 
-    func testRejectsOver65536Bytes() {
+    func testRejectsOverTheStorageCeiling() {
         let html = "<html>" + String(repeating: "a", count: ArtifactLimits.maxPayloadBytes) + "</html>"
         XCTAssertEqual(error(html), .tooLarge)
     }

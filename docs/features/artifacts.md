@@ -41,7 +41,7 @@ One schema-less `generateJSON` call (`schema: nil`, temperature 0.4):
 
 ## App artifacts (plan B2)
 
-An `app` artifact is one self-contained HTML document (no external `src`/`href`, no `localStorage`; lint in `ArtifactHTMLLint`, ≤ 64 KB) run in a sandboxed `WKWebView`. Kind cannot change on update.
+An `app` artifact is one self-contained HTML document (no external `src`/`href`, no `localStorage`; lint in `ArtifactHTMLLint`, ≤ the size set in Settings → Artifacts, at most 128 KB) run in a sandboxed `WKWebView`. Kind cannot change on update.
 
 - **Sandbox:** non-persistent data store; CSP meta injected after the doctype; two content-blocking rules (`^https?://`, `^wss?://`; WebKit rules have no groups/alternation); `NavigationGate` allows exactly one navigation; no new windows.
 - **Shim** (document start) defines `window.palabra`: `call(name, args)`, `granted`, `theme`, `locale`, `dir`, and forwards `error`/`unhandledrejection` to the error log.
@@ -65,7 +65,8 @@ An `app` artifact is one self-contained HTML document (no external `src`/`href`,
 
 | What | Limit |
 |---|---|
-| Stored payload | 64 KB (65,536 B) |
+| Stored payload | 128 KB (131,072 B), `ArtifactLimits.maxPayloadBytes` |
+| AI output size | Settings → Artifacts → Maximum File Size, 8 to 128 KB (default 20), `ArtifactSettings.maxOutputKB` |
 | Versions kept | newest 20 per artifact |
 | Artifact state (ticks, `storage.*`) | 256 KB total, key ≤ 64 chars |
 | Capability args | 64 KB encoded |
@@ -93,3 +94,9 @@ Add one `Capability` to a provider in `App/CapabilityProviders.swift` (name, cla
 - `StubAIClient.generateJSON` returns a fixed artifact for schema-less calls whose system instruction contains `---PAYLOAD---`: prompt contains `fallo` → rate limited; prompt contains `CURRENT PAYLOAD:` → adds an "Updated" text block. `StubArtifactTests` runs it through the real generator so stub and prompts cannot drift apart.
 - The stub returns an app envelope when the prompt contains "practice app" (or an update of a payload containing "stub app").
 - `MockAIClient.generateJSONCalls` / `generateJSONScript` record and script `generateJSON`; tests assert the actual prompt sent (`prompt == request`, `schema == nil`).
+
+## Settings → Artifacts
+
+- `ArtifactSettings` (Core/Storage, UserDefaults key `artifactSettings`, tolerant JSON decoder: add fields, never rename): `maxOutputKB` (8...128, step 4, default 20), `allowAppArtifacts`, `defaultFormat`. `AppEnvironment.artifactSettings` mirrors it; the screen is `Features/Settings/ArtifactsSettingsView`.
+- **How the size reaches the AI without changing `AIClient`:** `ArtifactGenerator` runs `generateJSON` inside `ArtifactOutputBudget.$requestedTokens.withValue(...)` (a `@TaskLocal`), and `GeminiClient.structuredMaxTokens` raises `maxOutputTokens` from 8192 to the requested value, never above the model's `outputTokenLimit` and never below 8192. Every other caller is unchanged. The size also goes into the prompt ("At most N KB") and into the app lint, which never exceeds the storage ceiling.
+- Tokens per KB use 3 bytes per token plus 1,024 of headroom (`ArtifactOutputBudget`). A model that cannot write that much gets a warning on the settings page; its output is cut off and the generator reports it as truncated, as before.

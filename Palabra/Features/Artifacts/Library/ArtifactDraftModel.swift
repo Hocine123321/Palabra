@@ -46,6 +46,13 @@ final class ArtifactDraftModel {
     init(environment: AppEnvironment, mode: Mode = .create) {
         self.environment = environment
         self.mode = mode
+        if case .create = mode {
+            switch environment.artifactSettings.defaultFormat {
+            case .auto: format = .auto
+            case .page: format = .page
+            case .app: format = environment.artifactSettings.allowAppArtifacts ? .app : .auto
+            }
+        }
     }
 
     // MARK: Approval
@@ -172,7 +179,12 @@ final class ArtifactDraftModel {
             key = value.key
             model = value.model
         }
-        let generator = ArtifactGenerator(ai: environment.ai, registry: environment.capabilities, language: environment.aiLanguage, allowedKinds: [.spec, .app])
+        let artifactSettings = environment.artifactSettings
+        let generator = ArtifactGenerator(
+            ai: environment.ai, registry: environment.capabilities, language: environment.aiLanguage,
+            allowedKinds: artifactSettings.allowAppArtifacts ? [.spec, .app] : [.spec],
+            maxOutputKB: artifactSettings.maxOutputKB
+        )
         let result: Result<ArtifactDraft, ArtifactGenError>
         switch operation {
         case .generate:

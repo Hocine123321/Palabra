@@ -212,6 +212,7 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 - AI strings render with `Text(verbatim:)`, `ForEach` uses the enumerated offset, and everything is capped in `SpecValidator`. Truncate, don't reject.
 - The generator makes one automatic retry (truncated / invalid spec / malformed envelope). Do not add retry loops in screens.
 - `StubAIClient`'s artifact envelope must stay valid for the real prompt/parser/validator: `StubArtifactTests` enforces it. New `AIClient` methods need a `MockAIClient` stub (`generateJSON` recording is additive).
+- **Size setting:** Settings → Artifacts (`ArtifactSettings`, key `artifactSettings`, tolerant decoder) sets how much the AI may write (8 to 128 KB). It reaches `GeminiClient` through the `ArtifactOutputBudget.requestedTokens` task-local, not through an `AIClient` parameter, so mocks did not change. `ArtifactLimits.maxPayloadBytes` (128 KB) is the storage ceiling and must not be lowered below the setting's maximum.
 - Spec: `docs/features/artifacts.md`.
 
 ## Chat

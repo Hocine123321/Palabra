@@ -176,7 +176,9 @@ struct ArtifactDraftView: View {
             Picker("Format", selection: format) {
                 Text("Auto").tag(ArtifactFormat.auto)
                 Text("Page").tag(ArtifactFormat.page)
-                Text("Interactive app").tag(ArtifactFormat.app)
+                if environment.artifactSettings.allowAppArtifacts {
+                    Text("Interactive app").tag(ArtifactFormat.app)
+                }
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("artifactFormatPicker")

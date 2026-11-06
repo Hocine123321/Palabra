@@ -2,7 +2,8 @@ import Foundation
 import SwiftData
 
 enum ArtifactLimits {
-    static let maxPayloadBytes = 65_536
+    /// What storage accepts, and the most Settings → Artifacts can ask the AI for (128 KB).
+    static let maxPayloadBytes = ArtifactOutputBudget.maxKB * 1024
     static let maxVersions = 20
     static let maxStateBytes = 262_144
     static let maxStateKeyLength = 64

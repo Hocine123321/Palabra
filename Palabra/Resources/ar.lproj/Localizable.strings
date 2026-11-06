@@ -780,3 +780,17 @@
 "Remove photo" = "إزالة الصورة";
 "Attached photo" = "صورة مرفقة";
 "That photo could not be read." = "تعذّرت قراءة هذه الصورة.";
+
+"Artifacts Settings" = "إعدادات المحتويات";
+"AI Output" = "مخرجات الذكاء الاصطناعي";
+"Maximum File Size" = "الحد الأقصى لحجم الملف";
+"Reset to Default" = "إعادة التعيين إلى الافتراضي";
+"The most the AI may write for one artifact (8 to 128 KB). Bigger files take longer, use more of your quota and can be cut off if the model cannot write that much." = "أقصى ما يكتبه الذكاء الاصطناعي لمحتوى واحد (من 8 إلى 128 كيلوبايت). الملفات الأكبر تستغرق وقتًا أطول وتستهلك حصة أكبر وقد تُقطع إذا لم يستطع النموذج كتابتها.";
+"Your model can write about %lld KB at most, so bigger artifacts will be cut off." = "أقصى ما يكتبه نموذجك نحو %lld كيلوبايت، لذلك ستُقطع المحتويات الأكبر.";
+"Creating" = "الإنشاء";
+"Default Format" = "الصيغة الافتراضية";
+"Allow Interactive Apps" = "السماح بالتطبيقات التفاعلية";
+"Interactive apps run in a locked-down web view and ask permission before using your data. Turning them off only stops new ones; saved apps keep working." = "تعمل التطبيقات التفاعلية داخل عرض ويب مقيّد وتطلب إذنك قبل استخدام بياناتك. إيقافها يمنع إنشاء تطبيقات جديدة فقط، أما المحفوظة فتبقى تعمل.";
+"Saved Artifacts" = "المحتويات المحفوظة";
+"Space Used" = "المساحة المستخدمة";
+

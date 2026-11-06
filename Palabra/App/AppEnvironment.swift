@@ -75,6 +75,7 @@ final class AppEnvironment {
     var organizerSettings: OrganizerSettings { didSet { settings.organizerSettings = organizerSettings } }
     var newCardsPerDay: Int { didSet { settings.newCardsPerDay = newCardsPerDay } }
     var assistantSettings: AssistantSettings { didSet { settings.assistantSettings = assistantSettings } }
+    var artifactSettings: ArtifactSettings { didSet { settings.artifactSettings = artifactSettings } }
     /// Session-only progress/result of a library re-organization.
     @ObservationIgnored let organizer = LibraryOrganizer()
     var hasCompletedOnboarding: Bool { didSet { settings.hasCompletedOnboarding = hasCompletedOnboarding } }
@@ -175,6 +176,7 @@ final class AppEnvironment {
         organizerSettings = settings.organizerSettings
         newCardsPerDay = settings.newCardsPerDay
         assistantSettings = settings.assistantSettings
+        artifactSettings = settings.artifactSettings
         hasCompletedOnboarding = settings.hasCompletedOnboarding
         catalogue.loadCacheIfPresent()
         ttsCatalogue.loadCacheIfPresent()

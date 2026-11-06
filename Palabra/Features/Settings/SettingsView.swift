@@ -174,6 +174,19 @@ struct SettingsView: View {
             }
             .themedSection()
 
+            Section("Artifacts") {
+                NavigationLink {
+                    ArtifactsSettingsView()
+                } label: {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "square.stack.3d.up", tint: Theme.tileTints[0], size: 30)
+                        Text("Artifacts Settings")
+                    }
+                }
+                .accessibilityIdentifier("artifactsSettingsLink")
+            }
+            .themedSection()
+
             Section("Books") {
                 NavigationLink {
                     BooksSettingsView()

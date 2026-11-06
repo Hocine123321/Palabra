@@ -76,9 +76,9 @@ final class ArtifactRepositoryTests: XCTestCase {
         XCTAssertEqual(repo.restore(artifactID: artifact.id, versionNumber: 99, now: t0).failureValue, .notFound)
     }
 
-    func testPayloadOver64KBIsRejected() {
-        let ok = Data(repeating: 0x61, count: 65_536)
-        let big = Data(repeating: 0x61, count: 65_537)
+    func testPayloadOver128KBIsRejected() {
+        let ok = Data(repeating: 0x61, count: 131_072)
+        let big = Data(repeating: 0x61, count: 131_073)
         XCTAssertNotNil(repo.create(title: "ok", kind: .spec, payload: ok, requested: [], prompt: "", now: t0).successValue)
         XCTAssertEqual(repo.create(title: "big", kind: .spec, payload: big, requested: [], prompt: "", now: t0).failureValue, .payloadTooLarge)
         let artifact = makeArtifact()

@@ -24,6 +24,8 @@ struct ArtifactGenerator {
     let registry: CapabilityRegistry
     var language: SupportedLanguage = .english
     var allowedKinds: Set<ArtifactKind> = [.spec]
+    /// Settings → Artifacts: the most the AI may write for one artifact.
+    var maxOutputKB: Int = ArtifactOutputBudget.defaultKB
 
     func create(request: String, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
         let trimmed = request.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -71,14 +73,18 @@ struct ArtifactGenerator {
     }
 
     private func attempt(prompt: String, userPrompt: String, fixedTitle: String?, expectedKind: ArtifactKind?, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
-        let result = await ai.generateJSON(
-            prompt: prompt,
-            systemInstruction: ArtifactPrompts.systemInstruction(registry: registry, language: language, allowedKinds: allowedKinds),
-            schema: nil,
-            apiKey: apiKey,
-            model: model,
-            temperature: 0.4
-        )
+        let instruction = ArtifactPrompts.systemInstruction(registry: registry, language: language, allowedKinds: allowedKinds, maxKB: maxOutputKB)
+        // The output budget travels as a task-local so the AIClient protocol (and every mock) stays as it is.
+        let result = await ArtifactOutputBudget.$requestedTokens.withValue(ArtifactOutputBudget.tokens(forKB: maxOutputKB)) {
+            await ai.generateJSON(
+                prompt: prompt,
+                systemInstruction: instruction,
+                schema: nil,
+                apiKey: apiKey,
+                model: model,
+                temperature: 0.4
+            )
+        }
         switch result {
         case .failure(.truncated):
             // The Gemini client reports a hit output cap as `.truncated` and drops the partial text.
@@ -108,7 +114,10 @@ struct ArtifactGenerator {
     }
 
     private func buildApp(_ envelope: ArtifactEnvelope, fixedTitle: String?, userPrompt: String) -> Result<ArtifactDraft, ArtifactGenError> {
-        switch ArtifactHTMLLint.check(envelope.payload) {
+        switch ArtifactHTMLLint.check(envelope.payload, maxBytes: ArtifactOutputBudget.bytes(forKB: maxOutputKB)) {
+        case .failure(.tooLarge):
+            // The retry names the real limit (the person's setting), not a vague "smaller".
+            return .failure(.invalidApp("the HTML is larger than \(ArtifactOutputBudget.clampedKB(maxOutputKB)) KB; make it much smaller"))
         case .failure(let error):
             return .failure(.invalidApp(error.detail))
         case .success(let html):

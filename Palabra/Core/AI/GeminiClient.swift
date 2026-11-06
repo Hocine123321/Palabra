@@ -130,8 +130,15 @@ final class GeminiClient: AIClient, RetryHintProviding, @unchecked Sendable {
         await generateStructured(prompt: prompt, image: image, systemInstruction: systemInstruction, schema: schema, apiKey: apiKey, model: model, temperature: temperature)
     }
 
+    /// The output cap of a structured call: 8192 unless the caller asked for more through `ArtifactOutputBudget.requestedTokens`,
+    /// and never above what the model can write.
+    static func structuredMaxTokens(model: AIModel, requested: Int?) -> Int {
+        let wanted = max(8192, requested ?? 8192)
+        return min(wanted, model.outputTokenLimit ?? wanted)
+    }
+
     private func generateStructured(prompt: String, image: AIImage?, systemInstruction: String, schema: [String: Any]?, apiKey: String, model: AIModel, temperature: Double) async -> Result<String, AIError> {
-        let maxTokens = min(8192, model.outputTokenLimit ?? 8192)
+        let maxTokens = Self.structuredMaxTokens(model: model, requested: ArtifactOutputBudget.requestedTokens)
         // The picture goes first, then the instruction about it.
         var parts: [[String: Any]] = []
         if let image { parts.append(["inlineData": ["mimeType": image.mimeType, "data": image.data.base64EncodedString()]]) }
