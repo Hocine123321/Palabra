@@ -48,6 +48,19 @@ struct ArtifactGenerator {
         return await run(prompt: prompt, userPrompt: text, fixedTitle: currentTitle, expectedKind: kind, apiKey: apiKey, model: model)
     }
 
+    /// Turns an answer pasted from an external AI (Claude, ChatGPT) into a draft. No AI call, so no key is needed.
+    /// Goes through the same parser, lint, capability filter and spec validation as a Gemini answer. The Settings → Artifacts
+    /// size is what Gemini is asked to write, so it does not apply here: the limit is what storage accepts.
+    func importDraft(_ text: String, fixedTitle: String?, expectedKind: ArtifactKind?, userPrompt: String) -> Result<ArtifactDraft, ArtifactGenError> {
+        guard text.count <= ArtifactImport.maxInputCharacters else { return .failure(.invalidApp("the pasted text is far too large")) }
+        var external = self
+        external.maxOutputKB = ArtifactOutputBudget.maxKB
+        switch ArtifactEnvelopeParser.parse(ArtifactImport.normalize(text, registry: registry)) {
+        case .failure(let error): return .failure(error)
+        case .success(let envelope): return external.build(envelope, fixedTitle: fixedTitle, expectedKind: expectedKind, userPrompt: userPrompt)
+        }
+    }
+
     /// One attempt, plus at most one retry with the concrete problem appended.
     private func run(prompt: String, userPrompt: String, fixedTitle: String?, expectedKind: ArtifactKind?, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
         var currentPrompt = prompt

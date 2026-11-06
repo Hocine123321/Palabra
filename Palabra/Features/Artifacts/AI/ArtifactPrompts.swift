@@ -59,6 +59,25 @@ enum ArtifactPrompts {
         """
     }
 
+    /// What the person copies into Claude, ChatGPT or another AI: the same rules Gemini gets (so they cannot drift), the
+    /// request, and an instruction to answer in the envelope only. `userPrompt` is the request as the generator would send it
+    /// (including a `FORMAT:` line, or the update prompt with the current payload). The size is not the Settings → Artifacts
+    /// cap (that limits what Gemini writes in the app): an external AI may use nearly all of what storage accepts.
+    static func exportPrompt(userPrompt: String, registry: CapabilityRegistry, language: SupportedLanguage) -> String {
+        let rules = systemInstruction(registry: registry, language: language, allowedKinds: [.spec, .app], maxKB: externalAppMaxKB)
+        return """
+        \(rules)
+
+        REQUEST:
+        \(userPrompt)
+
+        Answer with the artifact in exactly the output format above: nothing before it, nothing after it, no code fences, no commentary.
+        """
+    }
+
+    /// What an external AI is told to stay under: a little below the 128 KB storage ceiling, as headroom.
+    static let externalAppMaxKB = 120
+
     /// The prompt for changing an existing artifact: the whole current payload plus the change.
     static func updatePrompt(change: String, currentTitle: String, currentPayload: String) -> String {
         """
