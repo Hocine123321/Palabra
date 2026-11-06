@@ -15,6 +15,7 @@ final class SceneEnhancements {
     private let glow = SCNNode()
     private let dust = SCNNode()
     private let dustSystem = SCNParticleSystem()
+    let window = WindowLight()
     private var bookShadows: [(shadow: SCNNode, book: SCNNode, strength: Double)] = []
     private var shadowAmount = 0.0
     private var glowAmount = 0.0
@@ -30,6 +31,7 @@ final class SceneEnhancements {
         root.addChildNode(staticShadows)
         buildGlow()
         buildDust()
+        root.addChildNode(window.root)
         extras.isHidden = true
         staticShadows.isHidden = true
     }
@@ -205,6 +207,10 @@ final class SceneEnhancements {
             dustIsDark = dark
             dustSystem.particleColor = dark ? UIColor(rgb: 0xffc880, alpha: 0.55) : UIColor(rgb: 0xfff3dc, alpha: 0.5)
         }
+
+        // Daylight through the window: light mode, desk only. The bars block the sun only while it shows.
+        window.update(dt: dt, target: new.window ? 1 : 0)
+        lighting.setWindowAmount(dark ? 0 : window.amount)
 
         // Depth of field in the menu only.
         camera.setDepthOfField(enabled: new.dof, focusDistance: (camera.pose.look - camera.pose.position).length)

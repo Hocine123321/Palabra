@@ -16,6 +16,9 @@ struct EnhancementFlags: Equatable {
     var flicker = false
     /// A light tap when a leaf lands.
     var haptics = false
+    /// Daylight through the window (light mode): the warm glow and the crossbar shadows. Off while reading, so
+    /// nothing falls across the text.
+    var window = false
 
     static let off = EnhancementFlags()
 
@@ -23,7 +26,7 @@ struct EnhancementFlags: Equatable {
     static let depthOfFieldVerified = false
 
     /// Battery saver removes every effect (as it already removes shadows); Reduce Motion removes what moves by itself; reading
-    /// removes anything that could touch the text (depth of field, dust); a moved Free view removes depth of field too.
+    /// removes anything that could touch the text (depth of field, dust, the window light); a moved Free view removes depth of field too.
     static func resolve(enabled: Bool = true, quality: SceneQuality, reduceMotion: Bool, moved: Bool, reading: Bool, dark: Bool = false) -> EnhancementFlags {
         guard enabled else { return .off }
         var flags = EnhancementFlags()
@@ -34,6 +37,7 @@ struct EnhancementFlags: Equatable {
         flags.bloom = dark
         flags.dust = !reading && !reduceMotion
         flags.sway = !reduceMotion
+        flags.window = !dark && !reading
         flags.flicker = dark && !reduceMotion
         return flags
     }

@@ -12,6 +12,9 @@ final class SceneLighting {
     private let lamp = SCNNode()
     private(set) var dark = false
     private(set) var shadows = true
+    /// How much of the window's daylight shows (0...1; light mode, on the desk): a lower, warmer sun that the window bars can
+    /// shadow. It eases with the window's fade, so the sun glides between its two places and nothing pops.
+    private(set) var windowAmount = 0.0
     /// A slow drift applied to the lamp's strength (1 = none).
     private(set) var lampScale = 1.0
 
@@ -68,6 +71,7 @@ final class SceneLighting {
 
     func setAppearance(dark: Bool) {
         self.dark = dark
+        placeSun()
         apply()
     }
 
@@ -82,24 +86,72 @@ final class SceneLighting {
         apply()
     }
 
+    /// Where the sun's shadow is aimed (the desk centre unless `aimShadow` says otherwise).
+    private var aimed = SCNVector3Zero
+
     /// Keeps the sun's shadow on the active book.
     func aimShadow(at centre: SCNVector3) {
-        sun.position = SCNVector3(centre.x - 3.4, 3.8, centre.z + 2.4)
-        sun.look(at: centre)
+        aimed = centre
+        placeSun()
+    }
+
+    func setWindowAmount(_ amount: Double) {
+        let next = min(1, max(0, amount))
+        guard abs(next - windowAmount) > 1e-3 else { return }
+        windowAmount = next
+        placeSun()
+        apply()
+    }
+
+    private func placeSun() {
+        let plain = SCNVector3(aimed.x - 3.4, 3.8, aimed.z + 2.4)
+        let window = WindowLight.sunPosition(centre: aimed)
+        let k = Float(dark ? 0 : windowAmount)
+        sun.position = SCNVector3(
+            plain.x + (window.x - plain.x) * k, plain.y + (window.y - plain.y) * k, plain.z + (window.z - plain.z) * k
+        )
+        sun.look(at: aimed)
     }
 
     private func apply() {
         let k = Self.lumensPerThree
-        sun.light?.intensity = (dark ? 0.35 : 2.1) * k
-        sun.light?.color = UIColor(rgb: dark ? 0x8aa0cc : 0xfff7ea)
+        // With the window lit the sun is the star of the room: stronger, golden, and the fill turns cool and soft so the
+        // bars' shadows read blue-ish, the way they do in daylight.
+        let day = dark ? 0 : windowAmount
+        sun.light?.intensity = (dark ? 0.35 : 2.1 + 0.6 * day) * k
+        sun.light?.color = dark ? UIColor(rgb: 0x8aa0cc) : Self.mix(0xfff7ea, 0xffe9c2, day)
+        sun.light?.shadowColor = UIColor(red: 0.10, green: 0.14, blue: 0.24, alpha: dark ? 0.55 : 0.55 + 0.07 * day)
         sun.light?.castsShadow = shadows
         // Hemisphere (0.42 / 0.16) plus the environment's share (0.55 / 0.22 of a bright room).
-        fill.light?.intensity = (dark ? 0.16 + 0.22 : 0.42 + 0.55) * k * 0.55
-        fill.light?.color = UIColor(rgb: dark ? 0x9fb0d0 : 0xfff3dd)
+        fill.light?.intensity = (dark ? 0.16 + 0.22 : 0.42 + 0.55 - 0.18 * day) * k * 0.55
+        fill.light?.color = dark ? UIColor(rgb: 0x9fb0d0) : Self.mix(0xfff3dd, 0xdce8ff, day)
         lamp.light?.intensity = dark ? Self.lampLumens * lampScale : 0
         lamp.light?.castsShadow = dark && shadows
         lamp.isHidden = !dark
     }
 
-    static func background(dark: Bool) -> UIColor { UIColor(rgb: dark ? 0x141311 : 0xe9e4d8) }
+    /// Blends two colours (`t` 0 = `a`, 1 = `b`).
+    static func mix(_ a: UInt32, _ b: UInt32, _ t: Double) -> UIColor {
+        func channel(_ v: UInt32, _ shift: UInt32) -> Double { Double((v >> shift) & 0xFF) / 255 }
+        func lerp(_ shift: UInt32) -> CGFloat { CGFloat(channel(a, shift) + (channel(b, shift) - channel(a, shift)) * t) }
+        return UIColor(red: lerp(16), green: lerp(8), blue: lerp(0), alpha: 1)
+    }
+
+    /// Behind the desk. Light mode is a warm gradient, bright where the window is and settling into a soft shade, so the room has
+    /// depth instead of one flat beige; dark mode stays near-black.
+    static func background(dark: Bool) -> Any {
+        dark ? UIColor(rgb: 0x141311) : lightBackground
+    }
+
+    private static let lightBackground: UIImage = {
+        let size = CGSize(width: 64, height: 256)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let colors = [UIColor(rgb: 0xf6e7c8).cgColor, UIColor(rgb: 0xe9dcc2).cgColor, UIColor(rgb: 0xcdbf9f).cgColor]
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0, 0.5, 1]) else { return }
+            context.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
+        }
+    }()
 }
