@@ -15,13 +15,16 @@ final class BookShelf {
     private(set) var library: BookLibrary
     /// Changes whenever reading progress is cleared, so a 3D desk that is already loaded knows to start over.
     private(set) var resetToken = 0
+    /// Changes whenever a lesson or chapter is saved, renamed or deleted. The 3D desk is built from the library when it
+    /// appears, so it rebuilds when it comes back on screen with a newer version than the one it was built from.
+    private(set) var libraryVersion = 0
     /// Set by Settings > Books > Pull a test; the 3D desk starts the recorded tour when it sees it.
     var tourRequested = false
     var state: TextbookState { didSet { store.value = state } }
     @ObservationIgnored private let store: TextbookStateStore
     @ObservationIgnored let source: BookContentSource
 
-    init(source: BookContentSource = BundleBookSource(), store: TextbookStateStore = TextbookStateStore()) {
+    init(source: BookContentSource = LessonStore.standard(), store: TextbookStateStore = TextbookStateStore()) {
         self.source = source
         self.store = store
         library = BookLibrary.load(from: source)
@@ -29,9 +32,10 @@ final class BookShelf {
     }
 
     /// Private state (nothing is saved to the real settings): the default for tests, previews and UI tests.
-    static func inMemory(source: BookContentSource = BundleBookSource()) -> BookShelf {
+    /// With no `source`, lessons live in a private temporary store seeded from the bundle, so saving and editing work too.
+    static func inMemory(source: BookContentSource? = nil) -> BookShelf {
         let defaults = UserDefaults(suiteName: "books-\(UUID().uuidString)") ?? .standard
-        return BookShelf(source: source, store: TextbookStateStore(defaults: defaults))
+        return BookShelf(source: source ?? LessonStore.temporary(seed: BundleBookSource()), store: TextbookStateStore(defaults: defaults))
     }
 
     func reload() {
@@ -39,6 +43,45 @@ final class BookShelf {
     }
 
     func book(id: String) -> Book? { library.book(id: id) }
+
+    // MARK: Changing lessons (needs a `LessonStore` as the source)
+
+    var lessonStore: LessonStore? { source as? LessonStore }
+
+    /// The lesson as stored (the editable form), not the laid-out book pages.
+    func lesson(id: String) -> Lesson? { lessonStore?.lesson(id: id) }
+
+    func saveLesson(_ lesson: Lesson, bookID: String, chapterID: String) throws {
+        try requireStore().save(lesson, bookID: bookID, chapterID: chapterID)
+        libraryChanged()
+    }
+
+    func deleteLesson(id: String) throws {
+        try requireStore().delete(lessonID: id)
+        libraryChanged()
+    }
+
+    @discardableResult
+    func addChapter(bookID: String, title: String) throws -> String {
+        let id = try requireStore().addChapter(bookID: bookID, title: title)
+        libraryChanged()
+        return id
+    }
+
+    func renameChapter(bookID: String, chapterID: String, title: String) throws {
+        try requireStore().renameChapter(bookID: bookID, chapterID: chapterID, title: title)
+        libraryChanged()
+    }
+
+    private func requireStore() throws -> LessonStore {
+        guard let store = lessonStore else { throw LessonStoreError.unknownBook }
+        return store
+    }
+
+    private func libraryChanged() {
+        reload()
+        libraryVersion += 1
+    }
 
     var preferences: ReaderPreferences {
         get { state.preferences }

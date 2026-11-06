@@ -1,18 +1,18 @@
 import Foundation
 
-enum BookSubject: String, Decodable, CaseIterable, Sendable {
+enum BookSubject: String, Codable, CaseIterable, Sendable {
     case history
     case geography
 }
 
 // MARK: - The catalogue file (Resources/Books/textbooks.json)
 
-struct BookCatalogue: Decodable, Equatable {
+struct BookCatalogue: Codable, Equatable {
     var version: Int?
     var books: [BookEntry]
 }
 
-struct BookEntry: Decodable, Equatable, Identifiable {
+struct BookEntry: Codable, Equatable, Identifiable {
     var id: String
     var subject: BookSubject
     var title: String
@@ -21,13 +21,13 @@ struct BookEntry: Decodable, Equatable, Identifiable {
     var chapters: [ChapterEntry]
 }
 
-struct ChapterEntry: Decodable, Equatable, Identifiable {
+struct ChapterEntry: Codable, Equatable, Identifiable {
     var id: String
     var title: String
     var lessons: [LessonRef]
 }
 
-struct LessonRef: Decodable, Equatable, Identifiable {
+struct LessonRef: Codable, Equatable, Identifiable {
     /// Stable id, used in saved reading positions. Never contains "/".
     var id: String
     /// Name of the lesson's JSON file in the bundle, without ".json".
