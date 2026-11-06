@@ -66,6 +66,15 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveExternalAIKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Copy prompt for Claude", "Prompt copied", "Paste Claude's answer", "Paste the answer here",
+            "Paste from clipboard", "Use this answer", "Works with Claude, ChatGPT and other AIs. No API key needed.",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
     func testArabicStringsHaveStorageKeys() throws {
         let table = try arabicTable()
         let keys = [

@@ -827,3 +827,11 @@
 "That item no longer exists." = "هذا العنصر لم يعد موجودًا.";
 "Something with that name already exists." = "يوجد عنصر بهذا الاسم بالفعل.";
 "The operation failed." = "فشلت العملية.";
+
+"Copy prompt for Claude" = "نسخ الموجّه لـ Claude";
+"Prompt copied" = "تم نسخ الموجّه";
+"Paste Claude's answer" = "لصق إجابة Claude";
+"Paste the answer here" = "الصق الإجابة هنا";
+"Paste from clipboard" = "لصق من الحافظة";
+"Use this answer" = "استخدام هذه الإجابة";
+"Works with Claude, ChatGPT and other AIs. No API key needed." = "يعمل مع Claude وChatGPT وغيرهما. لا يحتاج إلى مفتاح API.";

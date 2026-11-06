@@ -61,6 +61,15 @@ An `app` artifact is one self-contained HTML document (no external `src`/`href`,
 - **Preview:** title with a Page / Interactive app badge, the live dry-run preview, quick-change chips (they fill the refine field), Refine, Discard, Save.
 - New ideas or chips need Arabic keys (`LocalizationTests` covers `ArtifactIdea.all` and `ArtifactQuickChange.all`).
 
+## Using Claude or ChatGPT
+
+The create / update sheet can hand the request to another AI and take its answer back, for apps that need a stronger builder than Gemini. No API key is needed.
+
+- **Copy prompt for Claude** (`ArtifactDraftModel.exportPrompt()`): Gemini's own system rules (`ArtifactPrompts.exportPrompt`, built on `systemInstruction`, so the live capability manual never drifts), the request with its `FORMAT:` line, and on update the `CURRENT PAYLOAD:`. It asks for the envelope only, and tells the AI to stay under 120 KB (`externalAppMaxKB`).
+- **Paste Claude's answer** (`ArtifactImportSheet` → `ArtifactDraftModel.importExternal`): `ArtifactImport.normalize` accepts the envelope, a fenced envelope, or plain HTML with chat text around it (title from `<title>`, requests from the `palabra.call("…")` names it uses). It then runs the same parse, lint, capability filter and approval as a Gemini answer (`ArtifactGenerator.importDraft`, no AI call).
+- **Size:** the limit is what storage accepts (`ArtifactLimits.maxPayloadBytes`, 128 KB). The Settings → Artifacts size is what Gemini writes in the app and does not apply to imports. Pasted text over 1,000,000 characters is refused. Refining an imported app with Gemini can still fail as "too large to extend" when the result would exceed the Settings size; export the update instead.
+- On update the artifact's kind must stay the same; a pasted spec cannot replace an app.
+
 ## Limits
 
 | What | Limit |

@@ -12,6 +12,8 @@ struct ArtifactDraftView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var model: ArtifactDraftModel?
     @State private var refineText = ""
+    @State private var promptCopied = false
+    @State private var showImport = false
     @State private var previewState = InMemorySpecStateStore()
     /// One session and one log per open sheet, so `ai.generate` limits and errors survive re-renders.
     @State private var previewSession = ArtifactSession(artifactID: nil, dryRun: true)
@@ -101,15 +103,21 @@ struct ArtifactDraftView: View {
             .padding(Theme.Spacing.md)
         }
         .scrollDismissesKeyboard(.interactively)
+        .sheet(isPresented: $showImport) {
+            ArtifactImportSheet { model.importExternal($0) }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button {
-                Task { await model.generate() }
-            } label: {
-                Text("Generate")
+            VStack(spacing: Theme.Spacing.sm) {
+                externalAIRow(model)
+                Button {
+                    Task { await model.generate() }
+                } label: {
+                    Text("Generate")
+                }
+                .buttonStyle(.primary)
+                .disabled(!model.canGenerate)
+                .accessibilityIdentifier("generateArtifactButton")
             }
-            .buttonStyle(.primary)
-            .disabled(!model.canGenerate)
-            .accessibilityIdentifier("generateArtifactButton")
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.top, Theme.Spacing.md)
             .padding(.bottom, Theme.Spacing.sm)
@@ -121,6 +129,41 @@ struct ArtifactDraftView: View {
                     endPoint: .bottom
                 )
             }
+        }
+    }
+
+    /// Build it with Claude or ChatGPT instead: copy the prompt out, paste the answer back in. No API key needed.
+    private func externalAIRow(_ model: ArtifactDraftModel) -> some View {
+        VStack(spacing: Theme.Spacing.xs) {
+            HStack(spacing: Theme.Spacing.sm) {
+                Button {
+                    guard let prompt = model.exportPrompt() else { return }
+                    UIPasteboard.general.string = prompt
+                    promptCopied = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        promptCopied = false
+                    }
+                } label: {
+                    Text(promptCopied ? LocalizedStringKey("Prompt copied") : LocalizedStringKey("Copy prompt for Claude"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .disabled(model.exportPrompt() == nil)
+                .accessibilityIdentifier("copyArtifactPromptButton")
+                Button {
+                    showImport = true
+                } label: {
+                    Text("Paste Claude's answer").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .accessibilityIdentifier("pasteArtifactAnswerButton")
+            }
+            Text("Works with Claude, ChatGPT and other AIs. No API key needed.")
+                .font(.caption2)
+                .foregroundStyle(Theme.inkSecondary)
         }
     }
 
