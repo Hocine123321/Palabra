@@ -13,8 +13,9 @@ struct SceneHUD: View {
 
     var body: some View {
         ZStack {
-            if state.isReading {
+            if state.showsReadingChrome {
                 reading
+                    .allowsHitTesting(state.mode != .closing)
             } else {
                 menu
             }
@@ -31,7 +32,7 @@ struct SceneHUD: View {
             }
         }
         .animation(Motion.reduced(Motion.quick), value: model.activeTerm)
-        .animation(Motion.reduced(Motion.quick), value: state.isReading)
+        .animation(Motion.reduced(Motion.quick), value: state.showsReadingChrome)
         .animation(Motion.reduced(Motion.quick), value: state.focus)
         .animation(Motion.reduced(Motion.quick), value: state.recall)
         .animation(Motion.reduced(Motion.quick), value: state.viewMoved)
@@ -55,7 +56,7 @@ struct SceneHUD: View {
             }
             .buttonStyle(.plain)
             .padding(.trailing, Theme.Spacing.md)
-            .padding(.bottom, state.isReading ? (state.focus ? 130 : 160) : 170)
+            .padding(.bottom, state.showsReadingChrome ? (state.focus ? 130 : 160) : 170)
             .accessibilityLabel(Text("Recenter view"))
             .accessibilityIdentifier("viewReset")
             .transition(.opacity)

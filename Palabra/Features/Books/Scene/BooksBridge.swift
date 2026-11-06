@@ -39,6 +39,11 @@ struct SceneState: Equatable {
 
     var isReading: Bool { mode == .reading || mode == .opening }
 
+    /// The reading controls stay on screen while the book closes, and the menu controls and tab bar only come back once it
+    /// is shut. (Swapping them at the tap changed the camera's view window and the layout in the middle of the move, which
+    /// showed as a lurch with the page still full-screen.)
+    var showsReadingChrome: Bool { isReading || mode == .closing }
+
     init() {}
 }
 

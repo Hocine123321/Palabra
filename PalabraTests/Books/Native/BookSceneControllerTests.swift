@@ -162,6 +162,129 @@ final class BookSceneControllerTests: XCTestCase {
         XCTAssertLessThan(worstJump, peak * 0.25, "the camera speed jumped between two frames")
     }
 
+    // MARK: close choreography (from the screen recording of the old close)
+
+    private func realMotionController() async -> BookSceneController {
+        let library = BookLibrary.load(from: BundleBookSource())
+        let controller = BookSceneController(config: NativeSceneConfig(library: library, reducedMotion: false))
+        controller.setSize(CGSize(width: 390, height: 844))
+        await controller.load()
+        return controller
+    }
+
+    /// Runs real-time frames until nothing animates; returns the camera's position after each frame and the frame the mode left
+    /// `.closing`.
+    private func runClose(_ controller: BookSceneController) -> (positions: [SIMD3<Double>], modeFlipFrame: Int?) {
+        var positions: [SIMD3<Double>] = []
+        var flip: Int?
+        var frame = 0
+        while controller.tweens.isActive, frame < 900 {
+            controller.tick(dt: 1.0 / 60)
+            frame += 1
+            positions.append(controller.camera.pose.position)
+            if flip == nil, controller.state.mode == .menu { flip = frame }
+        }
+        return (positions, flip)
+    }
+
+    private func length(_ v: SIMD3<Double>) -> Double { (v.x * v.x + v.y * v.y + v.z * v.z).squareRoot() }
+
+    /// The recording showed a hard cut at the end of the close: the mode flipped with the camera half way and a safety reframe
+    /// jumped it to the final pose. Now the camera has arrived before the mode flips and nothing jumps afterwards.
+    func testCloseNeverTeleportsTheCamera() async throws {
+        let controller = await realMotionController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        for _ in 0..<600 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        controller.closeBook()
+        let run = runClose(controller)
+        XCTAssertEqual(controller.state.mode, .menu)
+        let steps = zip(run.positions, run.positions.dropFirst()).map { length($1 - $0) }
+        let peak = steps.max() ?? 0
+        XCTAssertGreaterThan(peak, 0)
+        // The biggest frame-to-frame move is part of the glide itself, never a cut: nothing is more than 3x the median moving step.
+        let moving = steps.filter { $0 > peak * 0.02 }.sorted()
+        let median = moving[moving.count / 2]
+        XCTAssertLessThan(peak, median * 3, "the camera jumped (a cut) instead of gliding")
+    }
+
+    func testCloseFlipsToMenuOnlyAfterTheCameraHasArrived() async throws {
+        let controller = await realMotionController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        for _ in 0..<600 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        controller.closeBook()
+        var frames = 0
+        var distanceAtFlip: Double?
+        while controller.tweens.isActive, frames < 900 {
+            controller.tick(dt: 1.0 / 60)
+            frames += 1
+            if distanceAtFlip == nil, controller.state.mode == .menu {
+                let target = Framing.menu(controller.metrics)
+                distanceAtFlip = length(controller.camera.pose.position - target.position)
+            }
+        }
+        let distance = try XCTUnwrap(distanceAtFlip, "the mode never reached .menu")
+        XCTAssertLessThan(distance, 0.05, "the book was reported shut while the camera was still on its way")
+    }
+
+    /// The close starts moving at the tap: after a tenth of a second the camera has already left the reading pose.
+    func testCloseHasNoDeadTimeAtTheStart() async throws {
+        let controller = await realMotionController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        for _ in 0..<600 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        let start = controller.camera.pose.position
+        controller.closeBook()
+        for _ in 0..<12 { controller.tick(dt: 1.0 / 60) }
+        XCTAssertGreaterThan(length(controller.camera.pose.position - start), 0.01, "nothing moved for the first 0.2 s")
+    }
+
+    /// The whole close (tap to book home) is a little over a second and a half, down from about two and a half.
+    func testCloseLastsUnderTwoSeconds() async throws {
+        let controller = await realMotionController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        for _ in 0..<600 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        controller.closeBook()
+        let run = runClose(controller)
+        XCTAssertLessThan(Double(run.positions.count) / 60, 2.3)
+    }
+
+    /// The reading controls stay up for the whole close (and the tab bar stays hidden); the menu controls come back with the mode.
+    func testReadingControlsStayUntilTheBookIsShut() async throws {
+        let (controller, _) = await makeController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        XCTAssertFalse(controller.state.showsReadingChrome)
+        controller.openBook(id: entry.book.id, pageID: nil)
+        XCTAssertTrue(controller.state.showsReadingChrome, "opening")
+        settle(controller)
+        XCTAssertTrue(controller.state.showsReadingChrome, "reading")
+        controller.closeBook()
+        XCTAssertEqual(controller.state.mode, .closing)
+        XCTAssertTrue(controller.state.showsReadingChrome, "closing")
+        XCTAssertFalse(controller.state.isReading, "the page-tick and term card still treat a closing book as not reading")
+        settle(controller)
+        XCTAssertFalse(controller.state.showsReadingChrome, "shut")
+    }
+
+    /// New controls (the recall bar, Focus Mode) ease the picture to its new framing instead of snapping it.
+    func testChangingInsetsEasesInsteadOfJumping() async throws {
+        let controller = await realMotionController()
+        let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })
+        controller.openBook(id: entry.book.id, pageID: nil)
+        for _ in 0..<600 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        let before = controller.camera.shift
+        controller.setInsets(top: controller.insets.top, bottom: controller.insets.bottom + 60)
+        XCTAssertEqual(controller.camera.shift, before, accuracy: 1e-9, "nothing jumps at the instant of the change")
+        controller.tick(dt: 0.1)
+        let partway = controller.camera.shift
+        XCTAssertNotEqual(partway, before)
+        for _ in 0..<120 where controller.tweens.isActive { controller.tick(dt: 1.0 / 60) }
+        XCTAssertEqual(controller.camera.shift, controller.metrics.projectionShift, accuracy: 1e-6)
+        assertPose(controller.camera.pose, controller.readTarget(controller.pageIndex))
+    }
+
     func testOpeningThenCloseRequestClosesAfterOpen() async throws {
         let (controller, _) = await makeController()
         let entry = try XCTUnwrap(controller.entries.first { !$0.isEmpty })

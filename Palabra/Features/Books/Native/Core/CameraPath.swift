@@ -25,6 +25,25 @@ struct CameraPath: Equatable {
         }
     }
 
+    /// A move from `a` to `b` that leans toward `over` on the way, without stopping there.
+    ///
+    /// The old open went `menu -> cover -> reading`: the first leg was six units, the second one and a half, so the camera
+    /// slammed in and then crept (peak speed twice the average). This one has a single waypoint: the point `along` of the way on
+    /// the straight line, drawn `lean` of the distance toward `over`. Its time is its share of the distance travelled, so the
+    /// speed stays even through it (peak about 1.3 times the average) and the direction never reverses.
+    static func arc(from a: CameraPose, to b: CameraPose, over: CameraPose, along: Double = 0.6, lean: Double = 0.25) -> CameraPath {
+        let along = min(0.9, max(0.1, along))
+        let straight = CameraPose(
+            position: a.position + (b.position - a.position) * along,
+            look: a.look + (b.look - a.look) * along
+        )
+        let mid = CameraPose(
+            position: straight.position + (over.position - straight.position) * lean,
+            look: straight.look + (over.look - straight.look) * lean
+        )
+        return CameraPath(poses: [a, mid, b])
+    }
+
     var start: CameraPose { poses[0] }
     var end: CameraPose { poses[poses.count - 1] }
 

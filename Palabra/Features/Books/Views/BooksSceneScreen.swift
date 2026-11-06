@@ -75,7 +75,7 @@ struct BooksSceneScreen: View {
                 if new.enhancements != old.enhancements { model.send(.setEnhancements(new.enhancements)) }
             }
         }
-        .toolbar(model.state.isReading ? .hidden : .visible, for: .tabBar)
+        .toolbar(model.state.showsReadingChrome ? .hidden : .visible, for: .tabBar)
         .overlay {
             if !model.isReady { ProgressView().accessibilityIdentifier("booksLoading") }
         }
@@ -92,7 +92,7 @@ private struct InsetKey: Equatable {
     var bottom: CGFloat
 
     init(state: SceneState, size: CGSize, top: CGFloat, bottom: CGFloat) {
-        reading = state.isReading
+        reading = state.showsReadingChrome
         focus = state.focus
         recall = state.recall
         landscape = size.width > size.height

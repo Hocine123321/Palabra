@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import SceneKit
+import simd
 import UIKit
 
 extension ReaderTextSize {
@@ -115,6 +116,7 @@ final class BookSceneController {
     var config: NativeSceneConfig
     private var closeAfterOpen = false
     private var cameraTween: Tween?
+    private var shiftTween: Tween?
     private var propsOpacity = 1.0
     var leafTweens: [Int: Tween] = [:]
     private var cache: [String: PageImage] = [:]
@@ -234,12 +236,21 @@ final class BookSceneController {
     }
 
     func setInsets(top: Double, bottom: Double) {
-        insets = (max(0, top), max(0, bottom))
-        camera.setShift(metrics.projectionShift)
-        if isLoaded { reframe() }
+        let next = (max(0, top), max(0, bottom))
+        guard next != insets else { return }
+        insets = next
+        guard isLoaded else {
+            camera.setShift(metrics.projectionShift)
+            return
+        }
+        // The controls changed (Focus Mode, the recall bar, the menu coming back): the picture eases to the new view window and
+        // framing instead of jumping by a few dozen points.
+        settleCamera(duration: Self.settleDuration)
     }
 
-    /// Puts the camera where the current mode wants it, without animating.
+    /// Puts the camera where the current mode wants it, without animating. Used when the window itself changes size, where the
+    /// whole layout changes with it and an eased move would show the old framing stretched. Does nothing while a book opens or
+    /// closes: the move ends with `reframeAfterTransition`.
     private func reframe() {
         switch state.mode {
         case .reading: moveCamera(readTarget(pageIndex), duration: 0)
@@ -250,8 +261,38 @@ final class BookSceneController {
 
     // MARK: Camera
 
-    /// Called when an open or close has finished: the size or insets may have changed during it, and `reframe` does nothing
-    /// while the mode is `.opening` or `.closing`. Only acts if the camera is not already where the mode wants it.
+    /// How long the camera takes to adjust to new controls or a new size once a book is at rest.
+    static let settleDuration = 0.4
+
+    /// Eases the view window, and at rest the camera pose, to what the current mode and insets ask for. During an open or a close
+    /// the move owns the camera pose, so only the view window eases (it is independent of the path) and the pose is corrected
+    /// when the move has finished (`reframeAfterTransition`).
+    private func settleCamera(duration: Double) {
+        let shiftTo = metrics.projectionShift
+        let animate = duration > 0 && !config.reducedMotion
+        tweens.cancel(shiftTween)
+        if animate {
+            let shiftFrom = camera.shift
+            shiftTween = tweens.add(duration: duration, ease: .inOut) { [weak self] t in
+                self?.camera.setShift(BookMath.lerp(shiftFrom, shiftTo, t))
+            }
+        } else {
+            camera.setShift(shiftTo)
+        }
+        // A move already under way (Focus Mode takes 0.9 s) keeps its pace: it is re-aimed at the framing for the new controls
+        // rather than cut short to the settle time.
+        let moving = cameraTween.map { !$0.isDead } ?? false
+        let pace = animate ? (moving ? max(duration, 0.9) : duration) : 0
+        switch state.mode {
+        case .reading: moveCamera(readTarget(pageIndex), duration: pace)
+        case .menu: moveCamera(Framing.menu(metrics), duration: pace)
+        default: break
+        }
+    }
+
+    /// Called when an open or close has finished. The size or the controls may have changed during it, and the move was aimed
+    /// at the framing of the moment it started, so the camera and the view window ease the last bit to the framing the mode
+    /// wants now. When nothing changed this does nothing. It never jumps.
     private func reframeAfterTransition() {
         let wanted: CameraPose
         switch state.mode {
@@ -259,8 +300,14 @@ final class BookSceneController {
         case .menu: wanted = Framing.menu(metrics)
         default: return
         }
-        guard wanted != camera.pose else { return }
-        moveCamera(wanted, duration: 0)
+        let closeEnough = Self.samePose(wanted, camera.pose) && abs(camera.shift - metrics.projectionShift) < 0.5
+        guard !closeEnough else { return }
+        settleCamera(duration: Self.settleDuration)
+    }
+
+    /// Poses closer than a millimetre-ish are the same pose (the spline ends within floating point error of its last keyframe).
+    static func samePose(_ a: CameraPose, _ b: CameraPose, tolerance: Double = 0.002) -> Bool {
+        simd_length(a.position - b.position) < tolerance && simd_length(a.look - b.look) < tolerance
     }
 
     func moveCamera(_ target: CameraPose, duration: Double) {
@@ -378,6 +425,7 @@ final class BookSceneController {
         // (about half a second in) and drawing them here would be one long frame right as the camera starts to move.
         // With Reduce Motion there is no animation to protect, so they are ready at once.
         ensureTextures(entry, around: start, immediate: config.reducedMotion, prefetchPriority: .utility)
+        let plan = BookTransition.open
         let wide = isWide
         for other in entries where other !== entry {
             let from = other.node.root.position
@@ -390,19 +438,20 @@ final class BookSceneController {
         let root = entry.node.root
         let fromPos = root.position
         let fromRY = Double(root.eulerAngles.y)
-        tweens.add(duration: 0.8, ease: .inOut) { t in
+        tweens.add(duration: plan.bookDuration, delay: plan.bookDelay, ease: .inOut) { t in
             root.position = SCNVector3(
                 Float(BookMath.lerp(Double(fromPos.x), 0, t)), Float(sin(t * .pi) * 0.35), Float(BookMath.lerp(Double(fromPos.z), 0, t))
             )
             root.eulerAngles = SCNVector3(0, Float(BookMath.lerp(fromRY, 0, t)), 0)
         }
-        // One continuous camera move: menu -> over the closed cover -> reading pose. (It used to be two tweens, and the second
-        // cancelled the first while it was still moving, which stalled the camera and made the open look jerky.)
+        // ONE camera move from the desk to the page, over the book, that lands as the lid does. (Two moves cancelled each other
+        // and left the camera stalling and then rushing; a stop at the cover made the first leg six times longer than the second.)
+        let reading = readTarget(start, focus: false)
         moveCamera(
-            along: CameraPath(poses: [camera.pose, coverPose(entry), readTarget(start, focus: false)], times: Self.openKeyTimes),
-            duration: Self.openCameraDuration
+            along: CameraPath.arc(from: camera.pose, to: reading, over: coverPose(entry), along: plan.cameraWaypoint),
+            delay: plan.cameraDelay, duration: plan.cameraDuration
         )
-        tweens.add(duration: 1.15, delay: 0.55, ease: .inOut, onUpdate: { t in entry.node.setCoverOpen(t) }, onDone: { [weak self] in
+        tweens.add(duration: plan.lidDuration, delay: plan.lidDelay, ease: .inOut, onUpdate: { t in entry.node.setCoverOpen(t) }, onDone: { [weak self] in
             guard let self else { return }
             self.state.mode = .reading
             self.reframeAfterTransition()
@@ -414,13 +463,6 @@ final class BookSceneController {
         })
         emit()
     }
-
-    /// Camera timing of an open: the cover keyframe is reached just as the lid is lifting, the reading pose when it lands.
-    static let openCameraDuration = 1.75
-    static let openKeyTimes = [0.0, 0.55, 1.0]
-    /// Closing mirrors it.
-    static let closeCameraDuration = 1.8
-    static let closeKeyTimes = [0.0, 0.5, 1.0]
 
     private func resumeIndex(_ entry: Entry) -> Int {
         let last = config.lastPageID[entry.book.id]
@@ -441,39 +483,42 @@ final class BookSceneController {
         resetFreeView(animated: true)
         state.mode = .closing
         let turned = (0..<entry.node.leafCount).filter { entry.node.leafProgress($0) > 0.5 }
+        let plan = BookTransition.close(turnedLeaves: turned.count)
         for (k, leaf) in turned.enumerated() {
-            animateLeaf(entry, leaf, to: 0, duration: 0.45, delay: min(0.5, Double(k) * 0.05))
+            animateLeaf(entry, leaf, to: 0, duration: plan.leafDuration, delay: min(0.4, Double(k) * plan.leafStagger))
         }
-        let wait = turned.isEmpty ? 0 : min(0.5, Double(turned.count) * 0.05) + 0.45
-        tweens.add(duration: 0.9, delay: wait, ease: .inOut, onUpdate: { t in entry.node.setCoverOpen(1 - t) }, onDone: { [weak self] in
+        // Everything is placed on one timeline: the camera pulls back from the first frame and the book starts gliding home
+        // while the lid is still closing, so nothing waits for anything else and nothing is cut at the end.
+        tweens.add(duration: plan.lidDuration, delay: plan.lidDelay, ease: .inOut, onUpdate: { t in entry.node.setCoverOpen(1 - t) })
+        menuTransitionBack(entry, plan: plan)
+        moveCamera(
+            along: CameraPath.arc(from: camera.pose, to: Framing.menu(metrics), over: coverPose(entry), along: plan.cameraWaypoint),
+            delay: plan.cameraDelay, duration: plan.cameraDuration
+        )
+        tweens.add(duration: 0.0001, delay: plan.total, onUpdate: { _ in }, onDone: { [weak self] in
             guard let self else { return }
-            let closed = self.current
             self.current = nil
             self.toolsRoot.isHidden = true
             self.state.mode = .menu
             self.state.bookID = nil
             self.state.page = 0
             self.pageIndex = 0
-            self.menuTransitionBack(closed)
-            // The window may have been rotated or resized while the camera followed its path (reframe is skipped then):
-            // end on the pose for the current size. When nothing changed this is the pose the path already ends on.
             self.reframeAfterTransition()
             self.emit()
         })
-        moveCamera(
-            along: CameraPath(poses: [camera.pose, coverPose(entry), Framing.menu(metrics)], times: Self.closeKeyTimes),
-            delay: wait,
-            duration: Self.closeCameraDuration
-        )
         emit()
     }
 
-    private func menuTransitionBack(_ closed: Entry?) {
+    /// Every book glides to its slot on the desk; the one that was open is lifted a little on the way.
+    private func menuTransitionBack(_ closed: Entry, plan: BookTransition) {
         for entry in entries {
             let from = entry.node.root.position
             let fromRY = Double(entry.node.root.eulerAngles.y)
             let lift = entry === closed ? 0.3 : 0.0
-            tweens.add(duration: 0.9, ease: .inOut) { t in
+            // The book that was open waits for the lid; the others were slid aside by the open and come back at once.
+            let delay = entry === closed ? plan.bookDelay : 0
+            let duration = entry === closed ? plan.bookDuration : min(0.9, plan.total)
+            tweens.add(duration: duration, delay: delay, ease: .inOut) { t in
                 entry.node.root.position = SCNVector3(
                     Float(BookMath.lerp(Double(from.x), entry.menu.x, t)), Float(sin(t * .pi) * lift),
                     Float(BookMath.lerp(Double(from.z), entry.menu.z, t))
