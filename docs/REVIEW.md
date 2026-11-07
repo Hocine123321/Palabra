@@ -91,3 +91,11 @@ Status: everything in "Fixed" is changed on `main`; "Still open" lists what was 
 | B4 | Damage is reported, not guessed: truncated, corrupt, newer-version and not-a-library files each have a message; a damaged clip only loses that clip. Old `.json` exports still import. | `LibraryBackupService.Failure`, `SettingsView.swift` |
 
 Not included yet: saved artifacts, the Need Review list and app settings.
+
+## Follow-ups: Lesson Studio
+
+- The library backup (`LibraryArchive`) does not include the person's own lessons yet (`Application Support/Books/`). Losing the app loses them; add them to the archive as optional new fields (format version bump) before relying on them.
+- Faithfulness is a heuristic (digit runs and word forms); it cannot catch a reworded claim. The person's review of "What I read" and the draft is the real check.
+- The Studio and editor layouts are untested visually (CI covers logic only); a UI test with `-UITestStub` for add and edit would catch regressions.
+- Image blocks cannot be created (they need asset names); photos of diagrams are transcribed as text only.
+

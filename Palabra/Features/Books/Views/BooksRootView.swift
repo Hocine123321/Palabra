@@ -11,11 +11,17 @@ enum BooksRoute: Hashable {
 struct BooksRootView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var path: [BooksRoute] = []
+    /// The library version the 3D desk was built from. The desk is built once from the library, so it is rebuilt when it
+    /// comes back on screen after a lesson was added, edited or deleted.
+    @State private var builtVersion = 0
 
     var body: some View {
         NavigationStack(path: $path) {
             BooksSceneScreen(path: $path)
-                .id(environment.books.resetToken)
+                .id("\(environment.books.resetToken).\(builtVersion)")
+                .onAppear {
+                    if builtVersion != environment.books.libraryVersion { builtVersion = environment.books.libraryVersion }
+                }
             .navigationDestination(for: BooksRoute.self) { route in
                     switch route {
                     case .book(let id):

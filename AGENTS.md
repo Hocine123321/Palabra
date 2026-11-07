@@ -29,9 +29,12 @@ Palabra/
   Features/
     Onboarding/         first-run screen
     Spanish/            hub page list (SpanishHomeView), the Spanish tab's stack root
-    Books/              Books tab: History and Geography textbooks read from bundled lesson JSON (a 3D desk drawn by Three.js in a WKWebView; no AI in the app; see "Books" below)
-      Domain/           InlineMarkup, Lesson/Block models, LessonValidator, book models + BookLibrary (loader), RecallState
-      Storage/          TextbookState (+ store), BookShelf (`environment.books`)
+    Books/              Books tab: History and Geography textbooks read from the on-device lesson store (a native SceneKit 3D desk); lessons are added from photos or text with Gemini ("Lesson Studio") and edited live; see "Books" below
+      Domain/           InlineMarkup, Lesson/Block models (Codable), LessonValidator, book models + BookLibrary (loader), RecallState
+      Storage/          TextbookState (+ store), BookShelf (`environment.books`), LessonStore (the writable lessons)
+      AI/               LessonPrompts, LessonAuthor (transcribe/format/revise via generateJSON), LessonFaithfulness, LessonIDs
+      Studio/           LessonStudioSession + LessonStudioView (Add Lesson)
+      Editing/          LessonEditor (pure edits), BlockDraft, BlockEditorView, PageEditing, BookShelf+Editing
       Views/            shelf and cover, book page, reader (Focus Mode, Magnifying Glass), block views, RichText
     Solve/              Solve tab: on-device nerdamer + optional Wolfram|Alpha + Gemini fallback, on-device photo OCR, saved answers (see "Solve")
     Settings/           settings + model picker (app-wide, not vocabulary-specific)
@@ -111,7 +114,7 @@ It is fine — and encouraged — to rename Swift *types* and files that are not
 
 ## Books
 
-The Books tab only *reads* lessons that are already in the repository. Do not add an AI call, a lesson generator, runtime OCR or a lesson-upload screen to it. To add a lesson, follow "Adding a lesson" in `docs/features/books.md` (one JSON file plus one line in `textbooks.json`, then `python3 scripts/validate-lessons.py`). Lesson file names must be unique across the app (resources are flattened into the bundle root).
+Lessons live in a writable on-device store (`LessonStore`, seeded once from the bundled JSON) that is the only source for both the 2D reader and the 3D desk: never read the bundle directly for display. The one AI feature in Books is Lesson Studio, and its rule is that **the AI only presents what the person's notes say**: keep the "use only the source text" prompt rules, the `LessonFaithfulness` gate (numbers are blocked, new words warned) and the person-confirms-before-save flow; do not add AI calls elsewhere in Books. Lessons can also still be added as JSON (see "Adding a lesson" in `docs/features/books.md`; the bundled files are only the seed). Lesson file names must be unique across the app (resources are flattened into the bundle root). Lesson ids and page ids never contain "/" (they become file names and `<lesson>/<page>` progress keys); the app assigns them (`LessonIDs`), never the AI.
 
 The Books tab is a real 3D scene drawn natively with SceneKit (`Features/Books/Native/`), with SwiftUI controls over it (`Views/SceneHUD.swift`). Rules: (1) the scene lays pages out itself from the lesson JSON, so a new block type needs the same change in `LessonModels.swift`, `scripts/validate-lessons.py` and `Native/Layout` / `Native/Art/PageRenderer.swift`; (2) the messages and commands between the scene and the app are `SceneMessage` / `SceneCommand` in `Features/Books/Scene/BooksBridge.swift`, handled by `BookSceneController.handle`; (3) `native-golden.json` (in `PalabraTests/Books/Native`) holds the numbers of the original Three.js scene that the geometry and camera code must keep reproducing: do not regenerate it from anything but the original source; (4) the accessibility ids `bookCover.<id>`, `bookBack`, `pageNext`, `pagePrevious`, `pageIndicator`, `focusButton`, `focusExit`, `recallToggle`, `recallLevel`, `recallReveal`, `toolLens`, `toolBookmark`, `toolRuler`, `readAsText` are used by the UI tests; keep them. "Pull a test" (Settings → Books) runs a scripted tour and records it: after changing the scene, run the review job with `PalabraUITests/BooksTourUITests`.
 

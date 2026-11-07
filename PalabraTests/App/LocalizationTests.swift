@@ -86,6 +86,10 @@ final class LocalizationTests: XCTestCase {
     func testArabicStringsHaveLessonEditingKeys() throws {
         let table = try arabicTable()
         let keys = [
+            "Delete this lesson?",
+            "Delete Lesson",
+            "Rename Chapter",
+            "\"%@\" and its pages will be removed from this book.",
             "Block type",
             "New Block",
             "Heading",

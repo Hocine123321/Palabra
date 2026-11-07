@@ -937,3 +937,7 @@
 "Delete this page?" = "حذف هذه الصفحة؟";
 "The change couldn't be saved." = "تعذّر حفظ التعديل.";
 "New page" = "صفحة جديدة";
+"Delete this lesson?" = "حذف هذا الدرس؟";
+"Delete Lesson" = "حذف الدرس";
+"Rename Chapter" = "إعادة تسمية الوحدة";
+"\"%@\" and its pages will be removed from this book." = "سيتم حذف \"%@\" وصفحاته من هذا الكتاب.";

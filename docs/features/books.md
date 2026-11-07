@@ -1,11 +1,12 @@
 # Books (History and Geography textbooks)
 
 A **Books** tab with two virtual textbooks, History and Geography. The app is only the reader and the memorization
-tool: **there is no AI, no lesson generator and no photo upload in the app.** Lessons are written outside the app (by
-Claude, from photos of the school lesson) and added to the repository as JSON files. Rebuild, install, and the lesson is
-in the book.
+tool, and (since Lesson Studio) the place where the person adds and edits his own lessons. Lessons can still be written outside
+the app and added to the repository as JSON files (see "Adding a lesson"); the bundled ones are copied into the on-device
+store the first time the app runs, after which they are editable like any other.
 
-Everything works offline: lessons are bundled with the app, reading position and preferences are saved on the device.
+Reading and editing work offline: lessons live on the device, reading position and preferences are saved on the device. Only
+the Lesson Studio's AI steps need the network.
 
 ## The 3D desk (what the person sees)
 
@@ -65,7 +66,30 @@ scrolls down the page, so text stays as large as in portrait.
   `togglePageReveal`, `setTool`, `setFocus`, `setTextSize`, `setInsets`, `setAppearance`, `setQuality`, `closeTerm`,
   `setFreeView`, `resetView`, `setEnhancements`. `BookSceneController.handle` runs them.
 
-Nothing here talks to the network. The hard rule still stands: **no AI, no OCR, no upload, no chat, no lesson generator** in Books.
+Nothing in the scene talks to the network. The 3D desk is built once from `BookShelf.library`; it is rebuilt when it comes back
+on screen after `BookShelf.libraryVersion` changed (a lesson was added, edited or deleted), so the desk always shows the same
+lessons as the 2D reader.
+
+## Lesson Studio and editing (the person's own lessons)
+
+- **Store**: `Storage/LessonStore` keeps `Application Support/Books/` (`catalogue.json`, `lessons/<id>.json`, `seeded.json`). It is
+  the `BookContentSource` behind `BookShelf`; the bundle is only the seed (copied once; a deleted lesson is not resurrected).
+  Writes are atomic. `BookShelf.saveLesson/deleteLesson/addChapter/renameChapter` write the store, reload the library and bump
+  `libraryVersion`.
+- **Add Lesson** (+ in a book's page): `Studio/LessonStudioView` + `LessonStudioSession`. Photos (camera or library, up to 8) are each
+  read to text by Gemini (`LessonAuthor.transcribe`, one image per call); the text is shown and editable ("What I read", with
+  doubtful spots listed). Typed or pasted text skips that step. `LessonAuthor.format` then arranges the text into the app's block
+  types. The person can ask for changes (`revise`); nothing is saved until Save.
+- **The AI only presents.** The prompts forbid adding, explaining, summarizing, translating or completing, and send doubts to
+  `transcriptionNotes`. `LessonFaithfulness` checks every result against the source: a number or date that is not in the source
+  blocks (after one automatic retry with the concrete problem, the draft is shown with the warning); new words are a warning.
+  `LessonValidator` is the structural gate. Lesson ids and page ids are assigned by the app (`LessonIDs`), never by the AI.
+- **Live editing**: Edit (pencil) in the reader shows a menu on each block and on the page: edit a block's fields (`BlockEditorView`
+  over `BlockDraft`), add, move, delete blocks and pages, edit titles. `LessonEditor` holds the pure operations (an edit that would
+  leave a lesson invalid, such as deleting the last block or page, changes nothing); `BookShelf.editLesson` saves. Page ids never
+  change, so reading progress survives. Images and unknown blocks can only be moved or deleted.
+- **Delete lesson / rename chapter**: long-press a lesson or a chapter title in the book's page.
+- Not covered by CI: the visual layout of the Studio and the editors (only the logic is tested).
 
 ## Where things live
 

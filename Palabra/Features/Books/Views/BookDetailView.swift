@@ -6,6 +6,10 @@ struct BookDetailView: View {
 
     @Environment(AppEnvironment.self) private var environment
     @State private var showStudio = false
+    @State private var lessonToDelete: BookLesson?
+    @State private var chapterToRename: BookChapter?
+    @State private var chapterName = ""
+    @State private var changeFailed = false
 
     var body: some View {
         if let book = environment.books.book(id: bookID) {
@@ -57,6 +61,31 @@ struct BookDetailView: View {
             }
         }
         .sheet(isPresented: $showStudio) { LessonStudioView(bookID: book.id) }
+        .confirmationDialog(
+            "Delete this lesson?",
+            isPresented: Binding(get: { lessonToDelete != nil }, set: { if !$0 { lessonToDelete = nil } }),
+            titleVisibility: .visible,
+            presenting: lessonToDelete
+        ) { lesson in
+            Button("Delete Lesson", role: .destructive) {
+                do { try environment.books.deleteLesson(id: lesson.id) } catch { changeFailed = true }
+            }
+        } message: { lesson in
+            Text("\"\(lesson.title)\" and its pages will be removed from this book.")
+        }
+        .alert(
+            "Rename Chapter",
+            isPresented: Binding(get: { chapterToRename != nil }, set: { if !$0 { chapterToRename = nil } })
+        ) {
+            TextField("Chapter title", text: $chapterName)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                let name = chapterName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let chapter = chapterToRename, !name.isEmpty else { return }
+                do { try environment.books.renameChapter(bookID: book.id, chapterID: chapter.id, title: name) } catch { changeFailed = true }
+            }
+        }
+        .alert("The change couldn't be saved.", isPresented: $changeFailed) { Button("OK", role: .cancel) {} }
     }
 
     private func chapterSection(_ chapter: BookChapter, in book: Book) -> some View {
@@ -66,6 +95,14 @@ struct BookDetailView: View {
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
+                .contextMenu {
+                    if environment.books.lessonStore != nil {
+                        Button("Rename Chapter", systemImage: "pencil") {
+                            chapterName = chapter.title
+                            chapterToRename = chapter
+                        }
+                    }
+                }
             if chapter.lessons.isEmpty {
                 Text("No lessons in this chapter yet.")
                     .font(.subheadline)
@@ -123,5 +160,11 @@ struct BookDetailView: View {
         }
         .padding(Theme.Spacing.md)
         .glassCard()
+        .contextMenu {
+            if environment.books.lessonStore != nil {
+                Button("Delete Lesson", systemImage: "trash", role: .destructive) { lessonToDelete = lesson }
+                    .accessibilityIdentifier("deleteLesson.\(lesson.id)")
+            }
+        }
     }
 }
