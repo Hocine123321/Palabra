@@ -36,3 +36,8 @@ ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-sm); 
 [dir="rtl"] .toolbar .count { text-align: start; }
 .es, .tr { unicode-bidi: plaintext; }
 .small { font-size: 13px; margin: 0; } .check { display: flex !important; grid-template-columns: none; gap: var(--sp-sm); align-items: center; font-weight: 500 !important; } .check input { width: auto; } .actions { display: flex; gap: var(--sp-xs); }
+.add { display: flex; gap: var(--sp-sm); padding: var(--sp-sm); border-radius: var(--r-card); margin-block-end: var(--sp-md); }
+.add input { flex: 1; min-width: 0; }
+.changes { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--sp-xs); }
+.changes li { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-sm); padding: var(--sp-sm); border-radius: var(--r-small); background: var(--surface); }
+.changes small { display: block; }

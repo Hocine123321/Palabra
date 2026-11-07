@@ -42,3 +42,29 @@ test("the status line names the state", () => {
   assert.match(renderStatus({ state: "linked", takenAt: null }), /Linked to your phone/);
   assert.match(renderStatus({ state: "away", takenAt: "2026-11-07T11:00:00Z", now: new Date("2026-11-07T12:00:00Z") }), /Phone away[^]*Synced 1 h ago/);
 });
+
+import { renderAddWords, renderChanges, describeChange } from "../src/ui/render.js";
+import { makeT } from "../src/ui/strings.js";
+import { reasonText } from "../src/link-rpc.js";
+
+test("nothing is shown when there are no changes", () => {
+  assert.equal(renderChanges({ queue: [], review: [] }), "");
+});
+
+test("waiting changes can be cancelled and refused ones can be retried or dropped, with the reason in plain words", () => {
+  const html = renderChanges({
+    queue: [{ id: "q1", capability: "words.add", args: { words: ["a", "b"] } }],
+    review: [{ id: "r1", capability: "words.place", args: { words: ["x"] }, reason: "conflict" }],
+  }, makeT("en"), reasonText);
+  assert.match(html, /Add 2 words/); assert.match(html, /data-cancel="q1"/);
+  assert.match(html, /Organise 1 words/); assert.match(html, /data-retry="r1"/); assert.match(html, /data-drop="r1"/);
+  assert.match(html, /changed on the phone/);
+});
+
+test("changes render in Arabic, and text from the phone or the person is escaped", () => {
+  const html = renderChanges({ queue: [{ id: '"><img src=x onerror=alert(1)>', capability: "words.add", args: { words: [] } }], review: [] }, makeT("ar"));
+  assert.match(html, /بانتظار الهاتف/);
+  assert.doesNotMatch(html, /<img/);
+  assert.match(renderAddWords(makeT("ar")), /أضف/);
+  assert.equal(describeChange({ capability: "zzz" }, makeT("en")), "A change");
+});

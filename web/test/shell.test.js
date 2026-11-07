@@ -201,3 +201,75 @@ test("after several silent attempts the page suggests forgetting the computer, i
   await until(() => /forget this computer and pair again/.test(r.nodes.hint.textContent), "the re-pair hint");
   assert.match(r.nodes.hint.textContent, /forget this computer and pair again/);
 });
+
+/** Like phoneAndRelay, but the fake phone also records the `write` messages it receives and can be told to refuse. */
+async function phoneThatTakesWrites(code, { refuse = null } = {}) {
+  const base = await phoneAndRelay(code);
+  const writes = [];
+  const secret = new Uint8Array(32).fill(9);
+  const appSession = await Session.open(secret, "app");
+  class Socket extends base.Socket {
+    async send(frame) {
+      const probe = await Session.open(secret, "app");
+      const request = await probe.open(new Uint8Array(frame));
+      const reply = request.type === "write"
+        ? (writes.push(request.payload), refuse ? { id: request.id, type: "reject", version: 1, payload: { reason: refuse } } : { id: request.id, type: "ack", version: 1, payload: { result: { queued: 1 } } })
+        : { id: request.id, type: "ack", version: 1, payload: { snapshot: SNAP, takenAt: "2026-11-07T10:00:00Z" } };
+      const sealed = await appSession.seal(reply);
+      queueMicrotask(() => this.listeners.message?.forEach((f) => f({ data: sealed.buffer.slice(sealed.byteOffset, sealed.byteOffset + sealed.byteLength) })));
+    }
+  }
+  return { fetch: base.fetch, Socket, writes };
+}
+
+async function pairedPage({ remember = false, refuse = null } = {}) {
+  const r = await run();
+  const phone = await phoneThatTakesWrites("482913", { refuse });
+  Object.assign(r.sandbox, { fetch: phone.fetch, WebSocket: phone.Socket });
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await new Promise((x) => setImmediate(x));
+  Object.assign(r.nodes.address, { value: "192.168.1.20" }); Object.assign(r.nodes.code, { value: "482913" }); Object.assign(r.nodes.relay, { value: "wss://relay.example" });
+  r.nodes.remember.checked = remember;
+  await r.nodes.pair.listeners.submit({ preventDefault() {} });
+  await until(() => /hola/.test(r.nodes.view.innerHTML), "library shown");
+  return { ...r, phone };
+}
+
+test("words typed in the page are sent to the phone as one write with an id, and the box is cleared", async () => {
+  const r = await pairedPage();
+  r.nodes.addText.value = "buenas noches, adiós";
+  await r.nodes.add.listeners.submit({ preventDefault() {} });
+  await until(() => r.phone.writes.length === 1, "write received by the phone");
+  assert.equal(r.phone.writes[0].capability, "words.add");
+  assert.deepEqual(r.phone.writes[0].args.words, ["buenas noches", "adiós"]);
+  assert.ok(r.phone.writes[0].id.length > 8);
+  assert.equal(r.nodes.addText.value, "");
+});
+
+test("a refused change shows up in 'Needs your review' with the reason, instead of vanishing", async () => {
+  const r = await pairedPage({ refuse: "conflict" });
+  r.nodes.addText.value = "hola";
+  await r.nodes.add.listeners.submit({ preventDefault() {} });
+  await until(() => /Needs your review/.test(r.nodes.view.innerHTML), "review list shown");
+  assert.match(r.nodes.view.innerHTML, /changed on the phone/);
+  assert.match(r.nodes.view.innerHTML, /data-retry=/);
+});
+
+test("with Remember OFF, queued changes are never written to the browser either", async () => {
+  const r = await pairedPage({ remember: false, refuse: "conflict" });
+  r.nodes.addText.value = "hola";
+  await r.nodes.add.listeners.submit({ preventDefault() {} });
+  await until(() => /Needs your review/.test(r.nodes.view.innerHTML), "review list shown");
+  assert.equal(r.idb.size, 0);
+});
+
+test("Forget this computer also removes waiting and refused changes", async () => {
+  const r = await pairedPage({ remember: true, refuse: "conflict" });
+  r.nodes.addText.value = "hola";
+  await r.nodes.add.listeners.submit({ preventDefault() {} });
+  await until(() => r.idb.has("outbox"), "outbox saved");
+  await r.nodes.forget.listeners.click();
+  await until(() => r.idb.size === 0, "browser emptied");
+  assert.equal(r.idb.size, 0);
+});

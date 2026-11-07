@@ -3,7 +3,10 @@ import { pairWithPhone, openLink } from "../link-client.js";
 import { toHex } from "../link-crypto.js";
 import { createCache, idbStore, memoryStore } from "../cache.js";
 import { createSync } from "../sync.js";
-import { renderLibrary, renderStudy, renderStatus } from "./render.js";
+import { renderLibrary, renderStudy, renderStatus, renderAddWords, renderChanges } from "./render.js";
+import { createOutbox } from "../outbox.js";
+import { sendOutboxItem, parseWords } from "../writes.js";
+import { reasonText } from "../link-rpc.js";
 import { makeT, pickLanguage, dirFor, errorText } from "./strings.js";
 
 const $ = (s) => document.querySelector(s);
@@ -36,11 +39,24 @@ export async function start() {
   function paint() {
     if (!state.snapshot) return;
     $("#status").innerHTML = renderStatus({ state: state.link, takenAt: state.takenAt, message: state.message }, t);
-    $("#view").innerHTML = state.tab === "library" ? renderLibrary(state.snapshot, state.filters, t) : renderStudy(state.snapshot, t);
+    $("#view").innerHTML = (state.tab === "library" ? renderAddWords(t) + renderLibrary(state.snapshot, state.filters, t) : renderStudy(state.snapshot, t))
+      + renderChanges(changes, t, (r) => t(reasonText(r)));
     for (const b of document.querySelectorAll("nav.tabs button")) {
       if (b.dataset.tab === state.tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     }
     hint();
+    const add = $("#add");
+    if (add) add.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const words = parseWords($("#addText").value);
+      if (!words.length || !outbox) return;
+      await outbox.enqueue("words.add", { words });
+      $("#addText").value = "";
+      outbox.flush();
+    });
+    for (const b of document.querySelectorAll("[data-cancel]")) b.addEventListener("click", () => outbox.cancel(b.dataset.cancel));
+    for (const b of document.querySelectorAll("[data-retry]")) b.addEventListener("click", async () => { await outbox.retry(b.dataset.retry); outbox.flush(); });
+    for (const b of document.querySelectorAll("[data-drop]")) b.addEventListener("click", () => outbox.drop(b.dataset.drop));
     const search = $("#search");
     if (search) search.addEventListener("input", (e) => {
       state.filters.query = e.target.value; const at = e.target.selectionStart; paint();
@@ -51,15 +67,21 @@ export async function start() {
 
   for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => { state.tab = b.dataset.tab; paint(); });
 
-  let sync = null, pairing = null;
+  let sync = null, pairing = null, outbox = null, changes = { queue: [], review: [] };
   function begin(pair) {
     pairing = pair;
     sync?.stop();
+    outbox = createOutbox({
+      store: cache.store, send: sendOutboxItem(() => sync?.link ?? null),
+      onChange: (c) => { changes = c; if (state.snapshot) paint(); },
+    });
+    outbox.load();
     sync = createSync({
       cache, openLink,
       onChange: (v) => {
         Object.assign(state, { snapshot: v.snapshot, takenAt: v.takenAt, link: v.state, message: v.message, failures: v.failures });
         if (v.snapshot) { $("#pairing").hidden = true; $("#app").hidden = false; paint(); }
+        if (v.state === "linked") outbox?.flush();      // the phone is back: send what waited, in order
         else if (v.state === "empty") { $("#pairing").hidden = true; $("#app").hidden = false; $("#status").innerHTML = renderStatus({ state: "away", takenAt: null }, t); hint(); $("#view").innerHTML = ""; }
       },
     });
@@ -70,6 +92,7 @@ export async function start() {
   $("#forget").addEventListener("click", async () => {
     sync?.stop(); sync = null; pairing = null;
     await disk.clearAll(); await memory.clearAll();
+    await outbox?.clear(); outbox = null; changes = { queue: [], review: [] };
     Object.assign(state, { snapshot: null, takenAt: null, link: "idle" });
     $("#app").hidden = true; $("#pairing").hidden = false; $("#view").innerHTML = ""; $("#err").textContent = "";
   });

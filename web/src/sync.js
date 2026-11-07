@@ -57,6 +57,8 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
 
   const api = {
     get view() { return { ...view }; },
+    /** The live link, or null while the phone is away. */
+    get link() { return view.state === "linked" ? link : null; },
     showCached,
     /** Start (or restart) syncing with the phone. */
     start(secretHex, relayUrl) { stopped = false; attempt = 0; if (timer) clearTimer(timer); busy = false; return run(secretHex, relayUrl); },

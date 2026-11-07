@@ -47,8 +47,11 @@ export function idbStore({ name = "palabra-web", indexedDB = globalThis.indexedD
 
 /** What the page remembers between visits. All methods swallow storage failures into a plain "nothing saved". */
 export function createCache(store) {
+  const raw = store;
   const safe = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
   return {
+    /** The underlying store, for parts that keep their own record (the outbox). */
+    store: raw,
     /** The last snapshot, or null if none (or one this version cannot read). */
     loadSnapshot: () => safe(async () => {
       const saved = await store.get(SNAPSHOT_KEY);

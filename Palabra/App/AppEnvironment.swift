@@ -163,7 +163,15 @@ final class AppEnvironment {
             hooks: hooks,
             aiGateway: gateway
         )
-        webLink.dispatcher = WebLinkDispatcher(registry: capabilities)
+        // The live section and tags of a word, for the conflict check on a placement change from the web page.
+        webLink.dispatcher = WebLinkDispatcher(registry: capabilities, placement: { [repository] ref in
+            await MainActor.run {
+                let all = repository.allWords()
+                let id = UUID(uuidString: ref)
+                let word = all.first { $0.id == id } ?? all.first { $0.key == ref || $0.key == WordKey.identity(ref) }
+                return word.map { (category: $0.category, tags: $0.tags) }
+            }
+        })
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
         self.wordQueue = wordQueue

@@ -72,6 +72,10 @@ export function reasonText(reason) {
     case "forbidden": return "That is not allowed from the web.";
     case "bad-args": case "bad-request": return "The phone could not understand the request.";
     case "rate-limited": return "Too many requests. Wait a moment.";
+    case "conflict": return "This changed on the phone after you looked at it.";
+    case "not-found": return "That word is no longer on the phone.";
+    case "live-only": return "This needs the phone connected right now.";
+    case "not-queueable": return "This cannot wait in the queue.";
     default: return "The phone could not do that.";
   }
 }

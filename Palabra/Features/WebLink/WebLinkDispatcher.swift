@@ -1,14 +1,22 @@
 import Foundation
 
 /// Answers the web page's requests with the app's data, through the same capability registry Artifacts use.
-/// Phase 2 is read-only: only capabilities on `readAllowList` run, and only if the registry itself says they
-/// are reads. Everything else (writes, AI, storage) is refused with `forbidden`, so the page cannot change
-/// anything and cannot spend quota. API keys are not reachable through any of these capabilities.
+/// Reads run only if the capability is on `readAllowList` and the registry itself says it is a read.
+/// Writes (phase 4) run only if on `writeAllowList` and the registry says it is a write; each carries an id so a retry
+/// after a lost reply is answered with the first result. AI runs only through the separate `ai` message, one capability.
+/// Everything else (storage, anything that deletes, anything unknown) is refused with `forbidden`. API keys are not
+/// reachable through any of these capabilities.
 struct WebLinkDispatcher: Sendable {
     /// What the web UI may read. A name here that turns out to be a write in the registry is still refused.
     static let readAllowList: Set<String> = [
         "library.words", "library.word", "study.decks", "review.list", "stats.wordsPerDay", "stats.wordsPerWeek",
     ]
+
+    /// What the web UI may change. Small on purpose: adding words, placing them in a section or tags, flagging for review.
+    /// No deletes and no `storage.*` (the Storage page keeps live files read-only).
+    static let writeAllowList: Set<String> = ["words.add", "words.place", "review.flag"]
+    /// The one AI capability the page may ask for, only through the `ai` message and only while the link is live.
+    static let aiCapability = "ai.generate"
 
     /// The reads that make up the first snapshot, with the arguments each is called with.
     static let snapshotReads: [(key: String, capability: String, args: JSONValue)] = [
@@ -21,10 +29,20 @@ struct WebLinkDispatcher: Sendable {
 
     let registry: CapabilityRegistry
     let now: @Sendable () -> Date
+    let recent: RecentActions
+    /// The live placement of a word (section and tags), for the conflict check on `words.place`. `nil` = no such word.
+    let placement: @Sendable (_ idOrKey: String) async -> (category: String?, tags: [String])?
 
-    init(registry: CapabilityRegistry, now: @escaping @Sendable () -> Date = { Date() }) {
+    init(
+        registry: CapabilityRegistry,
+        now: @escaping @Sendable () -> Date = { Date() },
+        recent: RecentActions = RecentActions(),
+        placement: @escaping @Sendable (_ idOrKey: String) async -> (category: String?, tags: [String])? = { _ in nil }
+    ) {
         self.registry = registry
         self.now = now
+        self.recent = recent
+        self.placement = placement
     }
 
     /// One reply to one request. `nil` means the type is not ours (unknown types are ignored, not answered).
@@ -32,6 +50,8 @@ struct WebLinkDispatcher: Sendable {
         switch message.type {
         case "read": return await read(message)
         case "snapshot": return await snapshot(message)
+        case "write": return await write(message)
+        case "ai": return await ai(message)
         default: return nil
         }
     }
@@ -71,6 +91,58 @@ struct WebLinkDispatcher: Sendable {
         case .failure(.badArgs): return .failure(Refusal("bad-args"))
         case .failure(.rateLimited): return .failure(Refusal("rate-limited"))
         case .failure: return .failure(Refusal("failed"))
+        }
+    }
+
+    /// A change from the page: `{id, capability, args, base}`. Order of checks: shape, allow-list, registry class, a repeat of
+    /// an action already run (answer with the first result), the conflict check, then the call.
+    private func write(_ message: LinkMessage) async -> LinkMessage {
+        guard case .object(let payload)? = message.payload,
+              let actionID = payload["id"]?.stringValue, !actionID.isEmpty, actionID.count <= 80,
+              let name = payload["capability"]?.stringValue else { return reject(message, reason: "bad-request") }
+        guard Self.writeAllowList.contains(name),
+              let capability = registry.capability(named: name), capability.kind == .write else { return reject(message, reason: "forbidden") }
+        if let first = recent.reply(for: actionID) {
+            return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": first, "repeat": .bool(true)]))
+        }
+        let args = payload["args"] ?? .object([:])
+        if name == "words.place", let conflict = await placementConflict(args: args, base: payload["base"]) { return reject(message, reason: conflict) }
+        let session = ArtifactSession(artifactID: nil, dryRun: false)
+        switch await registry.call(name: name, args: args, session: session, granted: [name]) {
+        case .success(let value):
+            recent.remember(id: actionID, reply: value)
+            return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": value]))
+        case .failure(.badArgs): return reject(message, reason: "bad-args")
+        case .failure(.rateLimited): return reject(message, reason: "rate-limited")
+        case .failure: return reject(message, reason: "failed")
+        }
+    }
+
+    /// `words.place` carries `base`, a map of word id/key to the placement token the page saw. A word whose live token
+    /// differs, or that is gone, refuses the whole action (`conflict` / `not-found`): nothing is half applied.
+    /// A missing `base` (a retry the person chose to force) skips the check.
+    private func placementConflict(args: JSONValue, base: JSONValue?) async -> String? {
+        guard case .object(let seen)? = base else { return nil }
+        guard case .object(let object) = args, let items = object["words"]?.arrayValue else { return nil }
+        for item in items {
+            guard let ref = item["id"]?.stringValue ?? item["key"]?.stringValue, let expected = seen[ref]?.stringValue else { continue }
+            guard let live = await placement(ref) else { return "not-found" }
+            if PlacementToken.make(category: live.category, tags: live.tags) != expected { return "conflict" }
+        }
+        return nil
+    }
+
+    /// An AI request from the page: `{args}` for `ai.generate`. Same rules as any capability call (the registry's own
+    /// limits and the user's configured model apply); the page cannot name another capability and nothing is queued.
+    private func ai(_ message: LinkMessage) async -> LinkMessage {
+        guard case .object(let payload)? = message.payload else { return reject(message, reason: "bad-request") }
+        guard let capability = registry.capability(named: Self.aiCapability), capability.kind == .ai else { return reject(message, reason: "forbidden") }
+        let session = ArtifactSession(artifactID: nil, dryRun: false)
+        switch await registry.call(name: Self.aiCapability, args: payload["args"] ?? .object([:]), session: session, granted: [Self.aiCapability]) {
+        case .success(let value): return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": value]))
+        case .failure(.badArgs): return reject(message, reason: "bad-args")
+        case .failure(.rateLimited): return reject(message, reason: "rate-limited")
+        case .failure: return reject(message, reason: "failed")
         }
     }
 

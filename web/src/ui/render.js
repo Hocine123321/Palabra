@@ -68,3 +68,34 @@ export function renderStatus({ state, takenAt, now = new Date(), message = "" },
   const synced = p.kind === "never" ? t("Not synced yet") : p.kind === "now" ? t("Synced just now") : t(`Synced {n} ${p.unit} ago`).replace("{n}", p.n);
   return `<span class="dot ${esc(state)}"></span><span>${esc(label)}</span><span class="muted">${esc(synced)}</span>`;
 }
+
+/** The box for adding words. It works offline: the words wait in the queue until the phone is back. */
+export function renderAddWords(t = makeT("en")) {
+  return `<form id="add" class="add glass" autocomplete="off">
+    <input id="addText" type="text" maxlength="400" placeholder="${esc(t("Add words, separated by commas"))}" aria-label="${esc(t("Add words, separated by commas"))}">
+    <button type="submit" class="chip">${t("Add")}</button></form>`;
+}
+
+/** What each queued capability means to a person, without jargon. */
+export function describeChange(item, t = makeT("en")) {
+  const n = (item.args?.words ?? []).length;
+  if (item.capability === "words.add") return t("Add {n} words").replace("{n}", n);
+  if (item.capability === "words.place") return t("Organise {n} words").replace("{n}", n);
+  if (item.capability === "review.flag") return t("Flag {n} words for review").replace("{n}", n);
+  return t("A change");
+}
+
+/** Waiting changes and the ones the phone refused. Empty string when there is nothing to show. */
+export function renderChanges({ queue = [], review = [] }, t = makeT("en"), reasonLabel = (r) => r) {
+  if (!queue.length && !review.length) return "";
+  const waiting = queue.length
+    ? `<h2>${t("Waiting for the phone")}</h2><ul class="changes">${queue.map((q) => `
+        <li><span>${esc(describeChange(q, t))}</span><button class="chip" data-cancel="${esc(q.id)}">${t("Cancel")}</button></li>`).join("")}</ul>`
+    : "";
+  const needs = review.length
+    ? `<h2>${t("Needs your review")}</h2><ul class="changes review-list">${review.map((r) => `
+        <li><span>${esc(describeChange(r, t))}<small class="muted">${esc(reasonLabel(r.reason))}</small></span>
+          <span class="actions"><button class="chip" data-retry="${esc(r.id)}">${t("Try again")}</button><button class="chip" data-drop="${esc(r.id)}">${t("Drop")}</button></span></li>`).join("")}</ul>`
+    : "";
+  return waiting + needs;
+}

@@ -87,3 +87,15 @@ export function syncedText(takenAt, now = new Date()) {
   const p = syncedParts(takenAt, now);
   return p.kind === "never" ? "Not synced yet" : p.kind === "now" ? "Synced just now" : `Synced ${p.n} ${p.unit} ago`;
 }
+
+/**
+ * What the page saw of a word's placement, as one plain string. Must match PlacementToken.make in Swift exactly:
+ * `category|tag1,tag2`, tags sorted by UTF-8 bytes, and `\`, `|` and `,` escaped with a backslash. The phone refuses a `words.place`
+ * whose token no longer matches the live word, so a change made on the phone is never overwritten silently.
+ */
+export function placementToken(category, tags = []) {
+  const esc = (t) => String(t).replace(/[\\|,]/g, (c) => `\\${c}`);
+  const bytes = new TextEncoder();
+  const byUtf8 = (a, b) => { const x = bytes.encode(a), y = bytes.encode(b); for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i] - y[i]; return x.length - y.length; };
+  return `${esc(category ?? "")}|${[...tags].map(esc).sort(byUtf8).join(",")}`;
+}
