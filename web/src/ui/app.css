@@ -57,3 +57,16 @@ ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-sm); 
 .key { padding-inline-start: var(--sp-md); border-inline-start: 3px solid var(--accent); }
 blockquote { margin-inline: 0; padding-inline-start: var(--sp-md); border-inline-start: 3px solid var(--fill); }
 dt { font-weight: 600; margin-block-start: var(--sp-xs); } dd { margin-inline-start: var(--sp-md); }
+
+/* Debug console: a floating button on every screen and a panel with the page's flight recorder. */
+.debug-fab { position: fixed; inset-inline-end: var(--sp-md); inset-block-end: calc(var(--sp-md) + 64px); z-index: 50; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--glass-rim); background: var(--glass); color: var(--ink); backdrop-filter: blur(14px); box-shadow: var(--shadow); font: inherit; font-size: .85rem; cursor: pointer; }
+.debug-fab:hover, .debug-fab[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-deep); }
+.debug-panel { position: fixed; inset-inline: var(--sp-sm); inset-block-end: var(--sp-sm); z-index: 60; max-height: 78vh; display: flex; flex-direction: column; gap: var(--sp-sm); padding: var(--sp-md); border-radius: 18px; border: 1px solid var(--glass-rim); background: var(--surface); box-shadow: var(--shadow); }
+.debug-panel[hidden] { display: none; }
+.debug-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm); flex-wrap: wrap; }
+.debug-actions { display: flex; gap: var(--sp-xs); flex-wrap: wrap; }
+.debug-status { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 2px var(--sp-md); margin: 0; font-size: .8rem; }
+.debug-status dt { margin: 0; color: var(--ink-2); font-weight: 500; } .debug-status dd { margin: 0 0 4px; font-weight: 600; overflow-wrap: anywhere; }
+.debug-filters { display: flex; gap: var(--sp-xs); } .debug-filters input { flex: 1; min-width: 0; }
+.debug-log { flex: 1; min-height: 160px; margin: 0; padding: var(--sp-sm); overflow: auto; border-radius: 12px; background: var(--bg-bottom); color: var(--ink); font: .75rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.debug-note { margin: 0; }

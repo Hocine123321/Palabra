@@ -7,7 +7,7 @@ import { createCache, memoryStore } from "../src/cache.js";
 import { Session, randomBytes, roomId } from "../src/link-crypto.js";
 
 const tick = () => new Promise((r) => setImmediate(r));
-const until = async (check, what) => { for (let i = 0; i < 200; i++) { if (check()) return; await tick(); } throw new Error("never reached: " + what); };
+const until = async (check, what, ms = 3000) => { const end = Date.now() + ms; while (Date.now() < end) { if (check()) return; await new Promise((r) => setTimeout(r, 2)); } throw new Error("never reached: " + what); };
 const buffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 
 /** A relay socket we control: tests push frames in and read what the page sent. */

@@ -89,3 +89,18 @@ A computer you chose to trust keeps a token. After joining, its page sends `hell
 - a computer that was removed (or presents an unreadable token) gets `revoked` on its hello and on every later request, even while connected, and its page shows "This computer is no longer trusted by the phone" and stops retrying.
 
 The shared link secret is not changed, so the other trusted computers keep working. Limitation: a computer that holds the secret but never sends a hello is treated as a code-paired browser. A removed computer that deliberately skips the hello is therefore not cut off. Closing that needs a per-computer key instead of one shared secret, which is a larger change.
+
+## Debug console
+
+A floating **Debug** button on every screen (including the pairing card) opens a console that records what the page does, with a time on every line:
+
+- **page**: environment at start (file:// or https, secure context, WebSocket and crypto available, online, browser), uncaught errors, unhandled rejections, tab visible or hidden, going online or offline, button clicks.
+- **pair**: the local pairing steps (challenge, proof, HTTP status of each answer, why a fetch failed). The code is never logged.
+- **link / presence / heartbeat**: opening the socket and seat, relay notices (phone here or gone), every close with its code, each ping and whether it was answered, a dead socket being closed.
+- **tx / rx**: every message to and from the phone as `type #id (size)`. Frames that were dropped (not for us, tampered, replayed) are noted.
+- **sync / state**: each state change (`connecting/relay -> linked/phone`), snapshot received, why an attempt failed and when the next try is, and when it stopped because only the person can fix it.
+- **finder / trust**: lobby join, phones found, trust request and the phone's answer.
+
+The top of the panel shows the live state (link, step, failed attempts, last reason, saved copy, seconds since the last event). Buttons: Copy log (whole log plus a one line status), Pause, Clear, a text filter and a level filter.
+
+Privacy by construction (`debug-log.js`, tested): hex runs of 24+ characters (secrets, tokens, keys) and other long runs become `a1b2…(64)`, relay URLs lose their path (the room id is derived from the secret), and messages are described by type, id and size, never content, so the log can be pasted into a chat. The console is built defensively: if it cannot be built, the page carries on.

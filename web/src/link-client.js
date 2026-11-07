@@ -2,6 +2,7 @@
 // No UI framework; link-proof.html drives it. Everything that touches the network takes its `fetch`
 // and `WebSocket` as arguments so the Node tests can run the whole flow against fakes.
 
+import { describeMessage } from "./debug-log.js";
 import { fromHex, toHex, pairingProof, unwrapSecret, roomId, Session, SECRET_BYTES } from "./link-crypto.js";
 import { createRpc } from "./link-rpc.js";
 
@@ -28,12 +29,14 @@ export function phoneBase(input) {
 }
 
 /** The pairing hop. Resolves with the session secret, or rejects with {kind, message, ...}. */
-export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOrigin = false }) {
+export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOrigin = false, log = () => {} }) {
   if (!/^\d{6,}$/.test(code)) throw { kind: "bad-code", message: "The code is at least 6 digits." };
   const base = phoneBase(address);
+  log("pair", `step 1: asking the phone for a challenge at ${base}/hello`, isFileOrigin ? "this page is opened from a file" : undefined);
   let hello;
   try {
     const r = await fetchImpl(`${base}/hello`, { cache: "no-store" });
+    log("pair", `phone answered /hello with HTTP ${r.status}`);
     if (r.status === 423) {
       const { seconds } = await r.json();
       throw { kind: "locked", seconds, message: `Too many wrong codes. Try again in ${seconds} seconds.` };
@@ -42,11 +45,13 @@ export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOr
     hello = await r.json();
   } catch (e) {
     if (e && e.kind) throw e;
+    log("pair", "could not reach the phone over the local network", e);
     throw explainFetchFailure(e, { isFileOrigin });
   }
   const nonce = fromHex(hello.nonce);
   const proof = toHex(await pairingProof(code, nonce));
   let reply, body;
+  log("pair", "step 2: sending the proof (the code itself is never sent)");
   try {
     reply = await fetchImpl(`${base}/pair`, {
       method: "POST",
@@ -54,7 +59,9 @@ export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOr
       body: JSON.stringify({ nonce: hello.nonce, proof }),
     });
     body = await reply.json();
+    log("pair", `phone answered /pair with HTTP ${reply.status}`, body?.error ? `error=${body.error}` : undefined);
   } catch (e) {
+    log("pair", "the /pair request failed", e);
     throw explainFetchFailure(e, { isFileOrigin });
   }
   if (reply.status === 423) throw { kind: "locked", seconds: body.seconds, message: `Too many wrong codes. Try again in ${body.seconds} seconds.` };
@@ -63,8 +70,11 @@ export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOr
     throw { kind: "closed", message: "The phone refused. Open Pair a Browser on the phone and try again." };
   }
   try {
-    return await unwrapSecret(code, nonce, fromHex(body.iv), fromHex(body.sealed));
+    const opened = await unwrapSecret(code, nonce, fromHex(body.iv), fromHex(body.sealed));
+    log("pair", "step 3: the phone's answer was opened; the link key is now held in memory");
+    return opened;
   } catch {
+    log("pair", "the phone's answer could not be opened");
     throw { kind: "bad-reply", message: "The phone's answer could not be opened." };
   }
 }
@@ -103,36 +113,47 @@ export const SILENCE_MS = 50000;       // nothing heard for this long (not even 
  * checks the other end every HEARTBEAT_MS; if nothing at all is heard for SILENCE_MS the socket is treated as dead and closed,
  * which makes the caller reconnect, instead of sitting on a connection that stopped working.
  */
-export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, timeoutMs = 15000, connectTimeoutMs = 10000, onClose = () => {}, onPeer = () => {}, setTimer = setTimeout, clearTimer = clearTimeout, setRepeat = setInterval, clearRepeat = clearInterval, nowMs = () => Date.now(), heartbeatMs = HEARTBEAT_MS, silenceMs = SILENCE_MS, tokenHex = null }) {
+export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, timeoutMs = 15000, connectTimeoutMs = 10000, onClose = () => {}, onPeer = () => {}, setTimer = setTimeout, clearTimer = clearTimeout, setRepeat = setInterval, clearRepeat = clearInterval, nowMs = () => Date.now(), heartbeatMs = HEARTBEAT_MS, silenceMs = SILENCE_MS, tokenHex = null, log = () => {} }) {
   const room = await roomId(secret);
   const session = await Session.open(secret, "web");
-  const ws = new WebSocketImpl(`${relayBase(relayUrl)}/r/${room}?role=web`);
+  const url = `${relayBase(relayUrl)}/r/${room}?role=web`;
+  log("link", `opening a socket to the relay (${relayBase(relayUrl)}), seat=web, trusted=${tokenHex ? "yes" : "no (code pairing)"}`);
+  const ws = new WebSocketImpl(url);
   ws.binaryType = "arraybuffer";
-  const rpc = createRpc({ timeoutMs, send: async (message) => ws.send(await session.seal(message)) });
+  const rpc = createRpc({
+    timeoutMs,
+    send: async (message) => { const frame = await session.seal(message); log("tx", `to phone: ${describeMessage(message)}`, `${frame.length} B sealed`); ws.send(frame); },
+  });
   let lastHeard = nowMs(), peerHere = null, beat = null, closedByUs = false;      // null: this relay does not report presence (an older one)
   ws.addEventListener("message", async (event) => {
     lastHeard = nowMs();
     if (typeof event.data === "string") {          // the relay's own notices; peers can only send binary
-      if (event.data === "peer:here" || event.data === "peer:gone") { peerHere = event.data === "peer:here"; onPeer(peerHere); }
+      if (event.data === "peer:here" || event.data === "peer:gone") { peerHere = event.data === "peer:here"; log("presence", peerHere ? "relay: the phone is in the room" : "relay: the phone left the room"); onPeer(peerHere); }
+      else log("relay", "text notice from the relay", event.data);
       return;
     }
-    try { rpc.receive(await session.open(new Uint8Array(event.data))); }
-    catch { /* not for us, tampered or replayed: ignore */ }
+    try { const message = await session.open(new Uint8Array(event.data)); log("rx", `from phone: ${describeMessage(message)}`, `${event.data.byteLength ?? "?"} B sealed`); rpc.receive(message); }
+    catch (error) { log("rx", "a frame was dropped (not for us, tampered with, or replayed)", error); }
   });
   let opened = false;
   const stopBeat = () => { if (beat !== null) { clearRepeat(beat); beat = null; } };
   // A replaced socket (code 4005) means a newer page of ours took the seat; nothing to reconnect.
-  ws.addEventListener("close", (event) => { stopBeat(); rpc.failAll("link-lost"); if (opened && !closedByUs && event?.code !== 4005) onClose(); });
+  ws.addEventListener("close", (event) => {
+    log(closedByUs ? "link" : "link", `socket closed (code ${event?.code ?? "?"}${event?.reason ? `, ${event.reason}` : ""}${closedByUs ? ", by this page" : event?.code === 4005 ? ", replaced by a newer page" : ""})`);
+    stopBeat(); rpc.failAll("link-lost"); if (opened && !closedByUs && event?.code !== 4005) onClose();
+  });
   await new Promise((resolve, reject) => {
-    const fail = (kind, message) => { clearTimer(timer); try { ws.close(); } catch { /* already closed */ } reject({ kind, message }); };
+    const fail = (kind, message) => { log("link", `could not connect: ${kind}`, message); clearTimer(timer); try { ws.close(); } catch { /* already closed */ } reject({ kind, message }); };
     const timer = setTimer(() => fail("relay-timeout", "The relay did not answer. Check its address, and that it is deployed."), connectTimeoutMs);
-    ws.addEventListener("open", () => { opened = true; clearTimer(timer); resolve(); }, { once: true });
+    ws.addEventListener("open", () => { opened = true; clearTimer(timer); log("link", "socket open: joined the room"); resolve(); }, { once: true });
     ws.addEventListener("error", () => fail("relay", "Could not reach the relay. Check its address."), { once: true });
     ws.addEventListener("close", (event) => { if (!opened) fail(event?.code === 4001 ? "room-full" : "relay", event?.code === 4001 ? "Another browser is already linked to this phone. Close it first." : "The relay refused the connection. Check its address."); }, { once: true });
   });
   beat = setRepeat(() => {
-    if (nowMs() - lastHeard > silenceMs) { stopBeat(); try { ws.close(); } catch { /* already closed */ } return; }
-    if (peerHere !== false) rpc.request("ping", { sentAt: nowMs() }).then(() => { lastHeard = nowMs(); }, () => {});
+    const quiet = nowMs() - lastHeard;
+    if (quiet > silenceMs) { log("heartbeat", `nothing heard for ${Math.round(quiet / 1000)}s: the socket is dead, closing it so the page reconnects`, undefined); stopBeat(); try { ws.close(); } catch { /* already closed */ } return; }
+    if (peerHere !== false) rpc.request("ping", { sentAt: nowMs() }).then(() => { lastHeard = nowMs(); log("heartbeat", "ping answered"); }, (e) => log("heartbeat", "ping not answered", e?.kind ?? e));
+    else log("heartbeat", "phone is away: not pinging");
   }, heartbeatMs);
   // A computer the person chose to trust says who it is before anything else. If the phone no longer trusts it (it was removed
   // from the list) the answer is "revoked", which the caller treats as something only the person can fix: no endless retrying.
@@ -140,8 +161,9 @@ export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, ti
   // never sends one.
   const introduce = async () => {
     if (!tokenHex) return;
-    try { await rpc.request("hello", { token: tokenHex }); }
-    catch (error) { if (error?.kind === "revoked") { try { ws.close(); } catch { /* already closed */ } throw error; } }
+    log("trust", "saying hello with this computer's token");
+    try { await rpc.request("hello", { token: tokenHex }); log("trust", "the phone accepted this computer"); }
+    catch (error) { log("trust", "hello was not accepted", error?.kind ?? error); if (error?.kind === "revoked") { try { ws.close(); } catch { /* already closed */ } throw error; } }
   };
   return {
     /** Tells the phone which trusted computer this is. A no-op for a browser that paired with the code. */
@@ -152,6 +174,6 @@ export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, ti
     ping: async () => ({ type: "ack", payload: await rpc.request("ping", { sentAt: Date.now() }) }),
     /** true / false when the relay says whether the phone is in the room right now; null when this relay does not say. */
     get peerHere() { return peerHere; },
-    close: () => { closedByUs = true; stopBeat(); ws.close(); },
+    close: () => { closedByUs = true; stopBeat(); log("link", "closing the socket (asked by the page)"); ws.close(); },
   };
 }

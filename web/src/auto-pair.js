@@ -21,19 +21,20 @@ export function computerName(nav = globalThis.navigator) {
   return `${browser} on ${os}`;
 }
 
-function openLobbySocket({ relayUrl, WebSocketImpl, setTimer, clearTimer, connectMs = 10000 }) {
+function openLobbySocket({ relayUrl, WebSocketImpl, setTimer, clearTimer, connectMs = 10000, log = () => {} }) {
+  log("finder", `joining the lobby on ${relayBase(relayUrl)}`);
   const ws = new WebSocketImpl(`${relayBase(relayUrl)}/lobby`);
   const listeners = new Set();
   ws.addEventListener("message", (event) => {
     if (typeof event.data !== "string" || event.data.length > 2048) return;
     let frame;
     try { frame = JSON.parse(event.data); } catch { return; }
-    if (frame && typeof frame === "object" && !Array.isArray(frame)) for (const l of [...listeners]) l(frame);
+    if (frame && typeof frame === "object" && !Array.isArray(frame)) { log("finder", `lobby notice: ${String(frame.type).slice(0, 20)}`); for (const l of [...listeners]) l(frame); }
   });
   const ready = new Promise((resolve, reject) => {
     const timer = setTimer(() => { try { ws.close(); } catch { /* closed */ } reject({ kind: "relay-timeout", message: "The relay did not answer. Check its address, and that it is deployed." }); }, connectMs);
-    ws.addEventListener("open", () => { clearTimer(timer); resolve(); }, { once: true });
-    ws.addEventListener("error", () => { clearTimer(timer); reject({ kind: "relay", message: "Could not reach the relay. Check its address." }); }, { once: true });
+    ws.addEventListener("open", () => { clearTimer(timer); log("finder", "lobby open"); resolve(); }, { once: true });
+    ws.addEventListener("error", () => { clearTimer(timer); log("finder", "lobby: could not reach the relay"); reject({ kind: "relay", message: "Could not reach the relay. Check its address." }); }, { once: true });
     ws.addEventListener("close", () => { clearTimer(timer); reject({ kind: "relay", message: "The relay refused the connection. Check its address." }); }, { once: true });
   });
   return {
@@ -45,8 +46,8 @@ function openLobbySocket({ relayUrl, WebSocketImpl, setTimer, clearTimer, connec
 }
 
 /** Phones in the lobby that announced themselves. Resolves after FIND_MS with the list, newest announcement winning per phone. */
-export async function findPhones({ relayUrl, WebSocketImpl = WebSocket, setTimer = setTimeout, clearTimer = clearTimeout, findMs = FIND_MS, onPhone = () => {} }) {
-  const lobby = openLobbySocket({ relayUrl, WebSocketImpl, setTimer, clearTimer });
+export async function findPhones({ relayUrl, WebSocketImpl = WebSocket, setTimer = setTimeout, clearTimer = clearTimeout, findMs = FIND_MS, onPhone = () => {}, log = () => {} }) {
+  const lobby = openLobbySocket({ relayUrl, WebSocketImpl, setTimer, clearTimer, log });
   try {
     await lobby.ready;
     const phones = new Map();
@@ -59,6 +60,7 @@ export async function findPhones({ relayUrl, WebSocketImpl = WebSocket, setTimer
     });
     lobby.send({ type: "hello" });                     // phones answer with an announcement straight away
     await new Promise((r) => setTimer(r, findMs));
+    log("finder", `search finished: ${phones.size} phone(s) found`);
     return [...phones.values()];
   } finally { lobby.close(); }
 }
@@ -67,8 +69,8 @@ export async function findPhones({ relayUrl, WebSocketImpl = WebSocket, setTimer
  * Asks one phone to trust this computer. `onCode` receives the four digits as soon as they are known so the page can show them
  * while the person decides on the phone. Resolves with { secret, token, relayUrl, deviceId } or rejects with {kind, message}.
  */
-export async function requestTrust({ relayUrl, phone, name = computerName(), WebSocketImpl = WebSocket, setTimer = setTimeout, clearTimer = clearTimeout, answerMs = ANSWER_MS, onCode = () => {} }) {
-  const lobby = openLobbySocket({ relayUrl, WebSocketImpl, setTimer, clearTimer });
+export async function requestTrust({ relayUrl, phone, name = computerName(), WebSocketImpl = WebSocket, setTimer = setTimeout, clearTimer = clearTimeout, answerMs = ANSWER_MS, onCode = () => {}, log = () => {} }) {
+  const lobby = openLobbySocket({ relayUrl, WebSocketImpl, setTimer, clearTimer, log });
   try {
     await lobby.ready;
     const keys = await makeTrustKeys();
@@ -83,8 +85,10 @@ export async function requestTrust({ relayUrl, phone, name = computerName(), Web
         resolve(f);
       });
     });
+    log("trust", "asking the phone to trust this computer (waiting for the person to tap Trust)");
     lobby.send({ type: "request", to: phone.deviceId, browserId, name: lobbyClip(name, 40), pub: keys.pub });
     const f = await decision;
+    log("trust", f.accepted === true ? "the phone answered: trusted" : "the phone answered: declined");
     let grant;
     try {
       grant = await openGrant({ browserPrivate: keys.privateKey, phonePub: phone.pub, browserPub: keys.pub, iv: f.iv, sealed: f.sealed });

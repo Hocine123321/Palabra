@@ -8,11 +8,16 @@
 //   "empty"       nothing saved and the phone is not reachable
 //   "error"       something needs the person (e.g. the phone says the pairing was revoked)
 
-export function createSync({ cache, openLink, onChange, now = () => new Date(), retryMs = [2000, 5000, 15000, 30000], setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createSync({ cache, openLink, onChange, now = () => new Date(), retryMs = [2000, 5000, 15000, 30000], setTimer = setTimeout, clearTimer = clearTimeout, log = () => {} }) {
   const view = { state: "connecting", snapshot: null, takenAt: null, message: "", failures: 0, reason: "", step: "" };
   let link = null, stopped = false, attempt = 0, timer = null, busy = false, secretHexNow = "", relayUrlNow = "";
 
-  const emit = (patch) => { Object.assign(view, patch); onChange({ ...view }); };
+  const emit = (patch) => {
+    const before = `${view.state}/${view.step}`;
+    Object.assign(view, patch);
+    if (`${view.state}/${view.step}` !== before) log("state", `${before} -> ${view.state}/${view.step}`, view.reason || view.message || undefined);
+    onChange({ ...view });
+  };
 
   /** Shows the saved copy at once. Returns true if there was one. */
   async function showCached() {
@@ -25,11 +30,13 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
   /** Asks the (present) phone for the snapshot and shows it. Throws if the phone does not answer. */
   async function fetchSnapshot() {
     emit({ step: "phone" });
+    log("sync", "asking the phone for the snapshot");
     await link.introduce?.();                  // a trusted computer says who it is first; "revoked" ends up in run()'s catch
     const reply = await link.request("snapshot");
     if (!reply?.snapshot || !reply.takenAt) throw Object.assign(new Error("bad snapshot"), { kind: "bad-reply" });
     await cache.saveSnapshot(reply.snapshot, reply.takenAt);   // a failed save must not hide fresh data
     attempt = 0;
+    log("sync", "snapshot received and saved", `taken ${reply.takenAt}`);
     emit({ state: "linked", snapshot: reply.snapshot, takenAt: reply.takenAt, message: "", failures: 0, reason: "", step: "" });
   }
 
@@ -39,7 +46,7 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
     emit({ step: "relay" });
     let opening = true, arrivedWhileOpening = false;
     link = await openLink({
-      relayUrl, secret,
+      relayUrl, secret, log,
       onClose: () => { if (!stopped && view.state === "linked") api.linkLost(secretHex, relayUrl); },
       // The relay says the phone is here: ask at once. This is what ends "waiting for the phone" without any polling gap.
       onPeer: (here) => {
@@ -67,11 +74,13 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
     link = null;
     const hasData = view.snapshot !== null;
     const needsPerson = error?.kind === "forbidden" || error?.kind === "revoked";
+    if (needsPerson) log("sync", `stopped: ${error.kind} cannot be fixed by retrying`, error.message);
     if (needsPerson) emit({ state: "error", message: error.message ?? "" });   // retrying cannot fix this: stop and say so
     else emit({ state: hasData ? "away" : "empty", message: "", failures: view.failures + 1, reason: error?.kind ?? "failed", step: "" });
     if (stopped || needsPerson) { busy = false; return false; }
     const wait = retryMs[Math.min(attempt, retryMs.length - 1)];
     attempt += 1;
+    log("sync", `attempt failed (${error?.kind ?? "failed"}); trying again in ${Math.round(wait / 1000)}s`, error?.message);
     timer = setTimer(() => { busy = false; run(secretHex, relayUrl); }, wait);
     return true;
   }
@@ -79,6 +88,7 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
   async function run(secretHex, relayUrl) {
     if (busy || stopped) return;
     busy = true;
+    log("sync", "connecting", `previous failures: ${view.failures}`);
     try {
       emit({ state: "connecting" });
       await connectOnce(secretHex, relayUrl);

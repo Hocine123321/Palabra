@@ -11,6 +11,8 @@ import { createOutbox } from "../outbox.js";
 import { sendOutboxItem, parseWords } from "../writes.js";
 import { reasonText } from "../link-rpc.js";
 import { makeT, pickLanguage, dirFor, errorText } from "./strings.js";
+import { createDebugLog } from "../debug-log.js";
+import { mountDebugPanel, environmentFacts } from "./debug-panel.js";
 
 const $ = (s) => document.querySelector(s);
 
@@ -25,6 +27,20 @@ export async function start() {
   for (const node of document.querySelectorAll("[data-i18n-aria]")) node.setAttribute("aria-label", t(node.dataset.i18nAria));
 
   // Nothing is written to the browser unless the person ticks "Remember this computer".
+  // The flight recorder starts before anything else so even a failure on the pairing screen is on record.
+  const debug = createDebugLog();
+  const log = debug.sink();
+  for (const [area, text] of environmentFacts(globalThis)) debug.info(area, text);
+  const hook = (target, type, fn) => { try { target?.addEventListener?.(type, fn); } catch { /* a missing hook only means less to read */ } };
+  hook(globalThis, "error", (e) => debug.error("page", `uncaught error: ${e.message || "unknown"}`, e.filename ? `${String(e.filename).split("/").pop()}:${e.lineno}` : undefined));
+  hook(globalThis, "unhandledrejection", (e) => debug.error("page", "unhandled promise rejection", e.reason?.message ?? e.reason?.kind ?? e.reason));
+  hook(globalThis, "online", () => debug.info("page", "the browser went online"));
+  hook(globalThis, "offline", () => debug.warn("page", "the browser went offline"));
+  hook(document, "visibilitychange", () => debug.info("page", `tab is now ${document.visibilityState}`));
+  const copyText = async (text) => {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch { try { const area = document.createElement("textarea"); area.value = text; document.body.append(area); area.select(); const ok = document.execCommand("copy"); area.remove(); return ok; } catch { return false; } }
+  };
   let remembered = false;
   const memory = createCache(memoryStore());
   const disk = (() => { try { return createCache(idbStore()); } catch { return memory; } })();
@@ -144,6 +160,7 @@ export async function start() {
 
   let sync = null, pairing = null, outbox = null, changes = { queue: [], review: [] };
   function begin(pair) {
+    log("page", `starting a link (${pair.tokenHex ? "trusted computer" : "paired with the code"}, ${remembered ? "remembered on this computer" : "kept in memory only"})`);
     pairing = pair;
     sync?.stop();
     outbox = createOutbox({
@@ -152,7 +169,7 @@ export async function start() {
     });
     outbox.load();
     sync = createSync({
-      cache, openLink: (options) => openLink({ ...options, tokenHex: pair.tokenHex ?? null, timeoutMs: globalThis.PALABRA_RPC_TIMEOUT_MS ?? 15000 }),
+      cache, log, openLink: (options) => openLink({ ...options, log, tokenHex: pair.tokenHex ?? null, timeoutMs: globalThis.PALABRA_RPC_TIMEOUT_MS ?? 15000 }),
       onChange: (v) => {
         Object.assign(state, { snapshot: v.snapshot, takenAt: v.takenAt, link: v.state, message: v.message, failures: v.failures, reason: v.reason, step: v.step });
         $("#pairing").hidden = true; $("#app").hidden = false; paint();     // always: with no data the page still shows the tabs and why
@@ -162,7 +179,7 @@ export async function start() {
     return sync.showCached().then(() => sync.start(pair.secretHex, pair.relayUrl));   // saved copy first, then the phone
   }
 
-  $("#sync").addEventListener("click", () => sync?.refresh());
+  $("#sync").addEventListener("click", () => { log("click", "Sync now"); sync?.refresh(); });
   $("#forget").addEventListener("click", async () => {
     sync?.stop(); sync = null; pairing = null;
     await disk.clearAll(); await memory.clearAll();
@@ -182,7 +199,7 @@ export async function start() {
     if (!phone) return;
     Object.assign(finder, { state: "waiting", code: "" }); paintFinder();
     try {
-      const got = await requestTrust({ relayUrl: $("#relay").value.trim(), phone, onCode: (c) => { finder.code = c; paintFinder(); } });
+      const got = await requestTrust({ relayUrl: $("#relay").value.trim(), phone, log, onCode: (c) => { finder.code = c; paintFinder(); } });
       const pair = { secretHex: toHex(got.secret), relayUrl: relayBase(got.relayUrl || $("#relay").value.trim()), tokenHex: toHex(got.token), deviceId: got.deviceId };
       remembered = $("#remember").checked;
       cache = remembered ? disk : memory;
@@ -194,11 +211,12 @@ export async function start() {
     }
   }
   $("#find").addEventListener("click", async () => {
+    log("click", "Find my phone");
     const relay = $("#relay").value.trim();
     if (!relay) { Object.assign(finder, { state: "error", message: t("Type the relay address first, so the search knows where to look.") }); return paintFinder(); }
     Object.assign(finder, { state: "searching", phones: [] }); paintFinder();
     try {
-      finder.phones = await findPhones({ relayUrl: relay });
+      finder.phones = await findPhones({ relayUrl: relay, log });
       finder.state = finder.phones.length ? "list" : "none";
     } catch (e) { Object.assign(finder, { state: "error", message: errorText(e, t) }); }
     paintFinder();
@@ -206,9 +224,10 @@ export async function start() {
 
   $("#pair").addEventListener("submit", async (event) => {
     event.preventDefault();
+    log("click", "Connect (pair with the code)");
     const go = $("#go"); go.disabled = true; $("#err").textContent = "";
     try {
-      const { secret, relayUrl: fromPhone } = await pairWithPhoneFull({ address: $("#address").value, code: $("#code").value.trim(), isFileOrigin: isFile });
+      const { secret, relayUrl: fromPhone } = await pairWithPhoneFull({ address: $("#address").value, code: $("#code").value.trim(), isFileOrigin: isFile, log });
       // The phone says which relay it is on; that wins over anything typed here, so the two ends cannot end up on different relays.
       const typed = $("#relay").value.trim();
       const chosen = fromPhone || typed;
@@ -224,6 +243,14 @@ export async function start() {
       $("#err").textContent = errorText(e, t);
     } finally { go.disabled = false; }
   });
+
+  // The console must never be able to break the page: if it cannot be built, the page carries on and keeps logging.
+  try {
+    if (typeof document.createElement === "function" && document.body) {
+      mountDebugPanel({ doc: document, log: debug, t, copyText, getStatus: () => ({ link: state.link, step: state.step, failures: state.failures, reason: state.reason, takenAt: state.takenAt }) });
+    }
+  } catch (e) { debug.error("page", "the debug console could not be built", e); }
+  debug.info("page", `ready (language ${lang})`);
 
   // A remembered computer opens straight onto its saved copy, then reconnects on its own.
   const saved = await disk.loadPairing();
