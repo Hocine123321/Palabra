@@ -1,6 +1,6 @@
 # Web companion: Palabra in a browser, linked to the app
 
-Status: **future work, vision only.** Nothing here is built. It records what was decided in conversation on 2026-11-07 so the
+Status: **superseded by [Mirroring](2026-11-07-mirroring-design.md) (2026-11-07): store-and-forward through Cloudflare, QR pairing, a hosted installable web app.** Kept for history. Originally: future work, vision only. Nothing here is built. It records what was decided in conversation on 2026-11-07 so the
 build can start from it later. The open questions were answered the same day (see Decisions); what is still open is at the end.
 
 ## Intent
