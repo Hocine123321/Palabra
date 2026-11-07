@@ -1,0 +1,13 @@
+{
+  "name": "palabra-mirror-worker",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "check": "wrangler deploy --dry-run --outdir dist-check"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
