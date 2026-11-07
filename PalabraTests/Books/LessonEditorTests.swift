@@ -49,14 +49,14 @@ final class LessonEditorTests: XCTestCase {
     }
 
     func testAddPageGetsAFreshValidIDAndPlacement() {
-        var result = LessonEditor.deletePage(lesson(), pageID: "p2") // ids used so far: intro, p2
+        var result = LessonEditor.deletePage(lesson(), pageID: "p2") // only "intro" is left: no p<number> id, so numbering starts after the page count
         let added = LessonEditor.addPage(result, after: "intro", title: "New page")
         result = added.lesson
-        XCTAssertEqual(added.pageID, "p1")
+        XCTAssertEqual(added.pageID, "p2")
         XCTAssertFalse(added.pageID.contains("/"))
-        XCTAssertEqual(result.pages.map(\.id), ["intro", "p1"])
+        XCTAssertEqual(result.pages.map(\.id), ["intro", "p2"])
         let again = LessonEditor.addPage(result, after: nil, title: "")
-        XCTAssertEqual(again.lesson.pages.map(\.id), ["intro", "p1", "p2"])
+        XCTAssertEqual(again.lesson.pages.map(\.id), ["intro", "p2", "p3"])
         XCTAssertEqual(LessonValidator.problems(in: again.lesson), [])
     }
 
