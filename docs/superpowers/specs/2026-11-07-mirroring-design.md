@@ -1,8 +1,7 @@
 # Mirroring: Palabra in a browser, kept in sync from the phone through Cloudflare
 
-Status: **design, approved in conversation 2026-11-07. Nothing here is built yet.** Supersedes
-[the web companion design](2026-11-07-web-companion-design.md) (live relay, `file://` page, same-Wi-Fi pairing). The earlier work
-on the `experimental` branch is the starting point, not thrown away: see "What happens to the `experimental` work".
+Status: **design, approved in conversation 2026-11-07. Nothing here is built yet.** Everything is written new on `main`; no
+earlier prototype is reused or carried over.
 
 ## Intent
 
@@ -11,18 +10,12 @@ of the data and the only place that decides anything. A browser is **paired** wi
 data, encrypted, to the person's own Cloudflare account, and the web app pulls it, keeps it for offline use, and sends changes
 back. It must work when the phone is locked, away or off, which a live-only relay cannot do.
 
-## Why the old design is replaced
+## Shape
 
-- iOS cannot serve connections or sync in the background, so the app is only reachable while it is open in front.
-- The old design made the page ask the phone for everything over a live relay. With the phone away the page had nothing to show
-  except what it had cached, and "waiting for the phone / waiting for the browser" was the failure users actually met (several
-  fixes on `experimental` chase it: seats by role, presence notices, heartbeats).
-- `file://` pages cannot be a service-worker app, and whether a browser lets them reach the phone's address was never settled.
-- The same-Wi-Fi rule was there to make up for a short typed code. With a strong pairing secret and server-side rate limits it is
-  not needed, and a server cannot see anyone's Wi-Fi anyway.
-
-The new shape: **the phone pushes, the browser pulls.** Reading never needs the phone to be present. Only changes that need the
-phone (AI calls, anything that must run now) need a live link.
+**The phone pushes, the browser pulls.** Reading never needs the phone to be present, because iOS cannot serve connections or sync
+in the background. Only changes that need the phone (AI calls, anything that must run now) need a live link. The web app is served
+over HTTPS by the person's own Worker, so it is an installable, offline-capable web app, and pairing needs no network proximity:
+a strong pairing secret and server-side rate limits replace any same-Wi-Fi rule.
 
 ## Goals
 
@@ -85,77 +78,86 @@ phone (AI calls, anything that must run now) need a live link.
 ### Pieces
 
 ```
-relay/            the Worker (kept name): Durable Object "Mirror" (SQLite storage), REST + WebSocket, serves the web app as static assets
+worker/           the Worker: Durable Objects "Mirror" and "Gate" (SQLite storage), REST (later also a WebSocket), serves the web app as static assets
 web/              the web app (UI, local store, outbox, crypto, sync), built to files the Worker serves
-Palabra/Features/WebLink/   the phone side (folder name kept; user-facing name is "Mirroring")
+Palabra/Features/Mirroring/   the phone side
 Palabra/App/                the App-layer data source that turns Word/Deck/... into plain values for the snapshot
 .github/workflows/          deploy-mirror.yml (Worker + web), tests for web/ and relay/ on every push
 ```
 
 One Worker serves both the web app and the API, so there is one URL, no cross-origin rules and nothing else to host.
 
-### Cloudflare side (one Durable Object per mirror)
+### Cloudflare side
 
-SQLite-backed Durable Object `Mirror`, addressed by a random `mirrorId`:
+Two SQLite-backed Durable Objects. **`Gate`** is a single instance that holds pairing slots and per-IP rate counters.
+**`Mirror`** is one instance per mirror, addressed by a random `mirrorId`:
 
 | Table | Holds |
 |---|---|
 | `items` | `id` (opaque), `seq`, `sealed` (ciphertext), `deleted`. One row per record; an upsert replaces the row and gets the next `seq`. |
-| `ops` | the mailbox: `opId`, `device`, `sealed`, `status` (pending / done), `result` (sealed) |
-| `devices` | `deviceId`, `tokenHash` (SHA-256), `label` (sealed), `role` (owner / browser), `createdAt` |
-| `pairing` | short-lived slots (2 minutes, single use) |
+| `devices` | `deviceId`, `tokenHash` (SHA-256 of a token the client generated; the server never sees the token), `role` (owner / browser), `createdAt`, `lastSeen` |
+| `ops` | added with the mailbox phase: `opId`, `device`, `sealed`, `status` (pending / done), `result` (sealed) |
+
+`Gate` holds `slots` (pairing: `pairId`, `phonePub`, `sealed` reply, state, expiry; two minutes, single use) and `rates` (counters).
 
 Endpoints (all JSON except the socket; every call after pairing carries `Authorization: Bearer <deviceToken>`):
 
 | Call | Who | Does |
 |---|---|---|
+| `POST /api/mirrors` | phone | creates a mirror from the hash of an owner token the phone generated; returns `mirrorId`, `deviceId` |
 | `POST /api/pair/start` | browser | creates a pairing slot, returns `pairId` |
-| `POST /api/pair/<id>/join` | phone | posts the phone's public key; creates the mirror on first use |
-| `GET /api/pair/<id>` | browser | long-polls for the phone's reply (wrapped keys), then the slot is deleted |
-| `PUT /api/items` | owner | batch upsert / tombstone, at most about 1 MB per request |
-| `GET /api/items?since=<seq>` | any device | changed rows since `seq`, paged |
-| `POST /api/ops`, `GET /api/ops?after=` , `POST /api/ops/<id>/result` | browser / owner | the mailbox |
-| `GET /api/devices`, `DELETE /api/devices/<id>` | owner | list and revoke |
-| `GET /live?role=app|web` (WebSocket, hibernating) | any device | the live channel (see below) |
+| `POST /api/pair/<id>/join` | phone | posts the phone's public key (one join per slot) |
+| `GET /api/pair/<id>` | browser | polls the slot: waiting, joined (with the phone's key), replied (with the sealed keys), cancelled |
+| `POST /api/pair/<id>/reply`, `/cancel` | phone / either | deposits the sealed keys; ends the slot |
+| `POST /api/m/<mirrorId>/devices`, `GET`, `DELETE .../<deviceId>` | owner | register a browser (by token hash), list, revoke |
+| `PUT /api/m/<mirrorId>/items` | owner | batch upsert / tombstone, at most about 1 MB per request |
+| `GET /api/m/<mirrorId>/items?since=<seq>` | any device | changed rows since `seq`, paged |
+| `GET /api/m/<mirrorId>/state` | any device | the latest `seq` (also checks the token) |
+| mailbox (`/ops`) and live channel (`/live`, a hibernating WebSocket) | | added in their own phases |
 
-Limits that exist from day one: request size caps, per-IP rate limits on `/api/pair/*`, per-device rate limits, a cap on items and
-ops. The server stores no plaintext and logs no bodies.
+Limits that exist from day one: request size caps, per-IP rate limits on `/api/pair/*` and `/api/mirrors`, per-device rate limits, a
+cap on items and devices. The server stores no plaintext and logs no bodies.
 
 ### Keys and sealing
 
 - ECDH P-256 (WebCrypto and CryptoKit both have it), HKDF-SHA-256, AES-256-GCM. No custom primitives.
 - The phone makes one random 256-bit **`dataKey`** per mirror. Every stored item is `iv(12) | AES-GCM(dataKey, plaintext)` with
-  associated data `schemaVersion | seq | itemId`, so the server cannot swap or replay an item under another identity.
+  associated data `"palabra-mirror-item-v1|" + itemId`, so the server cannot move an item to another identity. The plaintext
+  carries the record's `kind`, `recordId`, content hash and a `generation` that only goes up; the server assigns `seq` after
+  sealing, so `seq` is not part of the sealing.
 - **Item ids are opaque**: `id = HMAC-SHA-256(dataKey, kind | recordId)` truncated. The server cannot tell words from decks. The
   kind and the record id are inside the sealed plaintext.
 - A sealed **manifest** item (counts per kind, a hash of the ids, a `generation` that only goes up, the phone's `pushedAt`)
   lets the browser notice a server that withholds items or serves an older state: it refuses a generation lower than the highest
   it has seen.
-- Live frames keep the existing stream format and epoch/counter rules from the `experimental` work (they were pinned by shared
-  test vectors and fixed a real replay bug). Stored items do **not** use counters: they are independent and random-access.
+- Live frames (live-channel phase) get their own stream format with per-connection random stream ids and counters, so a reconnect is
+  never mistaken for a replay. Stored items do **not** use counters: they are independent and random-access.
 
 ### Pairing (first computer, and every later one)
 
 1. The person opens the Worker URL on the PC. The page makes an ECDH key pair and calls `/api/pair/start`. It shows a QR code
-   holding `https://<worker>/#p=<pairId>&k=<browserPublicKey>&n=<nonce>` (and the page's own origin, so the phone needs no server
-   setting).
+   holding `https://<worker>/#p=<pairId>&k=<browserPublicKey>&n=<nonce>`; the origin in the link means the phone needs no server
+   setting.
 2. Settings -> Mirroring -> **Pair a computer** opens the camera. The phone scans, makes its own key pair, derives
    `kPair = HKDF(ECDH, salt = nonce, "palabra-mirror-pair-v1")` and posts its public key to the slot.
-3. Both screens show a **4-digit match code** (first digits of SHA-256 of both public keys and the nonce). The person confirms it
-   on the phone. A different code means someone interfered: tap Cancel and nothing is saved.
-4. On Confirm the phone sends, sealed under `kPair`: `dataKey`, `mirrorId`, a new `deviceToken` and a per-device wrap key. The slot
-   is deleted. The browser stores them (the `dataKey` as a non-extractable `CryptoKey`) and starts pulling.
+3. Both screens show a **4-digit match code** (from SHA-256 of both public keys and the nonce). **Both sides need a human yes:**
+   the phone releases the keys only after the person taps Confirm, and the browser accepts them only after the person clicks
+   "Codes match". A different code, or a scan that fails because someone else joined the slot first, means: Cancel, nothing is saved.
+4. On Confirm the phone creates the mirror if it has none (it generates the owner token and sends only its hash), registers the
+   browser as a device (a token the phone generated, again sent as a hash) and deposits, sealed under `kPair`, the `dataKey`,
+   `mirrorId`, `deviceId` and device token. The slot is deleted once read. The browser stores them (the `dataKey` as a
+   non-extractable `CryptoKey`) and starts pulling.
 5. Paired computers are listed in the app with name and last seen, each with **Revoke**. Revoking deletes its device row and
-   **rotates the `dataKey`**: the phone seals a fresh key to each remaining computer, re-seals the items, and the old key stops
-   working for new data.
+   **rotates the `dataKey`** (hardening phase): the phone seals a fresh key to each remaining computer, re-seals the items, and the old
+   key stops working for new data. Until rotation exists, revoking still cuts the computer off, because it can no longer fetch.
 
 Fallback when scanning is not possible (later phase): the page shows an 8-word phrase (about 88 bits) that is the pairing secret;
 the person types it into the app. It is strong enough without a PAKE because of the slot's single use and the server rate limit.
 
 ### Syncing data (phone -> browser)
 
-- The phone builds the mirror from the same read paths the old web link already uses (`WebLinkDispatcher` read allow-list,
-  `WebArtifactReader`, `WebChatBooksReader`), through a data source in the App layer. Collections: words (with sections and tags),
+- The phone builds the mirror through a data source in the App layer (`AppEnvironment+Mirror.swift`, the same pattern as
+  `examWords()`), so `Features/Mirroring` never imports `Word` and friends. Collections: words (with sections and tags),
   decks and due counts, Need Review, stats, Artifact pages (resolved by the phone with its own binder; apps are listed but never
   shipped), the most recent chat conversation, and the Books lessons (small JSON: pushed up front, not on visit).
 - The phone keeps a local **index** (`itemId -> content hash`) in a small file in Application Support. A push sends only the
@@ -170,14 +172,12 @@ the person types it into the app. It is strong enough without a PAKE because of 
 
 ### Changes from the web (browser -> phone)
 
-- Allowed changes are the same short **allow-list** as on the phone today (`WebLinkDispatcher.writeAllowList`): add words, place
-  a word in a section or tags, flag for review, and the first new ones (such as grading a flashcard). The phone is the one that
-  enforces it; the page checks too, again at send time.
-- The browser keeps the outbox (existing `outbox.js`: ids, order, retries, "needs your review"). Posting to `/api/ops` is the
+- Allowed changes are a short **allow-list** held by the phone (the page checks too, again at send time): add words, place a word in a
+  section or tags, flag for review, and the first new ones (such as grading a flashcard).
+- The browser keeps the outbox (ids, order, retries, "needs your review"). Posting to `/api/ops` is the
   "send"; the op waits there until the phone is open.
 - The phone drains the mailbox on foreground and on connect: for each op it checks shape and allow-list, drops repeats by
-  `opId` (a small capped file of applied ids, so restarts are safe), checks the conflict token for `words.place` (the existing
-  `PlacementToken`), applies it through the capability registry, writes a sealed result, and pushes the changed items.
+  `opId` (a small capped file of applied ids, so restarts are safe), checks the conflict token for `words.place` (a plain-text placement token of section and tags, compared on the phone), applies it through the capability registry, writes a sealed result, and pushes the changed items.
 - A rejected op appears in the browser under **Needs your review** with a plain reason; the person retries, edits or drops it.
 - **Never queued:** `ai.generate`, chat sends, deletes, `storage.*`. They only run over the live channel.
 
@@ -185,37 +185,28 @@ the person types it into the app. It is strong enough without a PAKE because of 
 
 A hibernating WebSocket in the same Durable Object forwards frames between the connected devices. Used only for live-only actions
 (AI add-word, chat, confirmed delete) and for the presence badge. If the phone is not there, the browser says so at the button and
-does nothing; it does not queue. The frames use the existing sealed stream format and the 256 KB frame limit with chunking.
+does nothing; it does not queue. The frames are sealed with the live-channel format above and capped in size, with chunking for larger replies.
 
 ### The web app
 
-- Reused from `experimental`: `web/src/ui/*` (shell, render, model, strings, tokens, artifacts, chat and books views, the debug
-  console), `cache.js`, `sync.js`, `outbox.js`, `writes.js`, the Arabic/RTL strings test, and the test that fails when
-  `tokens.css` drifts from `Theme.swift`.
-- Changes: it is built into **separate files** (not one inline file) so a strict CSP (`script-src 'self'`) can apply; a service
-  worker caches the shell so it opens offline; the first screen is "Pair this computer" (QR) when nothing is stored, otherwise the
-  local copy; the "waiting for the phone" states are removed in favour of the badge.
+- Plain modules, no framework to start (see Open questions), bundled by a small build script into separate files (`app.js`,
+  `app.css`) so a strict CSP (`script-src 'self'`, no inline styles or scripts) applies. WebCrypto for all cryptography; IndexedDB
+  for the local copy; no third-party scripts except a QR generator bundled at build time.
+- First screen: "Pair this computer" (QR). Afterwards it opens straight onto the local copy and updates from Cloudflare.
 - Same layout, colours, typography and flows as the app, except iOS-only elements (haptics, glass materials, the SceneKit desk).
+  A test fails if the colour tokens drift from `Theme.swift`. Every phone-supplied string is escaped; a test feeds markup through
+  every screen. English and Arabic (right to left), following the browser language.
+- A service worker (phase 3) caches the shell so it opens offline. Presence is a badge, never a gate.
 
 ### Phone side
 
-- `Features/WebLink` keeps its folder and its persisted names. User-facing text says **Mirroring**.
-- New: `MirrorClient` (REST + live socket, reusing `ReconnectBackoff`), `MirrorCrypto` (CryptoKit), `MirrorIndex` (diff of what was
-  pushed), `MirrorPairing` (QR scanner with AVFoundation, match code, key wrap), `MirrorOpsRunner` (drains the mailbox),
-  `MirrorSettings` (new key, tolerant decoder), the Settings -> Mirroring screen.
-- Secrets (`dataKey`, `ownerToken`, device wrap keys) live in new Keychain accounts. They are never written to the library
-  backup, logs or the debug console.
-
-## What happens to the `experimental` work
-
-`experimental` holds about 9,500 lines for the old design (phases 1-6: pairing hop, relay, read-only UI, offline cache, outbox,
-artifacts, chat and books, auto-pair, debug console), with tests and a green CI run. Phase 0 audits it file by file; the working
-assumption is:
-
-| Keep and adapt | Replace | Delete when replaced |
-|---|---|---|
-| `web/src/ui/*`, `cache.js`, `sync.js` (state machine), `outbox.js`, `writes.js`, `debug-*`, tests for tokens/strings/render | the transport: a live two-seat relay becomes the store-and-forward Mirror DO | `LocalPairingListener`, `LocalAddress`, `PairingHTTP`, `PairingLockout` (phone side), `LobbyClient` |
-| `LinkCrypto` and `LinkChunking` (for the live channel), `WebLinkDispatcher`, `WebArtifactReader`, `WebChatBooksReader`, `RecentActions`, `ReconnectBackoff`, `PlacementToken` | pairing: LAN hop + lobby + trust prompt become QR + match code | `relay/src/lobby.js`, `web/src/auto-pair.js`, `trust-crypto.js`, `TrustCrypto`/`TrustGate` (their device list moves into the `devices` table), `BrowserPresence` |
+- `Features/Mirroring` (user-facing name **Mirroring**): `MirrorCrypto` (CryptoKit), `MirrorClient` (REST over URLSession),
+  `MirrorSecrets` (Keychain), `MirrorSettings` (new `UserDefaults` key, tolerant decoder), `MirrorPairing` (QR link parsing,
+  pairing session, match code, key wrap), `MirrorIndex` (what was pushed) and `MirrorPusher`, the Settings -> Mirroring screen.
+  Later phases add the mailbox runner and the live client.
+- Secrets (`dataKey`, owner token, device tokens) live in new Keychain accounts. They are never written to the library backup, logs
+  or the debug console. Persisted names added: Keychain account `mirror-secrets`, `UserDefaults` key `mirrorSettings`, the file
+  `Application Support/Mirror/index.json`; once shipped they are frozen like the rest.
 
 ## Calls made (reversible)
 
@@ -226,43 +217,43 @@ assumption is:
 - Books lessons are pushed up front (they are small text) instead of cached on visit. Only the 2D pages; no 3D desk.
 - Chat: only the most recent conversation is mirrored. Audio is not mirrored by default.
 - The words' revision is a content hash; no new stored version field is added to `Word`.
-- Folder and persisted names stay `WebLink`; only visible strings say "Mirroring".
+- Pairing slots and rate counters live in one `Gate` Durable Object; mirrors are created by the phone, which also generates every token, so the server only ever holds token hashes.
 
 ## Phases (CI green and reported after each; each is shippable)
 
-0. **Land and audit.** Decide how `experimental` reaches `main` (merge it, then evolve), run its web and relay tests in CI, write
-   the keep/replace/delete list from the actual files. Rename user-facing strings to "Mirroring". *Needs from the person:* nothing.
-1. **The Worker.** `Mirror` Durable Object (items, ops, devices, pairing), REST and live socket, static assets, limits, tests against a
-   local server with a fake phone, and `deploy-mirror.yml`. *Needs from the person (once):* a free Cloudflare account, an API
-   token from the "Edit Cloudflare Workers" template, the account id, both added as GitHub repository secrets.
-2. **Pairing and the first records.** Item sealing and ids with shared test vectors (Swift and JS), QR pairing with the match code,
-   push of the words collection, the page pulls, decrypts and lists them offline. This proves every hard part end to end.
-3. **Full read sync.** All collections, incremental diff push, manifest and rollback check, service worker and installable app,
-   the freshness badge, revoke and key rotation. Remove the old LAN pairing and lobby.
-4. **Mailbox.** The outbox posts to `/api/ops`; the phone drains, applies, answers and re-pushes; the review list works.
-5. **Live channel.** Presence badge, AI add-word, chat send, confirmed delete, flashcard grading with live feedback.
-6. **More surfaces.** Artifact apps in a sandboxed iframe (own design review: no same-origin, CSP on the frame, a message bridge that
-   forwards only that artifact's granted capabilities); Books 2D polish.
-7. **Hardening.** Typed-phrase pairing, optional PIN for the stored key, audio opt-in, abuse limits tuned, docs
-   (`docs/features/mirroring.md`, AGENTS.md, REVIEW.md), a plain "what is not verified" note.
+1. **The Worker.** `Gate` and `Mirror` Durable Objects (pairing slots, mirrors, devices, items), REST, static assets with a strict CSP,
+   limits, tests, and the deploy workflow with a post-deploy smoke test. *Needs from the person (once):* a free Cloudflare account, an
+   API token from the "Edit Cloudflare Workers" template, the account id, both added as GitHub repository secrets
+   (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`).
+2. **Pairing and the first records.** Item sealing and ids with vectors shared by Swift and JS, QR pairing with the match code on both
+   sides, push of the words collection, and the page pulls, decrypts and lists them from its local copy. Proves every hard part.
+3. **Full read sync.** All collections, incremental diff push, manifest and rollback check, the service worker and installable app,
+   the freshness badge, revoke with key rotation.
+4. **Mailbox.** The Worker's `/ops`, the browser outbox, the phone's runner (allow-list, repeats by `opId`, conflict check), the review list.
+5. **Live channel.** The Worker's WebSocket, presence badge, AI add-word, chat send, confirmed delete, flashcard grading.
+6. **More surfaces.** Artifact apps in a sandboxed iframe (own design review: no same-origin, CSP on the frame, a bridge that forwards
+   only that artifact's granted capabilities); Books 2D polish.
+7. **Hardening.** Typed-phrase pairing, optional PIN for the stored key, audio opt-in, abuse limits tuned, docs, a plain "what is not
+   verified" note.
+
+Plans: [phase 1](../plans/2026-11-07-mirroring-1-worker.md), [phase 2](../plans/2026-11-07-mirroring-2-pairing-first-records.md).
 
 ## Tests
 
-- **Crypto:** fixed vectors shared by `PalabraTests/WebLink` and `web/test` (seal/open, id derivation, wrap, match code, tamper and
-  wrong-AAD failures), as the old link did.
+- **Crypto:** fixed vectors in one JSON file read by both `PalabraTests/Mirroring` and `web/test` (seal/open, id derivation, key
+  agreement, match code, wrap, tamper and wrong-AAD failures), and checked once with an independent Python implementation.
 - **Worker:** local server tests with a fake phone and a fake browser: pairing slot single use and expiry, rate limits, `since`
   paging, tombstones, op idempotency, revoke, rollback refusal. No plaintext ever appears in stored rows (asserted).
-- **Phone:** `MirrorIndex` diffs, ops runner (allow-list, repeat by `opId`, conflict via `PlacementToken`), settings decoding,
-  Arabic strings for every new key.
-- **Web:** sync state machine, outbox ordering and send-time re-check, offline start from the local copy, XSS escaping on every
-  screen, tokens and strings tests (existing).
+- **Phone:** `MirrorIndex` diffs and the requests actually sent (bodies inspected with `MockURLProtocol`), the pairing session, settings
+  decoding, Arabic strings for every new key.
+- **Web:** pairing state machine, pull and decrypt, rendering from the local copy, XSS escaping on every screen, tokens and strings tests.
 - **Not covered by CI:** the camera scan, real Safari/Chrome service workers, real Cloudflare. The person verifies pairing on a real
   phone and PC, and the report says so.
 
 ## Open questions
 
 - A custom domain, or the default `*.workers.dev` address?
-- Web framework: keep the existing hand-written modules (smallest) or move to a small library as the screens multiply.
+- Web framework: plain modules to start; revisit if the screens multiply.
 - Whether pronunciation audio is worth an opt-in R2 upload, given the size and the phone's data use.
 - Whether to gate the Worker's pairing start behind an optional setup secret, beyond rate limits, to stop strangers burning the
   free quota (they cannot read or pair anything).
