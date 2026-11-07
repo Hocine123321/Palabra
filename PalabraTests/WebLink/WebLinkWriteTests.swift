@@ -40,14 +40,16 @@ final class WebLinkWriteTests: XCTestCase {
         let names = ["storage.set", "storage.remove", "words.delete", "study.addCards", "ai.generate", "settings.apiKey", "nope"]
         let d = dispatcher(names.map { counting($0, kind: .write, runs: runs) })
         for name in names {
-            XCTAssertEqual(reason(await d.handle(write("x-\(name)", name))), "forbidden", name)
+            let awaited1 = await d.handle(write("x-\(name)", name))
+            XCTAssertEqual(reason(awaited1), "forbidden", name)
         }
         XCTAssertEqual(runs.value, 0)
     }
 
     func testANameOnTheWriteListThatTheRegistryCallsAReadIsStillRefused() async {
         let runs = Box(0)
-        XCTAssertEqual(reason(await dispatcher([counting("words.add", kind: .read, runs: runs)]).handle(write("a1", "words.add"))), "forbidden")
+        let awaited2 = await dispatcher([counting("words.add", kind: .read, runs: runs)]).handle(write("a1", "words.add"))
+        XCTAssertEqual(reason(awaited2), "forbidden")
         XCTAssertEqual(runs.value, 0)
     }
 
@@ -68,8 +70,10 @@ final class WebLinkWriteTests: XCTestCase {
         let failing = Capability(name: "words.add", kind: .write, summary: "", returnsSummary: "", dryRunValue: .object([:]),
                                  handler: { _, _ in runs.value += 1; return .failure(.failed("no")) })
         let d = dispatcher([failing])
-        XCTAssertEqual(reason(await d.handle(write("r", "words.add"))), "failed")
-        XCTAssertEqual(reason(await d.handle(write("r", "words.add"))), "failed")
+        let awaited3 = await d.handle(write("r", "words.add"))
+        XCTAssertEqual(reason(awaited3), "failed")
+        let awaited4 = await d.handle(write("r", "words.add"))
+        XCTAssertEqual(reason(awaited4), "failed")
         XCTAssertEqual(runs.value, 2)
     }
 
@@ -78,7 +82,8 @@ final class WebLinkWriteTests: XCTestCase {
         let payloads: [JSONValue?] = [nil, .string("x"), .object([:]), .object(["capability": .string("words.add")]), .object(["id": .string(""), "capability": .string("words.add")]),
                                     .object(["id": .string(String(repeating: "a", count: 81)), "capability": .string("words.add")])]
         for payload in payloads {
-            XCTAssertEqual(reason(await d.handle(LinkMessage(id: "m", type: "write", version: 1, payload: payload))), "bad-request")
+            let awaited5 = await d.handle(LinkMessage(id: "m", type: "write", version: 1, payload: payload))
+            XCTAssertEqual(reason(awaited5), "bad-request")
         }
     }
 
@@ -87,7 +92,8 @@ final class WebLinkWriteTests: XCTestCase {
         let d = dispatcher([counting("words.place", kind: .write, runs: runs)], live: ["hola": ("Food", ["a"])])
         let args: JSONValue = .object(["words": .array([.object(["key": .string("hola"), "category": .string("Travel")])])])
         let stale: JSONValue = .object(["hola": .string(PlacementToken.make(category: "Greetings", tags: ["a"]))])
-        XCTAssertEqual(reason(await d.handle(write("p1", "words.place", args: args, base: stale))), "conflict")
+        let awaited6 = await d.handle(write("p1", "words.place", args: args, base: stale))
+        XCTAssertEqual(reason(awaited6), "conflict")
         XCTAssertEqual(runs.value, 0)
     }
 
@@ -96,7 +102,8 @@ final class WebLinkWriteTests: XCTestCase {
         let d = dispatcher([counting("words.place", kind: .write, runs: runs)], live: ["hola": ("Food", ["b", "a"])])
         let args: JSONValue = .object(["words": .array([.object(["key": .string("hola"), "category": .string("Travel")])])])
         let current: JSONValue = .object(["hola": .string(PlacementToken.make(category: "Food", tags: ["a", "b"]))])
-        XCTAssertEqual(await d.handle(write("p1", "words.place", args: args, base: current))?.type, "ack")
+        let awaited7 = await d.handle(write("p1", "words.place", args: args, base: current))?.type
+        XCTAssertEqual(awaited7, "ack")
         XCTAssertEqual(runs.value, 1)
     }
 
@@ -104,7 +111,8 @@ final class WebLinkWriteTests: XCTestCase {
         let runs = Box(0)
         let d = dispatcher([counting("words.place", kind: .write, runs: runs)], live: [:])
         let args: JSONValue = .object(["words": .array([.object(["key": .string("gone")])])])
-        XCTAssertEqual(reason(await d.handle(write("p1", "words.place", args: args, base: .object(["gone": .string("|")])))), "not-found")
+        let awaited8 = await d.handle(write("p1", "words.place", args: args, base: .object(["gone": .string("|")])))
+        XCTAssertEqual(reason(awaited8), "not-found")
         XCTAssertEqual(runs.value, 0)
     }
 
@@ -113,7 +121,8 @@ final class WebLinkWriteTests: XCTestCase {
         let d = dispatcher([counting("words.place", kind: .write, runs: runs)], live: ["a": ("X", []), "b": ("Changed", [])])
         let args: JSONValue = .object(["words": .array([.object(["key": .string("a")]), .object(["key": .string("b")])])])
         let base: JSONValue = .object(["a": .string(PlacementToken.make(category: "X", tags: [])), "b": .string(PlacementToken.make(category: "Old", tags: []))])
-        XCTAssertEqual(reason(await d.handle(write("p1", "words.place", args: args, base: base))), "conflict")
+        let awaited9 = await d.handle(write("p1", "words.place", args: args, base: base))
+        XCTAssertEqual(reason(awaited9), "conflict")
         XCTAssertEqual(runs.value, 0)
     }
 
@@ -121,7 +130,8 @@ final class WebLinkWriteTests: XCTestCase {
         let runs = Box(0)
         let d = dispatcher([counting("words.place", kind: .write, runs: runs)], live: ["a": ("Changed", [])])
         let args: JSONValue = .object(["words": .array([.object(["key": .string("a"), "category": .string("Mine")])])])
-        XCTAssertEqual(await d.handle(write("p1", "words.place", args: args, base: nil))?.type, "ack")
+        let awaited10 = await d.handle(write("p1", "words.place", args: args, base: nil))?.type
+        XCTAssertEqual(awaited10, "ack")
         XCTAssertEqual(runs.value, 1)
     }
 
@@ -131,14 +141,16 @@ final class WebLinkWriteTests: XCTestCase {
         let reply = await d.handle(LinkMessage(id: "q", type: "ai", version: 1, payload: .object(["args": .object(["prompt": .string("x")])])))
         XCTAssertEqual(reply?.type, "ack")
         XCTAssertEqual(runs.value, 1)
-        XCTAssertEqual(reason(await d.handle(write("w", "ai.generate"))), "forbidden", "AI through the write path is refused")
+        let awaited11 = await d.handle(write("w", "ai.generate"))
+        XCTAssertEqual(reason(awaited11), "forbidden", "AI through the write path is refused")
         XCTAssertEqual(runs.value, 1)
     }
 
     func testAiIsRefusedWhenTheRegistryDoesNotCallItAi() async {
         let runs = Box(0)
         let d = dispatcher([counting("ai.generate", kind: .read, runs: runs)])
-        XCTAssertEqual(reason(await d.handle(LinkMessage(id: "q", type: "ai", version: 1, payload: .object([:])))), "forbidden")
+        let awaited12 = await d.handle(LinkMessage(id: "q", type: "ai", version: 1, payload: .object([:])))
+        XCTAssertEqual(reason(awaited12), "forbidden")
         XCTAssertEqual(runs.value, 0)
     }
 
