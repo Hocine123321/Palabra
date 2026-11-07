@@ -9,7 +9,11 @@ const connect = (url) => new Promise((res, rej) => {
   const ws = new WebSocket(url);
   ws.binaryType = "nodebuffer";
   const queue = [], waiters = [];
-  ws.on("message", (d, bin) => { const v = { d: new Uint8Array(d), bin }; const w = waiters.shift(); w ? w(v) : queue.push(v); });
+  ws.notes = [];                                                       // the relay's own text notices: "peer:here" / "peer:gone"
+  ws.on("message", (d, bin) => {
+    if (!bin) return void ws.notes.push(d.toString());
+    const v = { d: new Uint8Array(d), bin }; const w = waiters.shift(); w ? w(v) : queue.push(v);
+  });
   ws.next = () => new Promise((r) => { const v = queue.shift(); v ? r(v) : waiters.push(r); });
   ws.closed = new Promise((r) => ws.on("close", (code) => r(code)));
   ws.on("open", () => res(ws));
@@ -91,4 +95,51 @@ test("a page that reloads, and a phone that rebuilds its session, both still get
   assert.deepEqual(await answerWith(phoneWs, phone, webWs, web, "e"), { words: [] });
 
   phoneWs.close(); webWs.close(); relay.close();
+});
+
+// ---- the permanent fix: roles, replacement and presence over real sockets ----
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test("a phone that drops without saying goodbye reconnects straight away and the browser hears it", async () => {
+  const relay = await startRelay();
+  const secret = randomBytes(32), room = await roomId(secret);
+  const phone1 = await connect(`${relay.url}/r/${room}?role=app`);
+  const web = await connect(`${relay.url}/r/${room}?role=web`);
+  const webNotes = web.notes;
+  // The phone's first socket is still open on the relay's side (a ghost), yet the phone connects again.
+  const phone2 = await connect(`${relay.url}/r/${room}?role=app`);
+  assert.equal(await phone1.closed, 4005, "the ghost is told it was replaced");
+  await wait(50);
+  assert.ok(webNotes.includes("peer:here"), "the browser is told the phone is back");
+
+  const app = await Session.open(secret, "app"), page = await Session.open(secret, "web");
+  web.send(await page.seal({ id: "1", type: "ping", version: 1, payload: {} }));
+  assert.equal((await app.open((await phone2.next()).d)).type, "ping", "traffic reaches the new phone socket");
+  phone2.send(await app.seal({ id: "1", type: "ack", version: 1, payload: {} }));
+  assert.equal((await page.open((await web.next()).d)).type, "ack");
+  [phone2, web].forEach((w) => w.close()); relay.close();
+});
+
+test("a browser tab reopened while the old one is still registered gets the seat", async () => {
+  const relay = await startRelay();
+  const room = await roomId(randomBytes(32));
+  const phone = await connect(`${relay.url}/r/${room}?role=app`);
+  const web1 = await connect(`${relay.url}/r/${room}?role=web`);
+  const web2 = await connect(`${relay.url}/r/${room}?role=web`);
+  assert.equal(await web1.closed, 4005);
+  const phoneNotes = phone.notes;
+  await wait(30);
+  web2.close(); await wait(50);
+  assert.ok(phoneNotes.includes("peer:gone"), "the phone learns the browser left");
+  [phone].forEach((w) => w.close()); relay.close();
+});
+
+test("a stranger with a made-up role is refused; with no role the old behaviour holds", async () => {
+  const relay = await startRelay();
+  const room = await roomId(randomBytes(32));
+  await assert.rejects(connect(`${relay.url}/r/${room}?role=admin`));
+  const a = await connect(`${relay.url}/r/${room}`), b = await connect(`${relay.url}/r/${room}`), c = await connect(`${relay.url}/r/${room}`);
+  assert.equal(await c.closed, 4001);
+  [a, b].forEach((w) => w.close()); relay.close();
 });

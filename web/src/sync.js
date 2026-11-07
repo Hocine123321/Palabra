@@ -22,16 +22,41 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
     return true;
   }
 
-  async function connectOnce(secretHex, relayUrl) {
-    const secret = Uint8Array.from(secretHex.match(/../g).map((h) => parseInt(h, 16)));
-    emit({ step: "relay" });
-    link = await openLink({ relayUrl, secret, onClose: () => { if (!stopped && view.state === "linked") api.linkLost(secretHex, relayUrl); } });
+  /** Asks the (present) phone for the snapshot and shows it. Throws if the phone does not answer. */
+  async function fetchSnapshot() {
     emit({ step: "phone" });
     const reply = await link.request("snapshot");
     if (!reply?.snapshot || !reply.takenAt) throw Object.assign(new Error("bad snapshot"), { kind: "bad-reply" });
     await cache.saveSnapshot(reply.snapshot, reply.takenAt);   // a failed save must not hide fresh data
     attempt = 0;
     emit({ state: "linked", snapshot: reply.snapshot, takenAt: reply.takenAt, message: "", failures: 0, reason: "", step: "" });
+  }
+
+  async function connectOnce(secretHex, relayUrl) {
+    const secret = Uint8Array.from(secretHex.match(/../g).map((h) => parseInt(h, 16)));
+    emit({ step: "relay" });
+    let opening = true, arrivedWhileOpening = false;
+    link = await openLink({
+      relayUrl, secret,
+      onClose: () => { if (!stopped && view.state === "linked") api.linkLost(secretHex, relayUrl); },
+      // The relay says the phone is here: ask at once. This is what ends "waiting for the phone" without any polling gap.
+      onPeer: (here) => {
+        if (!here) { if (!opening) { arrivedWhileOpening = false; if (!stopped && view.state === "linked") emit({ state: "away", step: "phone" }); } return; }
+        if (opening) { arrivedWhileOpening = true; return; }
+        if (!stopped && view.state !== "linked") fetchSnapshot().catch(() => {});
+      },
+    });
+    opening = false;
+    emit({ step: "phone" });
+    // The relay announces the phone right after we join. Here (or an older relay that says nothing): ask now. Known to be absent:
+    // stay connected and wait for its arrival instead of timing out and sleeping.
+    if (arrivedWhileOpening || link.peerHere !== false) return fetchSnapshot();
+    await waitForPhone();
+  }
+
+  /** The phone is not in the room. Stay on the relay and show "away"; onPeer(true) fetches the data the moment it arrives. */
+  async function waitForPhone() {
+    emit({ state: view.snapshot ? "away" : "empty", step: "phone", reason: "phone-away" });
   }
 
   async function run(secretHex, relayUrl) {

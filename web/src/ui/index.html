@@ -12,10 +12,15 @@
   <section id="pairing" class="card">
     <h1 data-i18n="Palabra on your computer">Palabra on your computer</h1>
     <p class="muted" data-i18n="Open Palabra on your phone: Settings, Web Access, Pair a Browser. Then fill this in on the same Wi-Fi.">Open Palabra on your phone: Settings, Web Access, Pair a Browser. Then fill this in on the same Wi-Fi.</p>
+    <div id="finder" style="display:grid;gap:12px;margin-block-end:16px">
+      <button id="find" class="primary" type="button" data-i18n="Find my phone">Find my phone</button>
+      <div id="found" aria-live="polite"></div>
+    </div>
+    <p class="muted small" data-i18n="Or type the phone's address and code:">Or type the phone's address and code:</p>
     <form id="pair" style="display:grid;gap:16px">
       <label><span data-i18n="Phone address">Phone address</span><input id="address" placeholder="192.168.1.20" inputmode="decimal" required></label>
       <label><span data-i18n="Code you chose on the phone">Code you chose on the phone</span><input id="code" inputmode="numeric" autocomplete="off" required></label>
-      <label><span data-i18n="Relay address (optional, the phone tells the page)">Relay address (optional, the phone tells the page)</span><input id="relay" placeholder="wss://palabra-relay.yourname.workers.dev"></label>
+      <label><span data-i18n="Relay address">Relay address</span><input id="relay" placeholder="wss://palabra-relay.yourname.workers.dev"></label>
       <label class="check"><input id="remember" type="checkbox"><span data-i18n="Remember this computer">Remember this computer</span></label>
       <p class="muted small" data-i18n="Saves your words and the link key in this browser so the page opens without the phone. Anyone who can use this browser profile can read them. Leave it off on a shared computer.">Saves your words and the link key in this browser so the page opens without the phone. Anyone who can use this browser profile can read them. Leave it off on a shared computer.</p>
       <p id="err" class="err" role="alert"></p>

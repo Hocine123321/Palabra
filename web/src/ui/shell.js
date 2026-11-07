@@ -6,6 +6,7 @@ import { createSync } from "../sync.js";
 import { renderLibrary, renderStudy, renderStatus, renderAddWords, renderChanges, esc } from "./render.js";
 import { renderArtifactList, renderArtifactPage } from "./artifacts.js";
 import { renderChat, renderBooks, renderLesson } from "./chatbooks.js";
+import { findPhones, requestTrust, renderFinder } from "../auto-pair.js";
 import { createOutbox } from "../outbox.js";
 import { sendOutboxItem, parseWords } from "../writes.js";
 import { reasonText } from "../link-rpc.js";
@@ -170,6 +171,39 @@ export async function start() {
     $("#app").hidden = true; $("#pairing").hidden = false; $("#view").innerHTML = ""; $("#err").textContent = "";
   });
 
+
+  // Find my phone: look through the relay for phones on this network, ask one to trust this computer, then carry on like the code path.
+  const finder = { state: "idle", phones: [], code: "", message: "" };
+  const paintFinder = () => { $("#found").innerHTML = renderFinder(finder, t, esc); wireFinder(); };
+  function wireFinder() {
+    for (const b of document.querySelectorAll("[data-phone]")) b.addEventListener("click", () => choosePhone(finder.phones.find((p) => p.deviceId === b.dataset.phone)));
+  }
+  async function choosePhone(phone) {
+    if (!phone) return;
+    Object.assign(finder, { state: "waiting", code: "" }); paintFinder();
+    try {
+      const got = await requestTrust({ relayUrl: $("#relay").value.trim(), phone, onCode: (c) => { finder.code = c; paintFinder(); } });
+      const pair = { secretHex: toHex(got.secret), relayUrl: relayBase(got.relayUrl || $("#relay").value.trim()), tokenHex: toHex(got.token), deviceId: got.deviceId };
+      remembered = $("#remember").checked;
+      cache = remembered ? disk : memory;
+      if (remembered) await disk.savePairing(pair);
+      finder.state = "idle"; paintFinder();
+      await begin(pair);
+    } catch (e) {
+      Object.assign(finder, { state: "error", message: errorText(e, t) }); paintFinder();
+    }
+  }
+  $("#find").addEventListener("click", async () => {
+    const relay = $("#relay").value.trim();
+    if (!relay) { Object.assign(finder, { state: "error", message: t("Type the relay address first, so the search knows where to look.") }); return paintFinder(); }
+    Object.assign(finder, { state: "searching", phones: [] }); paintFinder();
+    try {
+      finder.phones = await findPhones({ relayUrl: relay });
+      finder.state = finder.phones.length ? "list" : "none";
+    } catch (e) { Object.assign(finder, { state: "error", message: errorText(e, t) }); }
+    paintFinder();
+  });
+
   $("#pair").addEventListener("submit", async (event) => {
     event.preventDefault();
     const go = $("#go"); go.disabled = true; $("#err").textContent = "";
@@ -193,6 +227,7 @@ export async function start() {
 
   // A remembered computer opens straight onto its saved copy, then reconnects on its own.
   const saved = await disk.loadPairing();
+  if (saved?.relayUrl) $("#relay").value = saved.relayUrl;
   if (saved) {
     remembered = true; cache = disk;
     await begin({ secretHex: saved.secretHex, relayUrl: saved.relayUrl });

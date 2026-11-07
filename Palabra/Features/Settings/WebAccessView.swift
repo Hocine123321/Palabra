@@ -48,6 +48,7 @@ struct WebAccessView: View {
                     if web.isPaired {
                         Button("Forget This Browser", role: .destructive) { web.revoke() }
                     }
+                    if !web.trusted.isEmpty { trustedList }
                     if web.isPairingOpen { pairingOpen } else {
                         TextField("Choose a code (6 or more digits)", text: $codeText)
                             .keyboardType(.numberPad)
@@ -72,6 +73,27 @@ struct WebAccessView: View {
         .navigationTitle("Web Access")
         .onAppear { relayText = web.relayURL }
         .onDisappear { web.closePairing() }
+        .alert(web.trustQuestion.map { Text("Trust \($0.name)?") } ?? Text("Trust this computer?"),
+               isPresented: Binding(get: { web.trustQuestion != nil }, set: { _ in }), presenting: web.trustQuestion) { _ in
+            Button("Don't Trust", role: .cancel) { web.answerTrust(accept: false) }
+            Button("Trust") { web.answerTrust(accept: true) }
+        } message: { question in
+            Text("Only trust it if this number is also on the computer's screen: \(question.code)\n\nIt will be able to read your words and chats while Palabra is open.")
+        }
+    }
+
+    private var trustedList: some View {
+        ForEach(web.trusted.entries) { entry in
+            HStack {
+                VStack(alignment: .leading) {
+                    Text(verbatim: entry.name)
+                    Text(entry.createdAt, style: .date).font(.footnote).foregroundStyle(Theme.inkSecondary)
+                }
+                Spacer()
+                Button("Remove", role: .destructive) { web.revokeTrusted(id: entry.id) }
+                    .buttonStyle(.borderless)
+            }
+        }
     }
 
     private var statusRow: some View {
@@ -92,6 +114,8 @@ struct WebAccessView: View {
             Text("Open the Palabra web file on your computer, on this Wi-Fi, and type:")
             Text(verbatim: web.pairingCode ?? "").font(Theme.Font.display).monospacedDigit()
                 .accessibilityIdentifier("webAccessCode")
+            Text("Or open the page and tap Find my phone. This phone will ask you to trust that computer.")
+                .font(.footnote).foregroundStyle(Theme.inkSecondary)
             Text(verbatim: "\(localAddress ?? "this phone's address"):\(LocalPairingListener.port.rawValue)")
                 .font(.footnote).foregroundStyle(Theme.inkSecondary)
             if web.lockedSeconds > 0 {

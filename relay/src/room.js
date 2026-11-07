@@ -7,8 +7,10 @@ export const MAX_PEERS = 2;
 export const MAX_FRAMES_PER_SECOND = 50;        // per socket; a burst of 2x is tolerated
 export const ROOM_ID_PATTERN = /^[0-9a-f]{32}$/;
 
+export const ROLES = ["app", "web"];
 export const CLOSE = {
   roomFull: { code: 4001, reason: "room full" },
+  replaced: { code: 4005, reason: "replaced by a newer connection" },
   tooBig: { code: 4002, reason: "frame too big" },
   tooFast: { code: 4003, reason: "rate limit" },
   notBinary: { code: 4004, reason: "binary frames only" },
@@ -34,27 +36,61 @@ export class Bucket {
 }
 
 /**
- * @typedef {{send(data: ArrayBuffer|Uint8Array): void, close(code: number, reason: string): void}} Peer
+ * @typedef {{send(data: ArrayBuffer|Uint8Array|string): void, close(code: number, reason: string): void}} Peer
+ *
+ * A room has one seat per role: the phone ("app") and the browser ("web"). A new connection in a role REPLACES the old one in that
+ * role, so a socket that died without the relay noticing can never lock out the connection that follows it. The room id is
+ * derived from a 32-byte secret, so only someone who holds the secret can sit in a seat, and frames are end-to-end encrypted anyway.
+ * The relay also tells each end, in text frames of its own, whether the other seat is taken: "peer:here" or "peer:gone".
+ * Peers may only send binary frames, so nobody can forge those notices.
  */
 export class Room {
   constructor(now = () => Date.now()) {
     /** @type {Map<Peer, Bucket>} */
     this.peers = new Map();
+    /** @type {Map<string, Peer>} */
+    this.seats = new Map();
     this.now = now;
   }
 
-  /** Returns false (and closes the peer) when the room already has two ends. */
-  join(peer) {
-    if (this.peers.size >= MAX_PEERS) {
-      peer.close(CLOSE.roomFull.code, CLOSE.roomFull.reason);
-      return false;
+  /** Seats a peer in a role. An unknown role is refused. Returns false (and closes the peer) when it cannot be seated. */
+  join(peer, role = null) {
+    if (role === null) {
+      // Older clients do not name a role: first come, first served, as before.
+      if (this.peers.size >= MAX_PEERS) { peer.close(CLOSE.roomFull.code, CLOSE.roomFull.reason); return false; }
+      this.peers.set(peer, new Bucket(MAX_FRAMES_PER_SECOND, this.now));
+      return true;
     }
+    if (!ROLES.includes(role)) { peer.close(CLOSE.roomFull.code, CLOSE.roomFull.reason); return false; }
+    const old = this.seats.get(role);
+    if (old) {
+      this.seats.delete(role);
+      this.peers.delete(old);
+      try { old.close(CLOSE.replaced.code, CLOSE.replaced.reason); } catch { /* already gone */ }
+    }
+    this.seats.set(role, peer);
     this.peers.set(peer, new Bucket(MAX_FRAMES_PER_SECOND, this.now));
+    peer.role = role;
+    this.#tell(peer, this.#otherSeated(role) ? "peer:here" : "peer:gone");
+    this.#tellOthers(peer, "peer:here");
     return true;
   }
 
   leave(peer) {
-    this.peers.delete(peer);
+    if (!this.peers.delete(peer)) return;
+    const role = [...this.seats].find(([, p]) => p === peer)?.[0];
+    if (role) {
+      this.seats.delete(role);
+      this.#tellOthers(peer, "peer:gone");
+    }
+  }
+
+  #otherSeated(role) { return this.seats.has(role === "app" ? "web" : "app"); }
+
+  #tell(peer, text) { try { peer.send(text); } catch { /* the socket is already closing */ } }
+
+  #tellOthers(from, text) {
+    for (const p of this.peers.keys()) if (p !== from) this.#tell(p, text);
   }
 
   /** Forward one frame to the other end. Anything that is not a small binary frame closes the sender. */

@@ -882,3 +882,10 @@
 "Use at least 6 digits." = "استخدم 6 أرقام على الأقل.";
 "Could not start on this network." = "تعذّر البدء على هذه الشبكة.";
 "Another browser is already linked" = "متصفح آخر متصل بالفعل";
+
+"Or open the page and tap Find my phone. This phone will ask you to trust that computer." = "أو افتح الصفحة واضغط «ابحث عن هاتفي». سيطلب منك هذا الهاتف الوثوق بذلك الحاسوب.";
+"Trust %@?" = "هل تثق بـ %@؟";
+"Trust this computer?" = "هل تثق بهذا الحاسوب؟";
+"Don't Trust" = "لا تثق";
+"Trust" = "ثق";
+"Only trust it if this number is also on the computer's screen: %@\n\nIt will be able to read your words and chats while Palabra is open." = "ثق به فقط إذا ظهر هذا الرقم نفسه على شاشة الحاسوب: %@\n\nسيتمكن من قراءة كلماتك ومحادثاتك أثناء فتح Palabra.";

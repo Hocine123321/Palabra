@@ -18,6 +18,9 @@ struct KeychainStore {
     /// The web link's session secret (Settings > Web Access). Same service, its own slot; revoking deletes it.
     static func webLink() -> KeychainStore { KeychainStore(account: "web-link-secret") }
 
+    /// The browsers this phone has agreed to trust (Settings > Web Access). Token hashes only, never a usable token.
+    static func webTrust() -> KeychainStore { KeychainStore(account: "web-link-trusted") }
+
     /// The backup key the app switches to when the primary one keeps failing.
     static func fallback() -> KeychainStore { KeychainStore(account: "api-key-fallback") }
 

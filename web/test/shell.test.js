@@ -28,7 +28,7 @@ function makeDom() {
     if (selector === "nav.tabs button") return tabs;
     const attr = selector.match(/^\[data-([a-z]+)\]$/)?.[1];
     if (!attr) return [];
-    return [...String(nodes.view.innerHTML).matchAll(new RegExp(`data-${attr}="([^"]*)"`, "g"))].map((m) => {
+    return [...(String(nodes.view.innerHTML) + String(nodes.found?.innerHTML ?? "")).matchAll(new RegExp(`data-${attr}="([^"]*)"`, "g"))].map((m) => {
       const key = `${attr}:${m[1]}`;
       if (!found.has(key)) found.set(key, Object.assign(make(key), { dataset: { [attr]: m[1].replace(/&quot;/g, '"') } }));
       return found.get(key);
@@ -49,7 +49,7 @@ async function run({ idb = new Map(), phoneUp = true, lang = "en" } = {}) {
   // A phone that answers `snapshot` only when it is "up", reached through WebSocket + fetch fakes.
   const sandbox = {
     document, location: { protocol: "file:" }, navigator: { languages: [lang], language: lang }, indexedDB: fakeIndexedDB,
-    crypto: globalThis.crypto, TextEncoder, TextDecoder, atob, btoa, structuredClone, console, setTimeout: () => 0, clearTimeout() {}, queueMicrotask, Uint8Array, Promise,
+    crypto: globalThis.crypto, TextEncoder, TextDecoder, atob, btoa, structuredClone, console, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, queueMicrotask, Uint8Array, Promise,
     fetch: async (url, opts) => {
       if (String(url).endsWith("/hello")) return { ok: true, status: 200, json: async () => ({ nonce: "00".repeat(16) }) };
       return { ok: true, status: 200, json: async () => ({ ok: true }) };
@@ -399,4 +399,93 @@ test("pairing with an older app that sends no relay address still works from the
   await until(() => r.nodes.err.textContent !== "", "asked for the relay address");
   assert.match(r.nodes.err.textContent, /relay address/i);
   assert.equal(phone.opened.length, 0, "nothing was joined without an address");
+});
+
+import { makeTrustKeys, sealGrant } from "../src/trust-crypto.js";
+
+/** One socket class for both: `/lobby` is the introductions, `/r/<room>` is the phone's relay room. */
+async function lobbyAndPhone({ accept = true } = {}) {
+  const keys = await makeTrustKeys();
+  const deviceId = "cd".repeat(16);
+  const secret = new Uint8Array(32).fill(9), token = new Uint8Array(32).fill(7);
+  const appSession = await Session.open(secret, "app");
+  const lobby = new Set(), opened = [];
+  let seenRequest = null;
+  class Socket {
+    constructor(url) {
+      this.url = String(url); this.listeners = {}; opened.push(this.url);
+      if (this.url.endsWith("/lobby")) lobby.add(this);
+      queueMicrotask(() => this.listeners.open?.forEach((f) => f()));
+    }
+    addEventListener(e, f) { (this.listeners[e] ??= []).push(f); }
+    removeEventListener() {}
+    close() { lobby.delete(this); this.listeners.close?.forEach((f) => f({ code: 1000 })); }
+    say(frame) { queueMicrotask(() => this.listeners.message?.forEach((f) => f({ data: frame }))); }
+    async send(data) {
+      if (this.url.endsWith("/lobby")) {
+        const f = JSON.parse(data);
+        if (f.type === "hello") this.say(JSON.stringify({ type: "announce", deviceId, name: "Hocine's iPhone", pub: keys.pub }));
+        if (f.type === "request") {
+          seenRequest = f;
+          if (!accept) return this.say(JSON.stringify({ type: "decision", browserId: f.browserId, deviceId, accepted: false }));
+          const box = await sealGrant({ phonePrivate: keys.privateKey, phonePub: keys.pub, browserPub: f.pub, grant: { secret, token, relayUrl: "wss://phone-relay.example" } });
+          this.say(JSON.stringify({ type: "decision", browserId: f.browserId, deviceId, accepted: true, ...box }));
+        }
+        return;
+      }
+      this.say("peer:here");
+      const request = await appSession.open(new Uint8Array(data));
+      const reply = await appSession.seal({ id: request.id, type: "ack", version: 1, payload: { snapshot: SNAP, takenAt: "2026-11-07T10:00:00Z" } });
+      this.say(reply.buffer.slice(reply.byteOffset, reply.byteOffset + reply.byteLength));
+    }
+  }
+  return { Socket, opened, request: () => seenRequest, keys };
+}
+
+async function startFinder({ accept = true, remember = false } = {}) {
+  const r = await run();
+  const phone = await lobbyAndPhone({ accept });
+  r.sandbox.WebSocket = phone.Socket;
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await new Promise((x) => setImmediate(x));
+  Object.assign(r.nodes.relay, { value: "wss://relay.example" });
+  r.nodes.remember.checked = remember;
+  return { r, phone };
+}
+
+test("Find my phone: the phone is listed, choosing it shows the match code, and the page links on the phone's own relay", async () => {
+  const { r, phone } = await startFinder();
+  r.sandbox.setTimeout = (fn, ms) => setTimeout(fn, Math.min(ms ?? 0, 20));   // a short listening window instead of four seconds
+  r.sandbox.clearTimeout = clearTimeout;
+  await r.nodes.find.listeners.click();
+  await until(() => /data-phone=/.test(r.nodes.found.innerHTML), "the phone is listed");
+  assert.match(r.nodes.found.innerHTML, /Hocine&#39;s iPhone|Hocine's iPhone/);
+
+  const choose = [...r.sandbox.document.querySelectorAll("[data-phone]")][0];
+  assert.ok(choose, "the phone is a button");
+  await choose.listeners.click();
+  await until(() => phone.opened.some((u) => /phone-relay\.example\/r\//.test(u)), "linked through the phone's own relay");
+  assert.equal(phone.request().name, "Browser on Computer");
+  await until(() => /hola/.test(r.nodes.view.innerHTML), "the phone's words are shown");
+  assert.equal(r.nodes.app.hidden, false);
+});
+
+test("Find my phone: declining on the phone shows why and links nothing", async () => {
+  const { r, phone } = await startFinder({ accept: false });
+  r.sandbox.setTimeout = (fn, ms) => setTimeout(fn, Math.min(ms ?? 0, 20));
+  r.sandbox.clearTimeout = clearTimeout;
+  await r.nodes.find.listeners.click();
+  await until(() => /data-phone=/.test(r.nodes.found.innerHTML), "the phone is listed");
+  await [...r.sandbox.document.querySelectorAll("[data-phone]")][0].listeners.click();
+  await until(() => /did not trust/.test(r.nodes.found.innerHTML), "the refusal is shown");
+  assert.equal(r.nodes.app.hidden, true);
+  assert.ok(!phone.opened.some((u) => /\/r\//.test(u)), "no room was ever joined");
+});
+
+test("Find my phone without a relay address says what is missing instead of doing nothing", async () => {
+  const { r } = await startFinder();
+  r.nodes.relay.value = "";
+  await r.nodes.find.listeners.click();
+  assert.match(r.nodes.found.innerHTML, /relay address/i);
 });
