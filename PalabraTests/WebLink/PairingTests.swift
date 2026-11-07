@@ -36,13 +36,6 @@ final class PairingLockoutTests: XCTestCase {
     }
 }
 
-private final class Box<T>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var stored: T
-    init(_ value: T) { stored = value }
-    var value: T { get { lock.lock(); defer { lock.unlock() }; return stored } set { lock.lock(); stored = newValue; lock.unlock() } }
-}
-
 final class PairingServiceTests: XCTestCase {
     private final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 1_000_000) }
     private let clock = Clock()
