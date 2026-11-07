@@ -83,6 +83,69 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveLessonEditingKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Block type",
+            "New Block",
+            "Heading",
+            "Paragraph",
+            "List",
+            "Key point",
+            "Quote",
+            "Timeline",
+            "Numbers",
+            "Comparison",
+            "Cause and effect",
+            "Steps",
+            "Terms",
+            "Text",
+            "Level",
+            "Title (optional)",
+            "Numbered",
+            "One item per line",
+            "Label (optional)",
+            "Source (optional)",
+            "Date",
+            "Event",
+            "Detail (optional)",
+            "Label",
+            "Value",
+            "Unit (optional)",
+            "Note (optional)",
+            "Corner label (optional)",
+            "One column per line",
+            "Row",
+            "One cell per line, in column order",
+            "Group (optional)",
+            "Step",
+            "Term",
+            "Definition",
+            "Add row",
+            "Lesson",
+            "Lesson title",
+            "Page title",
+            "Line under the title (optional)",
+            "Edit Titles",
+            "Edit",
+            "Add Block Below",
+            "Move Up",
+            "Move Down",
+            "Edit Block",
+            "Add Block",
+            "Add Page After",
+            "Move Page Earlier",
+            "Move Page Later",
+            "Delete Page",
+            "Edit Page",
+            "Done Editing",
+            "Delete this page?",
+            "The change couldn't be saved.",
+            "New page",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
+
     func testArabicStringsHaveLessonStudioKeys() throws {
         let table = try arabicTable()
         let keys = [

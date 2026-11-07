@@ -3,6 +3,8 @@ import SwiftUI
 /// One numbered page of a book: a title block, the lesson's blocks, and the page number at the foot.
 struct BookPageView: View {
     let page: BookPage
+    /// Set while the reader is in Edit mode: adds a menu to the page and to each block.
+    var editing: PageEditing? = nil
 
     @Environment(\.bookPalette) private var palette
 
@@ -11,8 +13,13 @@ struct BookPageView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 header
+                if let editing { PageEditMenu(editing: editing) }
                 ForEach(Array(page.page.blocks.enumerated()), id: \.offset) { entry in
                     BlockView(block: entry.element, scope: scope, index: entry.offset)
+                    if let editing {
+                        BlockEditMenu(index: entry.offset, count: page.page.blocks.count, block: entry.element, editing: editing)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
                 Text(verbatim: "— \(page.number) —")
                     .font(palette.font(.footnote))
