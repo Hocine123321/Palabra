@@ -32,6 +32,8 @@ struct WebLinkDispatcher: Sendable {
     let recent: RecentActions
     /// Optional: without it the page sees no artifacts (`artifacts` answers an empty list).
     let artifacts: WebArtifactReader?
+    /// Optional: without it the page sees no chat and no books.
+    let chatBooks: WebChatBooksReader?
     /// The live placement of a word (section and tags), for the conflict check on `words.place`. `nil` = no such word.
     let placement: @Sendable (_ idOrKey: String) async -> (category: String?, tags: [String])?
 
@@ -40,12 +42,14 @@ struct WebLinkDispatcher: Sendable {
         now: @escaping @Sendable () -> Date = { Date() },
         recent: RecentActions = RecentActions(),
         artifacts: WebArtifactReader? = nil,
+        chatBooks: WebChatBooksReader? = nil,
         placement: @escaping @Sendable (_ idOrKey: String) async -> (category: String?, tags: [String])? = { _ in nil }
     ) {
         self.registry = registry
         self.now = now
         self.recent = recent
         self.artifacts = artifacts
+        self.chatBooks = chatBooks
         self.placement = placement
     }
 
@@ -58,6 +62,9 @@ struct WebLinkDispatcher: Sendable {
         case "ai": return await ai(message)
         case "artifacts": return await artifactList(message)
         case "artifact": return await artifactPage(message)
+        case "chat": return await chat(message)
+        case "books": return await books(message)
+        case "lesson": return await lesson(message)
         default: return nil
         }
     }
@@ -148,6 +155,25 @@ struct WebLinkDispatcher: Sendable {
     private func artifactPage(_ message: LinkMessage) async -> LinkMessage {
         guard case .object(let payload)? = message.payload, let id = payload["id"]?.stringValue, id.count <= 80 else { return reject(message, reason: "bad-request") }
         guard let page = await artifacts?.page(id: id) else { return reject(message, reason: "not-found") }
+        return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": page]))
+    }
+
+    /// The most recent chat as text, or `{chat: null}` when there is none.
+    private func chat(_ message: LinkMessage) async -> LinkMessage {
+        let payload = await chatBooks?.chatPayload() ?? .object(["chat": .null])
+        return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": payload]))
+    }
+
+    private func books(_ message: LinkMessage) async -> LinkMessage {
+        let payload = await chatBooks?.booksPayload() ?? .array([])
+        return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": payload]))
+    }
+
+    /// One lesson by book and lesson id. Unknown ids answer `not-found` and nothing else.
+    private func lesson(_ message: LinkMessage) async -> LinkMessage {
+        guard case .object(let payload)? = message.payload, let book = payload["book"]?.stringValue, let id = payload["lesson"]?.stringValue,
+              book.count <= 80, id.count <= 80 else { return reject(message, reason: "bad-request") }
+        guard let page = await chatBooks?.lessonPayload(bookID: book, lessonID: id) else { return reject(message, reason: "not-found") }
         return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": page]))
     }
 

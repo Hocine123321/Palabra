@@ -22,7 +22,7 @@ function makeDom() {
   for (const id of ids) nodes[id] = make(id);
   nodes.pairing.hidden = false;
   // querySelectorAll finds what the page really renders: the tab buttons, and any [data-x="..."] button in the current view.
-  const tabs = ["library", "study", "artifacts"].map((tab) => Object.assign(make("tab-" + tab), { dataset: { tab } }));
+  const tabs = ["library", "study", "artifacts", "chat", "books"].map((tab) => Object.assign(make("tab-" + tab), { dataset: { tab } }));
   const found = new Map();   // one stable node per data-attribute value, so a test can click it
   const querySelectorAll = (selector) => {
     if (selector === "nav.tabs button") return tabs;
@@ -229,7 +229,13 @@ async function phoneThatTakesWrites(code, { refuse = null } = {}) {
       const probe = await Session.open(secret, "app");
       const request = await probe.open(new Uint8Array(frame));
       seen.push(request.type);
-      const reply = request.type === "artifacts"
+      const reply = request.type === "chat"
+        ? { id: request.id, type: "ack", version: 1, payload: { result: { chat: { title: "Verbos", turns: [{ role: "user", text: "hola <b>x</b>" }, { role: "assistant", text: "¡Hola!" }] } } } }
+        : request.type === "books"
+          ? { id: request.id, type: "ack", version: 1, payload: { result: [{ id: "b1", title: "Historia", chapters: [{ title: "Uno", lessons: [{ id: "l1", title: "Roma" }] }] }] } }
+        : request.type === "lesson"
+          ? { id: request.id, type: "ack", version: 1, payload: { result: { title: "Roma", pages: [{ title: "P1", blocks: [{ kind: "text", text: "Texto de Roma" }] }] } } }
+        : request.type === "artifacts"
         ? { id: request.id, type: "ack", version: 1, payload: { result: ARTIFACTS } }
         : request.type === "artifact"
           ? (PAGES[request.payload?.id] ? { id: request.id, type: "ack", version: 1, payload: { result: PAGES[request.payload.id] } } : { id: request.id, type: "reject", version: 1, payload: { reason: "not-found" } })
@@ -346,4 +352,16 @@ test("when the first connection fails the page is not dead: tabs work and it say
   }
   assert.match(r.nodes.status.innerHTML, /Phone not reachable/);       // the status says it too, not a bare dot
   r.nodes.forget.listeners.click();                                     // stops the retry timer so the test can end
+});
+
+test("the Chat tab shows the latest chat and the Books tab opens a lesson, all through the live link and nothing kept in the browser", async () => {
+  const r = await pairedPage();
+  r.tabs.find((x) => x.dataset.tab === "chat").listeners.click();
+  await until(() => /Verbos/.test(r.nodes.view.innerHTML), "chat shown");
+  assert.match(r.nodes.view.innerHTML, /bubble me/);
+  assert.ok(!r.nodes.view.innerHTML.includes("<b>x</b>"), "chat text is escaped");
+  r.tabs.find((x) => x.dataset.tab === "books").listeners.click();
+  await until(() => /Historia/.test(r.nodes.view.innerHTML), "books shown");
+  assert.match(r.nodes.view.innerHTML, /data-lesson="l1"/);
+  assert.equal(r.idb.size, 0, "nothing stored for chat or books");
 });

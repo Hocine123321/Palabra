@@ -152,3 +152,17 @@ test("consecutive failures are counted so the page can suggest re-pairing, and a
   await h.t.fire();
   assert.equal(h.last().state, "linked"); assert.equal(h.last().failures, 0);
 });
+
+test("while connecting, the view says which step it is waiting on, and a hang ends with a reason", async () => {
+  const steps = [];
+  const sync = createSync({
+    cache: { loadSnapshot: async () => null, saveSnapshot: async () => {} },
+    openLink: async () => ({ request: async () => { throw Object.assign(new Error("silent"), { kind: "no-answer" }); }, close() {} }),
+    onChange: (v) => steps.push(v.step || v.state),
+    setTimer: () => 0, clearTimer() {},
+  });
+  await sync.start("00".repeat(32), "wss://r.example");
+  assert.ok(steps.indexOf("relay") < steps.indexOf("phone"), steps.join(","));
+  assert.equal(sync.view.state, "empty");
+  assert.equal(sync.view.reason, "no-answer");
+});

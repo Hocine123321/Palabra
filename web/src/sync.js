@@ -9,7 +9,7 @@
 //   "error"       something needs the person (e.g. the phone says the pairing was revoked)
 
 export function createSync({ cache, openLink, onChange, now = () => new Date(), retryMs = [2000, 5000, 15000, 30000], setTimer = setTimeout, clearTimer = clearTimeout }) {
-  const view = { state: "connecting", snapshot: null, takenAt: null, message: "", failures: 0, reason: "" };
+  const view = { state: "connecting", snapshot: null, takenAt: null, message: "", failures: 0, reason: "", step: "" };
   let link = null, stopped = false, attempt = 0, timer = null, busy = false;
 
   const emit = (patch) => { Object.assign(view, patch); onChange({ ...view }); };
@@ -24,12 +24,14 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
 
   async function connectOnce(secretHex, relayUrl) {
     const secret = Uint8Array.from(secretHex.match(/../g).map((h) => parseInt(h, 16)));
+    emit({ step: "relay" });
     link = await openLink({ relayUrl, secret, onClose: () => { if (!stopped && view.state === "linked") api.linkLost(secretHex, relayUrl); } });
+    emit({ step: "phone" });
     const reply = await link.request("snapshot");
     if (!reply?.snapshot || !reply.takenAt) throw Object.assign(new Error("bad snapshot"), { kind: "bad-reply" });
     await cache.saveSnapshot(reply.snapshot, reply.takenAt);   // a failed save must not hide fresh data
     attempt = 0;
-    emit({ state: "linked", snapshot: reply.snapshot, takenAt: reply.takenAt, message: "", failures: 0, reason: "" });
+    emit({ state: "linked", snapshot: reply.snapshot, takenAt: reply.takenAt, message: "", failures: 0, reason: "", step: "" });
   }
 
   async function run(secretHex, relayUrl) {
@@ -44,7 +46,7 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
       const hasData = view.snapshot !== null;
       const needsPerson = error?.kind === "forbidden" || error?.kind === "revoked";
       if (needsPerson) emit({ state: "error", message: error.message ?? "" });   // retrying cannot fix this: stop and say so
-      else emit({ state: hasData ? "away" : "empty", message: "", failures: view.failures + 1, reason: error?.kind ?? "failed" });
+      else emit({ state: hasData ? "away" : "empty", message: "", failures: view.failures + 1, reason: error?.kind ?? "failed", step: "" });
       if (!stopped && !needsPerson) {
         const wait = retryMs[Math.min(attempt, retryMs.length - 1)];
         attempt += 1;

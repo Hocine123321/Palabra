@@ -47,3 +47,13 @@ ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-sm); 
 .scroll { overflow-x: auto; } table { border-collapse: collapse; width: 100%; } th, td { text-align: start; padding: var(--sp-xs) var(--sp-sm); border-block-end: 1px solid var(--fill); }
 .check, .roadmap { padding-inline-start: var(--sp-lg); } .check { list-style: none; padding: 0; } .done { opacity: .6; } .roadmap small { display: block; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--sp-md); }
+.chat { display: grid; gap: var(--sp-sm); }
+.bubble { max-inline-size: 85%; padding: var(--sp-sm) var(--sp-md); border-radius: var(--r-medium); background: var(--surface); color: var(--ink); overflow-wrap: anywhere; }
+.bubble p { margin: 0; white-space: pre-wrap; }
+.bubble.me { justify-self: end; background: var(--accent); color: var(--surface); }
+.bubble.them { justify-self: start; }
+.bubble small { display: block; margin-block-start: var(--sp-xs); }
+.lesson-page { padding-block: var(--sp-md); border-block-end: 1px solid var(--fill); }
+.key { padding-inline-start: var(--sp-md); border-inline-start: 3px solid var(--accent); }
+blockquote { margin-inline: 0; padding-inline-start: var(--sp-md); border-inline-start: 3px solid var(--fill); }
+dt { font-weight: 600; margin-block-start: var(--sp-xs); } dd { margin-inline-start: var(--sp-md); }

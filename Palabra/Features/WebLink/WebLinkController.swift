@@ -164,7 +164,10 @@ final class WebLinkController {
             send(LinkMessage(id: message.id, type: "ack", version: 1, payload: message.payload), with: session)
             return
         }
-        guard let dispatcher else { return }
+        guard let dispatcher else {
+            send(LinkMessage(id: message.id, type: "reject", version: 1, payload: .object(["reason": .string("failed")])), with: session)
+            return
+        }
         Task { [weak self] in
             guard let reply = await dispatcher.handle(message) else { return }
             await MainActor.run { self?.send(reply, with: session) }
@@ -173,12 +176,25 @@ final class WebLinkController {
 
     /// Seals and sends a reply, split into pieces when it would not fit one relay frame.
     /// Replies for a session that has since been replaced (unpaired, reconnected) are dropped.
+    /// A reply that cannot be built or sealed is never dropped silently: the page gets a `reject` with a reason instead,
+    /// because silence is indistinguishable from a phone that is away.
     private func send(_ reply: LinkMessage, with sessionAtRequest: LinkCrypto.Session) {
-        guard session === sessionAtRequest, let pieces = try? LinkChunking.pieces(of: reply) else { return }
+        guard session === sessionAtRequest else { return }
+        if deliver(reply, with: sessionAtRequest) { return }
+        let refusal = LinkMessage(id: reply.id, type: "reject", version: 1, payload: .object(["reason": .string("failed")]))
+        _ = deliver(refusal, with: sessionAtRequest)
+    }
+
+    /// True when every piece was sealed and handed to the relay.
+    private func deliver(_ reply: LinkMessage, with session: LinkCrypto.Session) -> Bool {
+        guard let pieces = try? LinkChunking.pieces(of: reply) else { return false }
+        var frames: [Data] = []
         for piece in pieces {
-            guard let data = try? JSONEncoder().encode(piece), let sealed = try? sessionAtRequest.seal(data) else { return }
-            relay?.send(sealed)
+            guard let data = try? JSONEncoder().encode(piece), let sealed = try? session.seal(data) else { return false }
+            frames.append(sealed)
         }
+        for frame in frames { relay?.send(frame) }
+        return true
     }
 
     // MARK: State

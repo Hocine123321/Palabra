@@ -69,21 +69,40 @@ export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOr
   }
 }
 
-/** Connects to the relay with the session secret and returns a small object to send pings. */
-export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, timeoutMs = 15000, onClose = () => {} }) {
+/** Turns what the person typed for the relay into a websocket address. Accepts wss://, ws://, https://, http:// or a bare host. */
+export function relayBase(input) {
+  const bad = { kind: "relay-address", message: "That relay address does not look right. Use wss://palabra-relay.yourname.workers.dev" };
+  let text = String(input || "").trim().replace(/\/+$/, "");
+  if (!text) throw { kind: "relay-address", message: "Type the relay address, like wss://palabra-relay.yourname.workers.dev" };
+  text = text.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
+  if (!/^wss?:\/\//i.test(text)) text = `wss://${text}`;
+  const m = /^(wss?):\/\/([a-z0-9]([a-z0-9.-]*[a-z0-9])?)(:\d{1,5})?(\/[^\s?#]*)?$/i.exec(text);
+  if (!m || (!m[2].includes(".") && m[2].toLowerCase() !== "localhost")) throw bad;
+  return `${m[1].toLowerCase()}://${m[2]}${m[4] ?? ""}${(m[5] ?? "").replace(/\/+$/, "")}`;
+}
+
+/**
+ * Connects to the relay with the session secret and returns a small object to send pings.
+ * Never waits forever: a socket that is refused, closed before it opens, or silent is a failure with a reason.
+ */
+export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, timeoutMs = 15000, connectTimeoutMs = 10000, onClose = () => {}, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const room = await roomId(secret);
   const session = await Session.open(secret, "web");
-  const ws = new WebSocketImpl(`${relayUrl.replace(/\/+$/, "")}/r/${room}`);
+  const ws = new WebSocketImpl(`${relayBase(relayUrl)}/r/${room}`);
   ws.binaryType = "arraybuffer";
   const rpc = createRpc({ timeoutMs, send: async (message) => ws.send(await session.seal(message)) });
   ws.addEventListener("message", async (event) => {
     try { rpc.receive(await session.open(new Uint8Array(event.data))); }
     catch { /* not for us, tampered or replayed: ignore */ }
   });
-  ws.addEventListener("close", () => { rpc.failAll("link-lost"); onClose(); });
+  let opened = false;
+  ws.addEventListener("close", (event) => { rpc.failAll("link-lost"); if (opened) onClose(); });
   await new Promise((resolve, reject) => {
-    ws.addEventListener("open", resolve, { once: true });
-    ws.addEventListener("error", () => reject({ kind: "relay", message: "Could not reach the relay. Check its address." }), { once: true });
+    const fail = (kind, message) => { clearTimer(timer); try { ws.close(); } catch { /* already closed */ } reject({ kind, message }); };
+    const timer = setTimer(() => fail("relay-timeout", "The relay did not answer. Check its address, and that it is deployed."), connectTimeoutMs);
+    ws.addEventListener("open", () => { opened = true; clearTimer(timer); resolve(); }, { once: true });
+    ws.addEventListener("error", () => fail("relay", "Could not reach the relay. Check its address."), { once: true });
+    ws.addEventListener("close", (event) => { if (!opened) fail(event?.code === 4001 ? "room-full" : "relay", event?.code === 4001 ? "Another browser is already linked to this phone. Close it first." : "The relay refused the connection. Check its address."); }, { once: true });
   });
   return {
     /** Ask the phone for something: `request("snapshot")` or `request("read", {capability, args})`. */

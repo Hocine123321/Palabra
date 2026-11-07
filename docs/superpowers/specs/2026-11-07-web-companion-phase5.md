@@ -1,6 +1,6 @@
 # Web companion, phase 5 (part 1): Artifacts
 
-Status: built on `experimental`. Chat and Books are **not** part of this step. Builds on [phase 4](2026-11-07-web-companion-phase4.md).
+Status: built on `experimental`. Artifacts, Chat and Books are built (see "Chat and Books" at the end). Builds on [phase 4](2026-11-07-web-companion-phase4.md).
 
 ## What the person gets
 
@@ -47,3 +47,23 @@ for an unknown block type, and survives junk where lists are expected (tested, i
 ## Still to build in phase 5
 
 Chat (most recent conversation, cached) and Books (pages cached on visit).
+
+
+## Chat and Books (phase 5, part 2)
+
+Two more tabs, read-only, over the same encrypted link. Nothing from either is stored in the browser, so "Remember this computer" is unchanged.
+
+**Phone** (`WebChatBooksReader`, injected closures returning plain values, like `WebArtifactReader`). New request types: `chat`, `books`, `lesson {book, lesson}`.
+- **Chat:** the most recent conversation, newest 60 turns, each cut to 4,000 characters. Never sent: photos, thumbnails, the arguments or results of tool calls. A turn says only how many actions it ran and whether it failed.
+- **Books:** the catalogue (books, chapters, lesson titles). A lesson is sent as text pages. Headings, paragraphs, lists, key points, quotes and definitions become text; layout-heavy blocks (timelines, comparisons, diagrams, images) become a note, "This part is best read on the phone", not a guess.
+- Unknown lesson ids answer `not-found`; malformed requests `bad-request`; with no reader wired the page sees "no chat / no books", not an error.
+
+**Page** (`ui/chatbooks.js`): every string escaped, counts capped again, unknown block kinds draw nothing. Chat is read-only ("To reply, open it on your phone"). All new text has Arabic.
+
+## Fix: "Connecting..." forever (found on a real phone)
+
+`openLink` waited for the socket to open with no limit and only listened for `error`, so a refused, closed-before-open or silent socket (wrong relay address, relay not deployed, `https://` typed instead of `wss://`) never settled. Now:
+- Opening the relay has a 10 s limit; a close before open is a failure; close code 4001 says another browser is linked.
+- The relay address is tidied (`https://` becomes `wss://`, trailing slashes dropped) and obvious mistakes are explained.
+- The status shows its step ("Reaching the relay...", then "Reached the relay. Waiting for the phone..."). At most about 25 s passes before a reason appears.
+- The phone never drops a request silently: a reply that cannot be built or sealed is answered with a `reject`.

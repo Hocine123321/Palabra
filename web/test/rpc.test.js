@@ -55,3 +55,29 @@ test("failAll rejects everything waiting; a failing send rejects at once", async
   await assert.rejects(broken.request("read", {}), { kind: "send-failed", message: "socket closed" });
   assert.equal(broken.pending(), 0);
 });
+
+import { relayBase, openLink } from "../src/link-client.js";
+
+test("relay addresses are tidied, and obvious mistakes are explained", () => {
+  assert.equal(relayBase("wss://palabra-relay.me.workers.dev/"), "wss://palabra-relay.me.workers.dev");
+  assert.equal(relayBase("https://palabra-relay.me.workers.dev"), "wss://palabra-relay.me.workers.dev");   // typed from the browser bar
+  assert.equal(relayBase("palabra-relay.me.workers.dev"), "wss://palabra-relay.me.workers.dev");
+  assert.equal(relayBase("ws://localhost:8787"), "ws://localhost:8787");
+  for (const bad of ["", "wss://nodots", "wss://has space.com", "wss://"]) assert.throws(() => relayBase(bad), (e) => e.kind === "relay-address");
+});
+
+/** A socket that behaves like a browser's when the address is wrong: it never opens, and maybe closes or says nothing. */
+class DeadSocket {
+  constructor(how) { this.how = how; this.listeners = {}; queueMicrotask(() => { if (how === "close") this.fire("close", { code: 1006 }); if (how === "error") this.fire("error", {}); if (how === "full") this.fire("close", { code: 4001 }); }); }
+  addEventListener(e, f) { (this.listeners[e] ??= []).push(f); }
+  fire(e, ev) { for (const f of this.listeners[e] ?? []) f(ev); }
+  close() {}
+}
+
+test("a relay that never opens is a failure with a reason, never an endless 'Connecting'", async () => {
+  const secret = new Uint8Array(32).fill(1);
+  const cases = { silent: "relay-timeout", close: "relay", error: "relay", full: "room-full" };
+  for (const [how, kind] of Object.entries(cases)) {
+    await assert.rejects(openLink({ relayUrl: "wss://r.example", secret, WebSocketImpl: class extends DeadSocket { constructor() { super(how); } }, connectTimeoutMs: 40 }), (e) => e.kind === kind, how);
+  }
+});

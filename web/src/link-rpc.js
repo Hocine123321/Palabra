@@ -67,9 +67,12 @@ export function createRpc({ send, timeoutMs = 15000, setTimer = setTimeout, clea
 
 export function reasonText(reason) {
   switch (reason) {
-    case "no-answer": return "The phone did not answer. Keep Palabra open on screen.";
+    case "no-answer": return "The relay is reachable but the phone did not answer. Keep Palabra open on the phone, check Web Access is on, and update both the app and this page to the same version. If it still fails, forget this computer and pair again.";
     case "link-lost": return "The link to the phone was lost.";
     case "relay": return "Could not reach the relay. Check its address.";
+    case "relay-timeout": return "The relay did not answer. Check its address, and that it is deployed.";
+    case "relay-address": return "That relay address does not look right. Use wss://palabra-relay.yourname.workers.dev";
+    case "room-full": return "Another browser is already linked to this phone. Close it first.";
     case "bad-reply": return "The phone sent something this page could not read.";
     case "forbidden": return "That is not allowed from the web.";
     case "bad-args": case "bad-request": return "The phone could not understand the request.";

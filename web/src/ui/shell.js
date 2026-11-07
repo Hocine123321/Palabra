@@ -5,6 +5,7 @@ import { createCache, idbStore, memoryStore } from "../cache.js";
 import { createSync } from "../sync.js";
 import { renderLibrary, renderStudy, renderStatus, renderAddWords, renderChanges, esc } from "./render.js";
 import { renderArtifactList, renderArtifactPage } from "./artifacts.js";
+import { renderChat, renderBooks, renderLesson } from "./chatbooks.js";
 import { createOutbox } from "../outbox.js";
 import { sendOutboxItem, parseWords } from "../writes.js";
 import { reasonText } from "../link-rpc.js";
@@ -13,7 +14,7 @@ import { makeT, pickLanguage, dirFor, errorText } from "./strings.js";
 const $ = (s) => document.querySelector(s);
 
 export async function start() {
-  const state = { snapshot: null, takenAt: null, tab: "library", filters: {}, link: "connecting", message: "", reason: "", artifacts: { list: null, page: null, note: "" } };
+  const state = { snapshot: null, takenAt: null, tab: "library", filters: {}, link: "connecting", message: "", reason: "", artifacts: { list: null, page: null, note: "" }, chat: { result: null, note: "" }, books: { list: null, lesson: null, note: "" } };
   const isFile = location.protocol === "file:";
   const lang = pickLanguage(navigator.languages?.length ? navigator.languages : [navigator.language]);
   const t = makeT(lang);
@@ -47,7 +48,39 @@ export async function start() {
       if (a.list) return note + renderArtifactList(a.list, t);
       return note || `<p class="muted">${t("Connecting…")}</p>`;
     }
+    if (state.tab === "chat") {
+      const c = state.chat;
+      const note = c.note ? `<p class="muted">${esc(c.note)}</p>` : "";
+      return c.result ? note + renderChat(c.result, t) : note || `<p class="muted">${t("Connecting…")}</p>`;
+    }
+    if (state.tab === "books") {
+      const b = state.books;
+      const note = b.note ? `<p class="muted">${esc(b.note)}</p>` : "";
+      if (b.lesson) return note + renderLesson(b.lesson, t);
+      return b.list ? note + renderBooks(b.list, t) : note || `<p class="muted">${t("Connecting…")}</p>`;
+    }
     return renderStudy(state.snapshot, t);
+  }
+
+  /** Asks the phone for its latest chat. Live link only; nothing is kept in the browser. */
+  async function loadChat() {
+    const link = sync?.link;
+    if (!link) { state.chat.note = t("The phone must be connected to show this."); paint(); return; }
+    try { state.chat.result = (await link.request("chat")).result; state.chat.note = ""; }
+    catch (e) { state.chat.note = t(reasonText(e?.kind ?? "failed")); }
+    paint();
+  }
+
+  /** Asks the phone for the book list, or for one lesson. */
+  async function loadBooks(book = null, lesson = null) {
+    const link = sync?.link;
+    if (!link) { state.books.note = t("The phone must be connected to show this."); paint(); return; }
+    try {
+      if (book && lesson) state.books.lesson = (await link.request("lesson", { book, lesson })).result;
+      else { state.books.lesson = null; state.books.list = (await link.request("books")).result ?? []; }
+      state.books.note = "";
+    } catch (e) { state.books.note = t(reasonText(e?.kind ?? "failed")); }
+    paint();
   }
 
   /** Asks the phone for the artifact list or one page. Needs the live link: nothing here is kept in the browser. */
@@ -66,14 +99,14 @@ export async function start() {
 
   /** Why there is nothing to show yet, in words, with a way to try again. The tabs still work. */
   function emptyState() {
-    const why = state.link === "connecting" ? t("Connecting…") : state.reason ? t(reasonText(state.reason)) : t("The phone did not answer. Keep Palabra open on screen.");
+    const why = state.link === "connecting" ? t(state.step === "phone" ? "Reached the relay. Waiting for the phone… Keep Palabra open on it." : "Reaching the relay…") : state.reason ? t(reasonText(state.reason)) : t(reasonText("no-answer"));
     return `<section class="empty"><h2>${esc(t("Nothing to show yet"))}</h2><p class="muted">${esc(why)}</p><button id="retry" class="chip">${esc(t("Try again"))}</button></section>`;
   }
 
   function paint() {
     $("#status").innerHTML = renderStatus({ state: state.link, takenAt: state.takenAt, message: state.message }, t);
-    $("#view").innerHTML = state.tab !== "artifacts" && !state.snapshot ? emptyState()
-      : body() + (state.tab === "artifacts" ? "" : renderChanges(changes, t, (r) => t(reasonText(r))));
+    $("#view").innerHTML = !["artifacts", "chat", "books"].includes(state.tab) && !state.snapshot ? emptyState()
+      : body() + (["artifacts", "chat", "books"].includes(state.tab) ? "" : renderChanges(changes, t, (r) => t(reasonText(r))));
     const retry = $("#retry");
     if (retry) retry.addEventListener("click", () => { if (pairing) sync?.start(pairing.secretHex, pairing.relayUrl); });
     for (const b of document.querySelectorAll("nav.tabs button")) {
@@ -81,6 +114,9 @@ export async function start() {
     }
     hint();
     for (const b of document.querySelectorAll("[data-artifact]")) b.addEventListener("click", () => loadArtifacts(b.dataset.artifact));
+    for (const b of document.querySelectorAll("[data-lesson]")) b.addEventListener("click", () => loadBooks(b.dataset.book, b.dataset.lesson));
+    const lessonBack = $("#lessonBack");
+    if (lessonBack) lessonBack.addEventListener("click", () => { state.books.lesson = null; paint(); });
     const back = $("#artifactBack");
     if (back) back.addEventListener("click", () => { state.artifacts.page = null; paint(); });
     const add = $("#add");
@@ -103,7 +139,7 @@ export async function start() {
     for (const c of document.querySelectorAll(".chip[data-tag]")) c.addEventListener("click", () => { state.filters.tag = c.dataset.tag || null; paint(); });
   }
 
-  for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => { state.tab = b.dataset.tab; paint(); if (state.tab === "artifacts" && !state.artifacts.page) loadArtifacts(); });
+  for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => { state.tab = b.dataset.tab; paint(); if (state.tab === "artifacts" && !state.artifacts.page) loadArtifacts(); if (state.tab === "chat") loadChat(); if (state.tab === "books" && !state.books.lesson) loadBooks(); });
 
   let sync = null, pairing = null, outbox = null, changes = { queue: [], review: [] };
   function begin(pair) {
@@ -117,7 +153,7 @@ export async function start() {
     sync = createSync({
       cache, openLink: (options) => openLink({ ...options, timeoutMs: globalThis.PALABRA_RPC_TIMEOUT_MS ?? 15000 }),
       onChange: (v) => {
-        Object.assign(state, { snapshot: v.snapshot, takenAt: v.takenAt, link: v.state, message: v.message, failures: v.failures, reason: v.reason });
+        Object.assign(state, { snapshot: v.snapshot, takenAt: v.takenAt, link: v.state, message: v.message, failures: v.failures, reason: v.reason, step: v.step });
         $("#pairing").hidden = true; $("#app").hidden = false; paint();     // always: with no data the page still shows the tabs and why
         if (v.state === "linked") outbox?.flush();      // the phone is back: send what waited, in order
       },

@@ -182,7 +182,41 @@ final class AppEnvironment {
             },
             registry: capabilities
         )
-        webLink.dispatcher = WebLinkDispatcher(registry: capabilities, artifacts: artifactReader, placement: { [repository] ref in
+        let chatBooksReader = WebChatBooksReader(
+            latestChat: { [chat = self.chat] in
+                await MainActor.run {
+                    guard let latest = chat.conversations().first else { return nil }       // newest first
+                    return WebChatBooksReader.Chat(
+                        id: latest.id.uuidString, title: latest.title, updatedAt: latest.updatedAt,
+                        turns: latest.turns.map { WebChatBooksReader.Turn(role: $0.role.rawValue, text: $0.text, at: $0.createdAt, actionCount: $0.actions.count, failed: $0.status == .failed) }
+                    )
+                }
+            },
+            books: { [shelf = self.books] in
+                await MainActor.run {
+                    shelf.library.books.map { book in
+                        WebChatBooksReader.BookEntry(
+                            id: book.id, title: book.title, subject: book.subject.rawValue, language: book.language,
+                            chapters: book.chapters.map { chapter in
+                                .init(id: chapter.id, title: chapter.title, lessons: chapter.lessons.map { .init(id: $0.id, title: $0.title) })
+                            }
+                        )
+                    }
+                }
+            },
+            lesson: { [shelf = self.books] bookID, lessonID in
+                await MainActor.run {
+                    guard let lesson = shelf.library.book(id: bookID)?.chapters.flatMap(\.lessons).first(where: { $0.id == lessonID }) else { return nil }
+                    return WebChatBooksReader.Lesson(
+                        id: lesson.id, title: lesson.title,
+                        pages: lesson.pages.map { page in
+                            WebChatBooksReader.Page(id: page.id, title: page.lessonTitle, blocks: page.page.blocks.map(WebChatBooksReader.piece(from:)))
+                        }
+                    )
+                }
+            }
+        )
+        webLink.dispatcher = WebLinkDispatcher(registry: capabilities, artifacts: artifactReader, chatBooks: chatBooksReader, placement: { [repository] ref in
             await MainActor.run {
                 let all = repository.allWords()
                 let id = UUID(uuidString: ref)
