@@ -1,0 +1,18 @@
+/* Design tokens: Recortes & Glass, Claude Orange. Values are copied from Palabra/Core/DesignSystem/Theme.swift;
+   web/test/tokens.test.js fails if they drift from it. Light and dark follow the system. */
+:root {
+  --bg-top: #F5F3EE; --bg-bottom: #ECE9E1; --surface: #FCFBF8; --ink: #1F1D1A; --ink-2: #67645C; --fill: #E7E4DB;
+  --accent: #D97757; --accent-deep: #A9502F; --accent-soft: #F4DDD2; --error: #A8483D; --success: #5E7A4A; --on-tint: #1F1D1A;
+  --tint-0: #D97757; --tint-1: #A3B18A; --tint-2: #9DBAD5; --tint-3: #E3D5B8; --tint-4: #EBB491; --tint-5: #C6C3B6;
+  --sp-xs: 4px; --sp-sm: 8px; --sp-md: 16px; --sp-lg: 24px; --sp-xl: 32px;
+  --r-small: 10px; --r-medium: 20px; --r-card: 28px; --r-sheet: 40px; --r-pill: 100px;
+  --glass: rgba(255,255,255,.55); --glass-rim: rgba(255,255,255,.7); --shadow: 0 8px 30px rgba(31,29,26,.10);
+  --font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-top: #1B1A18; --bg-bottom: #121110; --surface: #262522; --ink: #F1EFE8; --ink-2: #B4B1A7; --fill: #34322E;
+    --accent-deep: #E89574; --accent-soft: #4A3228; --error: #F08A80; --success: #9DBB86;
+    --glass: rgba(60,58,54,.55); --glass-rim: rgba(255,255,255,.14); --shadow: 0 8px 30px rgba(0,0,0,.45);
+  }
+}

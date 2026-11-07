@@ -29,6 +29,8 @@ final class WebLinkController {
     @ObservationIgnored private var relay: RelayClient?
     @ObservationIgnored private var session: LinkCrypto.Session?
     @ObservationIgnored private var appActive = true
+    /// Set by the app once the capability registry exists. Without it the link only answers `ping`.
+    @ObservationIgnored var dispatcher: WebLinkDispatcher?
     @ObservationIgnored private let setIdleTimerDisabled: @MainActor (Bool) -> Void
 
     init(settings: WebLinkSettings = WebLinkSettings(),
@@ -140,14 +142,31 @@ final class WebLinkController {
         }
     }
 
-    /// Phase 1: the only message is `ping`, answered with `ack`. Anything unreadable is dropped silently.
+    /// `ping` is answered here; `read` and `snapshot` go to the dispatcher (read-only). Anything unreadable is dropped
+    /// silently, and unknown types are ignored so old files and new apps keep working.
     private func received(_ frame: Data) {
         guard let session, let plain = try? session.open(frame),
               let message = try? JSONDecoder().decode(LinkMessage.self, from: plain) else { return }
         link = .linked
-        guard message.type == "ping" else { return } // unknown types are ignored so old files and new apps keep working
-        let reply = LinkMessage(id: message.id, type: "ack", version: 1, payload: message.payload)
-        if let data = try? JSONEncoder().encode(reply), let sealed = try? session.seal(data) { relay?.send(sealed) }
+        if message.type == "ping" {
+            send(LinkMessage(id: message.id, type: "ack", version: 1, payload: message.payload), with: session)
+            return
+        }
+        guard let dispatcher else { return }
+        Task { [weak self] in
+            guard let reply = await dispatcher.handle(message) else { return }
+            await MainActor.run { self?.send(reply, with: session) }
+        }
+    }
+
+    /// Seals and sends a reply, split into pieces when it would not fit one relay frame.
+    /// Replies for a session that has since been replaced (unpaired, reconnected) are dropped.
+    private func send(_ reply: LinkMessage, with sessionAtRequest: LinkCrypto.Session) {
+        guard session === sessionAtRequest, let pieces = try? LinkChunking.pieces(of: reply) else { return }
+        for piece in pieces {
+            guard let data = try? JSONEncoder().encode(piece), let sealed = try? sessionAtRequest.seal(data) else { return }
+            relay?.send(sealed)
+        }
     }
 
     // MARK: State

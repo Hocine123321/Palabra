@@ -163,6 +163,7 @@ final class AppEnvironment {
             hooks: hooks,
             aiGateway: gateway
         )
+        webLink.dispatcher = WebLinkDispatcher(registry: capabilities)
         self.catalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
         self.wordQueue = wordQueue

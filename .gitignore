@@ -6,3 +6,4 @@ DerivedData/
 __pycache__/
 *.xcresult
 node_modules/
+web/dist/

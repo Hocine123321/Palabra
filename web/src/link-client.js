@@ -3,6 +3,7 @@
 // and `WebSocket` as arguments so the Node tests can run the whole flow against fakes.
 
 import { fromHex, toHex, pairingProof, unwrapSecret, roomId, Session } from "./link-crypto.js";
+import { createRpc } from "./link-rpc.js";
 
 export const PAIRING_PORT = 47615;
 
@@ -69,35 +70,26 @@ export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOr
 }
 
 /** Connects to the relay with the session secret and returns a small object to send pings. */
-export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket }) {
+export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, timeoutMs = 15000 }) {
   const room = await roomId(secret);
   const session = await Session.open(secret, "web");
   const ws = new WebSocketImpl(`${relayUrl.replace(/\/+$/, "")}/r/${room}`);
   ws.binaryType = "arraybuffer";
-  const waiting = new Map();
+  const rpc = createRpc({ timeoutMs, send: async (message) => ws.send(await session.seal(message)) });
   ws.addEventListener("message", async (event) => {
-    try {
-      const msg = await session.open(new Uint8Array(event.data));
-      const waiter = waiting.get(msg.id);
-      if (waiter && msg.type === "ack") { waiting.delete(msg.id); waiter.resolve(msg); }
-    } catch { /* not for us, tampered or replayed: ignore */ }
+    try { rpc.receive(await session.open(new Uint8Array(event.data))); }
+    catch { /* not for us, tampered or replayed: ignore */ }
   });
+  ws.addEventListener("close", () => rpc.failAll("link-lost"));
   await new Promise((resolve, reject) => {
     ws.addEventListener("open", resolve, { once: true });
     ws.addEventListener("error", () => reject({ kind: "relay", message: "Could not reach the relay. Check its address." }), { once: true });
   });
-  let n = 0;
   return {
-    /** Encrypted ping; resolves with the phone's ack, rejects after the timeout (e.g. app not in the foreground). */
-    async ping(timeoutMs = 5000) {
-      const id = `p${++n}`;
-      const result = new Promise((resolve, reject) => {
-        waiting.set(id, { resolve });
-        setTimeout(() => { if (waiting.delete(id)) reject({ kind: "no-answer", message: "The phone did not answer. Keep Palabra open on screen." }); }, timeoutMs);
-      });
-      ws.send(await session.seal({ id, type: "ping", version: 1, payload: { sentAt: Date.now() } }));
-      return result;
-    },
+    /** Ask the phone for something: `request("snapshot")` or `request("read", {capability, args})`. */
+    request: (type, payload) => rpc.request(type, payload),
+    /** Encrypted ping; resolves with the phone's ack, rejects with a LinkRpcError (kind "no-answer") if it stays silent. */
+    ping: async () => ({ type: "ack", payload: await rpc.request("ping", { sentAt: Date.now() }) }),
     close: () => ws.close(),
   };
 }

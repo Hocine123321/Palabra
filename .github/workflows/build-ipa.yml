@@ -33,9 +33,17 @@ jobs:
       - name: Relay and link tests
         working-directory: relay
         run: npm ci && npm test
-      - name: Web crypto tests
+      - name: Web tests
         working-directory: web
         run: npm test
+      - name: Build the single-file web page
+        working-directory: web
+        run: node scripts/build.js dist/palabra-web.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: palabra-web
+          path: web/dist/palabra-web.html
+          if-no-files-found: error
 
   # The IPA job is independent of the test job, so a failing test never blocks the deliverable; the run itself still
   # turns red when any unit or UI test fails.

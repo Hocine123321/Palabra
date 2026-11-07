@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title data-i18n="Palabra">Palabra</title>
+<style>/*CSS*/</style>
+</head>
+<body>
+<main>
+  <section id="pairing" class="card">
+    <h1 data-i18n="Palabra on your computer">Palabra on your computer</h1>
+    <p class="muted" data-i18n="Open Palabra on your phone: Settings, Web Access, Pair a Browser. Then fill this in on the same Wi-Fi.">Open Palabra on your phone: Settings, Web Access, Pair a Browser. Then fill this in on the same Wi-Fi.</p>
+    <form id="pair" style="display:grid;gap:16px">
+      <label><span data-i18n="Phone address">Phone address</span><input id="address" placeholder="192.168.1.20" inputmode="decimal" required></label>
+      <label><span data-i18n="Code you chose on the phone">Code you chose on the phone</span><input id="code" inputmode="numeric" autocomplete="off" required></label>
+      <label><span data-i18n="Relay address">Relay address</span><input id="relay" placeholder="wss://palabra-relay.yourname.workers.dev" required></label>
+      <p id="err" class="err" role="alert"></p>
+      <button id="go" class="primary" type="submit" data-i18n="Connect">Connect</button>
+    </form>
+  </section>
+  <div id="app" hidden>
+    <div class="bar-top glass"><div id="status" class="status" aria-live="polite"></div></div>
+    <div id="view"></div>
+    <nav class="tabs glass" aria-label="Sections" data-i18n-aria="Sections">
+      <button data-tab="library" aria-current="page" data-i18n="Library">Library</button>
+      <button data-tab="study" data-i18n="Study">Study</button>
+    </nav>
+  </div>
+</main>
+<script type="module">/*JS*/</script>
+</body>
+</html>
