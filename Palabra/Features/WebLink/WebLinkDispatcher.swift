@@ -42,7 +42,7 @@ struct WebLinkDispatcher: Sendable {
         }
         switch await call(name, args: payload["args"] ?? .object([:])) {
         case .success(let value): return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": value]))
-        case .failure(let reason): return reject(message, reason: reason)
+        case .failure(let refusal): return reject(message, reason: refusal.reason)
         }
     }
 
@@ -51,23 +51,26 @@ struct WebLinkDispatcher: Sendable {
         for read in Self.snapshotReads {
             switch await call(read.capability, args: read.args) {
             case .success(let value): parts[read.key] = value
-            case .failure(let reason): return reject(message, reason: reason) // all or nothing: a half snapshot would look complete
+            case .failure(let refusal): return reject(message, reason: refusal.reason) // all or nothing: a half snapshot would look complete
             }
         }
         let iso = ISO8601DateFormatter().string(from: now())
         return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["snapshot": .object(parts), "takenAt": .string(iso)]))
     }
 
+    /// Why a read did not happen: the short code the page receives. (`Result` needs an `Error`; a bare String is not one.)
+    private struct Refusal: Error { let reason: String; init(_ reason: String) { self.reason = reason } }
+
     /// Allow-list, then the registry's own class check, then the call. Failure is a short reason code for the page.
-    private func call(_ name: String, args: JSONValue) async -> Result<JSONValue, String> {
-        guard Self.readAllowList.contains(name) else { return .failure("forbidden") }
-        guard let capability = registry.capability(named: name), capability.kind == .read else { return .failure("forbidden") }
+    private func call(_ name: String, args: JSONValue) async -> Result<JSONValue, Refusal> {
+        guard Self.readAllowList.contains(name) else { return .failure(Refusal("forbidden")) }
+        guard let capability = registry.capability(named: name), capability.kind == .read else { return .failure(Refusal("forbidden")) }
         let session = ArtifactSession(artifactID: nil, dryRun: false)
         switch await registry.call(name: name, args: args, session: session, granted: [name]) {
         case .success(let value): return .success(value)
-        case .failure(.badArgs): return .failure("bad-args")
-        case .failure(.rateLimited): return .failure("rate-limited")
-        case .failure: return .failure("failed")
+        case .failure(.badArgs): return .failure(Refusal("bad-args"))
+        case .failure(.rateLimited): return .failure(Refusal("rate-limited"))
+        case .failure: return .failure(Refusal("failed"))
         }
     }
 
