@@ -2,8 +2,9 @@ import XCTest
 @testable import Palabra
 
 final class LessonFaithfulnessTests: XCTestCase {
-    private func lesson(_ blocks: [Block], title: String = "Title", notes: [String] = []) -> Lesson {
-        Lesson(id: "l", title: title, pages: [LessonPage(id: "p1", title: "Page", blocks: blocks)], transcriptionNotes: notes)
+    /// Empty titles, so only the blocks under test can add words or numbers.
+    private func lesson(_ blocks: [Block], notes: [String] = []) -> Lesson {
+        Lesson(id: "l", title: "", pages: [LessonPage(id: "p1", title: "", blocks: blocks)], transcriptionNotes: notes)
     }
 
     func testNumbersFromTheSourceAreAllowed() {

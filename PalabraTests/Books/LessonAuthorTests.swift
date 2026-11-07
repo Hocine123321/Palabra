@@ -7,7 +7,7 @@ final class LessonAuthorTests: XCTestCase {
 
     private func reply(title: String = "Colonial movement", text: String = "It began in 1830.", notes: String = "[]", extraPages: Int = 0) -> String {
         var pages = [#"{"title":"Start","blocks":[{"type":"paragraph","text":"\#(text)"}]}"#]
-        for n in 0..<extraPages { pages.append(#"{"title":"More \#(n)","blocks":[{"type":"paragraph","text":"Algeria"}]}"#) }
+        for _ in 0..<extraPages { pages.append(#"{"title":"Extra","blocks":[{"type":"paragraph","text":"Algeria"}]}"#) }
         return #"{"title":"\#(title)","pages":[\#(pages.joined(separator: ","))],"transcriptionNotes":\#(notes)}"#
     }
 
@@ -134,4 +134,8 @@ final class LessonAuthorTests: XCTestCase {
         XCTAssertEqual(LessonIDs.uniqueLessonID(from: "الاستعمار", taken: []), "lesson")
         XCTAssertEqual(LessonIDs.uniqueLessonID(from: "الاستعمار", taken: ["lesson", "lesson-2"]), "lesson-3")
     }
+}
+
+private extension Result {
+    var failureValue: Failure? { if case .failure(let error) = self { return error }; return nil }
 }
