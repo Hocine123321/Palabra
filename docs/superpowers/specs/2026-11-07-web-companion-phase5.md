@@ -104,3 +104,9 @@ A floating **Debug** button on every screen (including the pairing card) opens a
 The top of the panel shows the live state (link, step, failed attempts, last reason, saved copy, seconds since the last event). Buttons: Copy log (whole log plus a one line status), Pause, Clear, a text filter and a level filter.
 
 Privacy by construction (`debug-log.js`, tested): hex runs of 24+ characters (secrets, tokens, keys) and other long runs become `a1b2…(64)`, relay URLs lose their path (the room id is derived from the secret), and messages are described by type, id and size, never content, so the log can be pasted into a chat. The console is built defensively: if it cannot be built, the page carries on.
+
+## "Waiting for the browser" race, and the foreground requirement
+
+The relay sends "peer:here" the moment a second end joins, and the phone's socket reports "connected" on a different callback. The two reach the controller in either order. When the notice came first it was ignored (the phone was not yet "waiting"), and then "connected" set "waiting" and nothing ever changed it: the phone waited for a browser that was already there. The second end to join always hit this. `BrowserPresence` now remembers the last notice and "connected" reads it, so the order no longer matters (unit tested for both orders, leaving and returning, and a lost connection forgetting who was there).
+
+Also by design, and now said on the page: the phone leaves the relay whenever Palabra is not in front (iOS does not keep the socket alive), so the page shows the saved copy until Palabra is open on the phone screen again.

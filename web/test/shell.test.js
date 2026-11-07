@@ -198,7 +198,7 @@ test("a wrong code shows the translated error and leaves the pairing card up", a
   assert.equal(r.idb.size, 0);
 });
 
-test("after several silent attempts the page suggests forgetting the computer, instead of saying 'away' forever", async () => {
+test("after several silent attempts the page says what to check and points to the Debug console, instead of saying 'away' forever", async () => {
   const idb = new Map();
   idb.set("pairing", { schema: 1, secretHex: "ab".repeat(32), relayUrl: "wss://relay.example" });
   idb.set("snapshot", { schema: 1, snapshot: SNAP, takenAt: "2026-11-06T09:00:00Z" });
@@ -211,10 +211,11 @@ test("after several silent attempts the page suggests forgetting the computer, i
   await until(() => /Saved copy from your phone/.test(r.nodes.hint.textContent), "the first offline hint");
   for (let failures = 2; failures <= 4; failures++) {
     await timers.shift()();
-    await until(() => timers.length > 0 || /forget this computer/.test(r.nodes.hint.textContent), `failure ${failures} handled`);
+    await until(() => timers.length > 0 || /press Debug/.test(r.nodes.hint.textContent), `failure ${failures} handled`);
   }
-  await until(() => /forget this computer and pair again/.test(r.nodes.hint.textContent), "the re-pair hint");
-  assert.match(r.nodes.hint.textContent, /forget this computer and pair again/);
+  await until(() => /press Debug/.test(r.nodes.hint.textContent), "the stuck hint");
+  assert.match(r.nodes.hint.textContent, /Keep Palabra open on the phone screen/);
+  assert.match(r.nodes.hint.textContent, /press Debug/);
 });
 
 const ARTIFACTS = [{ id: "p1", title: "My <b>plan</b>", kind: "spec", viewable: true, runnable: false }, { id: "g1", title: "Game", kind: "app", viewable: false, runnable: false }];

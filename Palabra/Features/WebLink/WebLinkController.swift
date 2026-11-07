@@ -43,6 +43,9 @@ final class WebLinkController {
     @ObservationIgnored private var lobbyDeviceId = ""
     @ObservationIgnored private var requests: TrustRequests?
     @ObservationIgnored private var gate = TrustGate()
+    /// What the relay last said about the browser's seat. Remembered, because the relay's notice and the "connected" report travel
+    /// on different callbacks and can arrive in either order: acting only on the notice as it passes would lose it when it came first.
+    @ObservationIgnored private var presence = BrowserPresence()
     @ObservationIgnored private var announceTask: Task<Void, Never>?
     @ObservationIgnored private let deviceName: String
     @ObservationIgnored private let clock: @Sendable () -> Date
@@ -285,6 +288,7 @@ final class WebLinkController {
         relay?.onFrame = nil
         relay?.onPresence = nil
         relay?.disconnect()
+        presence.relayLost()             // a replaced connection's browser notice must not carry over to the new one
         connectedRoom = client.roomIDValue
         connectedRelay = settings.relayURL
         let session = LinkCrypto.Session(secret: secret, role: .app)
@@ -310,14 +314,20 @@ final class WebLinkController {
         connectedRoom = nil
         connectedRelay = nil
         relayIsUp = false
+        presence.relayLost()             // whoever was in the old room says nothing about the next one
         session = nil
     }
 
     private func relayChanged(_ state: RelayClient.State) {
         relayIsUp = state == .connected
         switch state {
+        case .failed, .disconnected: presence.relayLost()      // the connection that said it is over; the next one will say again
+        case .connected: presence.relayConnected()
+        case .connecting: break                                // never forget a notice that came ahead of this
+        }
+        switch state {
         case .connected:
-            link = .waitingForBrowser          // until the relay says the browser is in the room
+            link = presence.link == .linked ? .linked : .waitingForBrowser   // the notice may already have arrived: never wait for what is already here
             // Only a connection that STAYS up earns a fresh start. Resetting at once would let two holders of one seat
             // replace each other as fast as they can connect.
             stableTask?.cancel()
@@ -343,6 +353,8 @@ final class WebLinkController {
     /// The relay says whether the browser is in the room. It is the one source of truth for "waiting for the browser":
     /// a browser that arrives is `linked` at once, and one that leaves puts the phone back to waiting.
     private func presenceChanged(_ presence: RelayClient.Presence) {
+        self.presence.notice(browserHere: presence == .here)
+        guard relayIsUp else { return }                         // not connected yet: `.connected` will use what was remembered
         switch presence {
         case .here:
             if link == .waitingForBrowser { link = .linked }

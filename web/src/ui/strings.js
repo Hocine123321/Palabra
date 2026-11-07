@@ -62,6 +62,8 @@ export const AR = {
   "Sync now": "زامن الآن",
   "Saved copy from your phone. Open Palabra on the phone to update.": "نسخة محفوظة من هاتفك. افتح بالابرا على الهاتف للتحديث.",
   "Nothing saved yet. Connect to your phone first.": "لا شيء محفوظ بعد. اتصل بهاتفك أولاً.",
+  "Phone not answering. Keep Palabra open on the phone screen (it disconnects when you leave the app or lock the phone). If it still fails, press Debug and send me the log.": "الهاتف لا يرد. أبقِ تطبيق Palabra مفتوحاً على شاشة الهاتف (ينقطع الاتصال عند مغادرة التطبيق أو قفل الهاتف). إن استمرت المشكلة فاضغط تصحيح وأرسل لي السجل.",
+  "Saved copy from your phone. Keep Palabra open on the phone screen to update: it disconnects when you leave the app or lock the phone.": "نسخة محفوظة من هاتفك. أبقِ تطبيق Palabra مفتوحاً على شاشة الهاتف للتحديث: ينقطع الاتصال عند مغادرة التطبيق أو قفل الهاتف.",
   "Phone not answering. If you removed this browser in the app, forget this computer and pair again.": "الهاتف لا يرد. إن أزلت هذا المتصفح في التطبيق فانسَ هذا الحاسوب وأعد الاقتران.",
   "This changed on the phone after you looked at it.": "تغيّر هذا على الهاتف بعد أن اطلعت عليه.",
   "That word is no longer on the phone.": "هذه الكلمة لم تعد على الهاتف.",

@@ -49,8 +49,8 @@ export async function start() {
   const STUCK_AFTER = 4;   // failed attempts in a row before suggesting the pairing may have been removed on the phone
   function hint() {
     const stuck = (state.failures ?? 0) >= STUCK_AFTER && (state.link === "away" || state.link === "empty");
-    const key = stuck ? "Phone not answering. If you removed this browser in the app, forget this computer and pair again."
-      : state.link === "away" ? "Saved copy from your phone. Open Palabra on the phone to update."
+    const key = stuck ? "Phone not answering. Keep Palabra open on the phone screen (it disconnects when you leave the app or lock the phone). If it still fails, press Debug and send me the log."
+      : state.link === "away" ? "Saved copy from your phone. Keep Palabra open on the phone screen to update: it disconnects when you leave the app or lock the phone."
       : state.link === "empty" ? "Nothing saved yet. Connect to your phone first." : "";
     $("#hint").textContent = key ? t(key) : "";
   }
