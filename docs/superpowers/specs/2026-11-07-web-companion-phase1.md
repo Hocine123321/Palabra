@@ -55,6 +55,10 @@ Both implementations are pinned to the same fixed vectors (`web/test/crypto.test
 3. On the PC (same Wi-Fi), open `web/link-proof.html` **from the disk** (double-click). Fill the three fields, press Pair and ping.
 4. The page reports one of: success with milliseconds; `wrong`/`locked`; or `file-blocked-or-unreachable`. Please test Chrome, Edge, Firefox and Safari and record the result below.
 
+### CI status
+
+`experimental` @ `ac0e845`: IPA build, JavaScript job (24 tests) and the Swift suite (1414 cases, 0 failed) are green. This proves the code compiles and the logic is right on both sides. It does **not** prove the real network path (phone listener, `file://` page, relay), which only a device can.
+
 ### Result of the `file://` question
 
 _Not yet tested on a device._ Fill in per browser: reached the phone / asked permission / blocked.
