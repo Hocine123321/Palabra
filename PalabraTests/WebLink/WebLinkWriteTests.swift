@@ -75,8 +75,9 @@ final class WebLinkWriteTests: XCTestCase {
 
     func testMalformedWritesAreBadRequests() async {
         let d = dispatcher([counting("words.add", kind: .write, runs: Box(0))])
-        for payload: JSONValue? in [nil, .string("x"), .object([:]), .object(["capability": .string("words.add")]), .object(["id": .string(""), "capability": .string("words.add")]),
-                                    .object(["id": .string(String(repeating: "a", count: 81)), "capability": .string("words.add")])] {
+        let payloads: [JSONValue?] = [nil, .string("x"), .object([:]), .object(["capability": .string("words.add")]), .object(["id": .string(""), "capability": .string("words.add")]),
+                                    .object(["id": .string(String(repeating: "a", count: 81)), "capability": .string("words.add")])]
+        for payload in payloads {
             XCTAssertEqual(reason(await d.handle(LinkMessage(id: "m", type: "write", version: 1, payload: payload))), "bad-request")
         }
     }

@@ -2,8 +2,9 @@ import XCTest
 @testable import Palabra
 
 final class WebLinkDispatcherTests: XCTestCase {
-    private func read(_ name: String, value: JSONValue = .array([.string(name)])) -> Capability {
-        Capability(name: name, kind: .read, summary: "", returnsSummary: "", handler: { _, _ in .success(value) })
+    private func read(_ name: String, value: JSONValue? = nil) -> Capability {
+        let result = value ?? .array([.string(name)])   // a default may not use another parameter, so it is built here
+        return Capability(name: name, kind: .read, summary: "", returnsSummary: "", handler: { _, _ in .success(result) })
     }
 
     private func write(_ name: String, ran: Box<Bool>) -> Capability {
