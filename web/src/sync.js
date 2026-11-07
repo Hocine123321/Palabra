@@ -10,7 +10,7 @@
 
 export function createSync({ cache, openLink, onChange, now = () => new Date(), retryMs = [2000, 5000, 15000, 30000], setTimer = setTimeout, clearTimer = clearTimeout }) {
   const view = { state: "connecting", snapshot: null, takenAt: null, message: "", failures: 0, reason: "", step: "" };
-  let link = null, stopped = false, attempt = 0, timer = null, busy = false;
+  let link = null, stopped = false, attempt = 0, timer = null, busy = false, secretHexNow = "", relayUrlNow = "";
 
   const emit = (patch) => { Object.assign(view, patch); onChange({ ...view }); };
 
@@ -25,6 +25,7 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
   /** Asks the (present) phone for the snapshot and shows it. Throws if the phone does not answer. */
   async function fetchSnapshot() {
     emit({ step: "phone" });
+    await link.introduce?.();                  // a trusted computer says who it is first; "revoked" ends up in run()'s catch
     const reply = await link.request("snapshot");
     if (!reply?.snapshot || !reply.takenAt) throw Object.assign(new Error("bad snapshot"), { kind: "bad-reply" });
     await cache.saveSnapshot(reply.snapshot, reply.takenAt);   // a failed save must not hide fresh data
@@ -33,6 +34,7 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
   }
 
   async function connectOnce(secretHex, relayUrl) {
+    secretHexNow = secretHex; relayUrlNow = relayUrl;
     const secret = Uint8Array.from(secretHex.match(/../g).map((h) => parseInt(h, 16)));
     emit({ step: "relay" });
     let opening = true, arrivedWhileOpening = false;
@@ -43,7 +45,7 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
       onPeer: (here) => {
         if (!here) { if (!opening) { arrivedWhileOpening = false; if (!stopped && view.state === "linked") emit({ state: "away", step: "phone" }); } return; }
         if (opening) { arrivedWhileOpening = true; return; }
-        if (!stopped && view.state !== "linked") fetchSnapshot().catch(() => {});
+        if (!stopped && view.state !== "linked") fetchSnapshot().catch((error) => settle(error, secretHexNow, relayUrlNow));
       },
     });
     opening = false;
@@ -59,6 +61,21 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
     emit({ state: view.snapshot ? "away" : "empty", step: "phone", reason: "phone-away" });
   }
 
+  /** A failed attempt: what to show, and whether to try again. Returns true when a retry timer was set. */
+  function settle(error, secretHex, relayUrl) {
+    try { link?.close?.(); } catch { /* already closed */ }
+    link = null;
+    const hasData = view.snapshot !== null;
+    const needsPerson = error?.kind === "forbidden" || error?.kind === "revoked";
+    if (needsPerson) emit({ state: "error", message: error.message ?? "" });   // retrying cannot fix this: stop and say so
+    else emit({ state: hasData ? "away" : "empty", message: "", failures: view.failures + 1, reason: error?.kind ?? "failed", step: "" });
+    if (stopped || needsPerson) { busy = false; return false; }
+    const wait = retryMs[Math.min(attempt, retryMs.length - 1)];
+    attempt += 1;
+    timer = setTimer(() => { busy = false; run(secretHex, relayUrl); }, wait);
+    return true;
+  }
+
   async function run(secretHex, relayUrl) {
     if (busy || stopped) return;
     busy = true;
@@ -66,18 +83,7 @@ export function createSync({ cache, openLink, onChange, now = () => new Date(), 
       emit({ state: "connecting" });
       await connectOnce(secretHex, relayUrl);
     } catch (error) {
-      try { link?.close?.(); } catch { /* already closed */ }
-      link = null;
-      const hasData = view.snapshot !== null;
-      const needsPerson = error?.kind === "forbidden" || error?.kind === "revoked";
-      if (needsPerson) emit({ state: "error", message: error.message ?? "" });   // retrying cannot fix this: stop and say so
-      else emit({ state: hasData ? "away" : "empty", message: "", failures: view.failures + 1, reason: error?.kind ?? "failed", step: "" });
-      if (!stopped && !needsPerson) {
-        const wait = retryMs[Math.min(attempt, retryMs.length - 1)];
-        attempt += 1;
-        timer = setTimer(() => { busy = false; run(secretHex, relayUrl); }, wait);
-        return;           // `busy` stays set until the retry timer fires, so two retries never overlap
-      }
+      if (settle(error, secretHex, relayUrl)) return;           // a retry is scheduled; `busy` stays set until it fires
     }
     busy = false;
   }

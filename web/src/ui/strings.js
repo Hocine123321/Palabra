@@ -91,6 +91,7 @@ export const AR = {
   "The relay did not answer. Check its address, and that it is deployed.": "لم يستجب المُرحِّل. تحقّق من عنوانه ومن أنه منشور.",
   "That relay address does not look right. Use wss://palabra-relay.yourname.workers.dev": "عنوان المُرحِّل غير صحيح. استخدم wss://palabra-relay.yourname.workers.dev",
   "Type the relay address, like wss://palabra-relay.yourname.workers.dev": "اكتب عنوان المُرحِّل، مثل wss://palabra-relay.yourname.workers.dev",
+  "This computer is no longer trusted by the phone. Pair it again from the phone.": "لم يعد الهاتف يثق بهذا الحاسوب. اقرنه من جديد من الهاتف.",
   "Another browser is already linked to this phone. Close it first.": "متصفح آخر مرتبط بهذا الهاتف بالفعل. أغلقه أولاً.",
   "The relay refused the connection. Check its address.": "رفض المُرحِّل الاتصال. تحقّق من عنوانه.",
   "Reached the relay. Waiting for the phone… Keep Palabra open on it.": "وصلنا إلى المُرحِّل. بانتظار الهاتف… أبقِ بالابرا مفتوحاً عليه.",

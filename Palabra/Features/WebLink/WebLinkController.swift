@@ -42,6 +42,7 @@ final class WebLinkController {
     @ObservationIgnored private var lobbyKeys: TrustCrypto.Keys?
     @ObservationIgnored private var lobbyDeviceId = ""
     @ObservationIgnored private var requests: TrustRequests?
+    @ObservationIgnored private var gate = TrustGate()
     @ObservationIgnored private var announceTask: Task<Void, Never>?
     @ObservationIgnored private let deviceName: String
     @ObservationIgnored private let clock: @Sendable () -> Date
@@ -288,6 +289,7 @@ final class WebLinkController {
         connectedRelay = settings.relayURL
         let session = LinkCrypto.Session(secret: secret, role: .app)
         self.session = session
+        gate.reset()
         client.onState = { [weak self] state in Task { @MainActor in self?.relayChanged(state) } }
         client.onFrame = { [weak self] frame in Task { @MainActor in self?.received(frame) } }
         client.onPresence = { [weak self] presence in Task { @MainActor in self?.presenceChanged(presence) } }
@@ -373,6 +375,22 @@ final class WebLinkController {
         link = .linked
         if message.type == "ping" {
             send(LinkMessage(id: message.id, type: "ack", version: 1, payload: message.payload), with: session)
+            return
+        }
+        // A trusted computer says who it is first. A computer that was removed from the list is refused (and told, so its page
+        // stops retrying); the others, and browsers paired with the code, are unaffected.
+        if message.type == "hello" {
+            // No token at all is a browser paired with the code. A token that cannot be read is NOT that: it is refused.
+            let presented = message.payload?["token"]?.stringValue
+            let token = presented.map { Data(hexString: $0) ?? Data() }      // an unreadable token becomes an empty one, which is never trusted
+            let verdict = gate.hello(token: token, trusted: trusted)
+            send(verdict == .allowed ? LinkMessage(id: message.id, type: "ack", version: 1, payload: .object([:]))
+                                     : LinkMessage(id: message.id, type: "reject", version: 1, payload: .object(["reason": .string("revoked")])),
+                 with: session)
+            return
+        }
+        guard gate.verdict(trusted: trusted) == .allowed else {
+            send(LinkMessage(id: message.id, type: "reject", version: 1, payload: .object(["reason": .string("revoked")])), with: session)
             return
         }
         guard let dispatcher else {

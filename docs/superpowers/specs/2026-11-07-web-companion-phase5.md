@@ -79,3 +79,13 @@ Both ends said the relay was fine, yet never met. Two causes, both fixed:
 The relay still refuses a third end on purpose: evicting the oldest would let anyone who learns a room id push the real phone out.
 
 Pairings made with the old app have no relay address inside, so the page falls back to the typed one. Install the new build on the phone and pair again for the automatic behaviour.
+
+## Removing one computer no longer signs out the others
+
+A computer you chose to trust keeps a token. After joining, its page sends `hello` with that token. The phone keeps only a hash of each token (`TrustedBrowsers`) and checks it with `TrustGate`:
+
+- a browser paired with the six digit code sends no hello and works exactly as before;
+- a trusted computer whose token is on the list is answered;
+- a computer that was removed (or presents an unreadable token) gets `revoked` on its hello and on every later request, even while connected, and its page shows "This computer is no longer trusted by the phone" and stops retrying.
+
+The shared link secret is not changed, so the other trusted computers keep working. Limitation: a computer that holds the secret but never sends a hello is treated as a code-paired browser. A removed computer that deliberately skips the hello is therefore not cut off. Closing that needs a per-computer key instead of one shared secret, which is a larger change.

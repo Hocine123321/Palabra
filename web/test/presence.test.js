@@ -7,6 +7,8 @@ import { createCache, memoryStore } from "../src/cache.js";
 import { Session, randomBytes, roomId } from "../src/link-crypto.js";
 
 const tick = () => new Promise((r) => setImmediate(r));
+const until = async (check, what) => { for (let i = 0; i < 200; i++) { if (check()) return; await tick(); } throw new Error("never reached: " + what); };
+const buffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 
 /** A relay socket we control: tests push frames in and read what the page sent. */
 function controlledSocket() {
@@ -154,4 +156,53 @@ test("the phone is present but the first request is lost: the page retries on th
   assert.equal(h.timers.length, 1, "a retry is scheduled");
   await h.timers[0].fn(); await tick();
   assert.equal(h.last().state, "linked");
+});
+
+// ---- per-computer trust: the browser says who it is, and a removed computer is cut off for good ----
+
+import { createRpc } from "../src/link-rpc.js";
+
+test("a browser paired with the code sends no hello at all", async () => {
+  const s = controlledSocket(), c = clock();
+  const link = await openLink(base(c, s));
+  await link.introduce();
+  assert.equal(s.made[0].sent.length, 0);
+});
+
+test("a trusted computer introduces itself with its token and carries on when accepted", async () => {
+  const secret = randomBytes(32);
+  const app = await Session.open(secret, "app");
+  const s = controlledSocket(), c = clock();
+  const link = await openLink(base(c, s, { secret, tokenHex: "ab".repeat(32) }));
+  const pending = link.introduce();
+  await until(() => s.made[0].sent.length > 0, "the hello was sent");
+  const sent = await app.open(s.made[0].sent[0]);
+  assert.equal(sent.type, "hello");
+  assert.equal(sent.payload.token, "ab".repeat(32));
+  const answer = await app.seal({ id: sent.id, type: "ack", version: 1, payload: {} });
+  s.made[0].fire("message", { data: buffer(answer) });
+  await pending;
+});
+
+test("a computer the phone no longer trusts is told 'revoked', the page stops retrying and says why", async () => {
+  const secret = randomBytes(32);
+  const secretHex = Array.from(secret, (b) => b.toString(16).padStart(2, "0")).join("");
+  const app = await Session.open(secret, "app");
+  const s = controlledSocket(), c = clock();
+  const seen = [], timers = [];
+  const sync = createSync({
+    cache: createCache(memoryStore()), onChange: (v) => seen.push(v),
+    openLink: (o) => openLink({ ...base(c, s), ...o, tokenHex: "cd".repeat(32) }),      // the sync's own secret and relay win
+    setTimer: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimer() {},
+  });
+  const started = sync.start(secretHex, "wss://relay.example");
+  await until(() => s.made[0]?.sent.length > 0, "the hello was sent");
+  const hello = await app.open(s.made[0].sent[0]);
+  assert.equal(hello.type, "hello");
+  const refusal = await app.seal({ id: hello.id, type: "reject", version: 1, payload: { reason: "revoked" } });
+  s.made[0].fire("message", { data: buffer(refusal) });
+  await started; await tick();
+  assert.equal(seen.at(-1).state, "error");
+  assert.match(seen.at(-1).message, /no longer trusted/);
+  assert.equal(timers.length, 0, "no retry for something only the person can fix");
 });

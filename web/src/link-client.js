@@ -103,7 +103,7 @@ export const SILENCE_MS = 50000;       // nothing heard for this long (not even 
  * checks the other end every HEARTBEAT_MS; if nothing at all is heard for SILENCE_MS the socket is treated as dead and closed,
  * which makes the caller reconnect, instead of sitting on a connection that stopped working.
  */
-export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, timeoutMs = 15000, connectTimeoutMs = 10000, onClose = () => {}, onPeer = () => {}, setTimer = setTimeout, clearTimer = clearTimeout, setRepeat = setInterval, clearRepeat = clearInterval, nowMs = () => Date.now(), heartbeatMs = HEARTBEAT_MS, silenceMs = SILENCE_MS }) {
+export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, timeoutMs = 15000, connectTimeoutMs = 10000, onClose = () => {}, onPeer = () => {}, setTimer = setTimeout, clearTimer = clearTimeout, setRepeat = setInterval, clearRepeat = clearInterval, nowMs = () => Date.now(), heartbeatMs = HEARTBEAT_MS, silenceMs = SILENCE_MS, tokenHex = null }) {
   const room = await roomId(secret);
   const session = await Session.open(secret, "web");
   const ws = new WebSocketImpl(`${relayBase(relayUrl)}/r/${room}?role=web`);
@@ -134,7 +134,18 @@ export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, ti
     if (nowMs() - lastHeard > silenceMs) { stopBeat(); try { ws.close(); } catch { /* already closed */ } return; }
     if (peerHere !== false) rpc.request("ping", { sentAt: nowMs() }).then(() => { lastHeard = nowMs(); }, () => {});
   }, heartbeatMs);
+  // A computer the person chose to trust says who it is before anything else. If the phone no longer trusts it (it was removed
+  // from the list) the answer is "revoked", which the caller treats as something only the person can fix: no endless retrying.
+  // A phone that does not know "hello" (an older app) answers with a refusal of another kind, which is ignored: the code path
+  // never sends one.
+  const introduce = async () => {
+    if (!tokenHex) return;
+    try { await rpc.request("hello", { token: tokenHex }); }
+    catch (error) { if (error?.kind === "revoked") { try { ws.close(); } catch { /* already closed */ } throw error; } }
+  };
   return {
+    /** Tells the phone which trusted computer this is. A no-op for a browser that paired with the code. */
+    introduce,
     /** Ask the phone for something: `request("snapshot")` or `request("read", {capability, args})`. */
     request: (type, payload) => rpc.request(type, payload),
     /** Encrypted ping; resolves with the phone's ack, rejects with a LinkRpcError (kind "no-answer") if it stays silent. */

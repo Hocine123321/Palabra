@@ -75,6 +75,7 @@ export function reasonText(reason) {
     case "room-full": return "Another browser is already linked to this phone. Close it first.";
     case "bad-reply": return "The phone sent something this page could not read.";
     case "forbidden": return "That is not allowed from the web.";
+    case "revoked": return "This computer is no longer trusted by the phone. Pair it again from the phone.";
     case "bad-args": case "bad-request": return "The phone could not understand the request.";
     case "rate-limited": return "Too many requests. Wait a moment.";
     case "conflict": return "This changed on the phone after you looked at it.";

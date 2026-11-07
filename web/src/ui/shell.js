@@ -152,7 +152,7 @@ export async function start() {
     });
     outbox.load();
     sync = createSync({
-      cache, openLink: (options) => openLink({ ...options, timeoutMs: globalThis.PALABRA_RPC_TIMEOUT_MS ?? 15000 }),
+      cache, openLink: (options) => openLink({ ...options, tokenHex: pair.tokenHex ?? null, timeoutMs: globalThis.PALABRA_RPC_TIMEOUT_MS ?? 15000 }),
       onChange: (v) => {
         Object.assign(state, { snapshot: v.snapshot, takenAt: v.takenAt, link: v.state, message: v.message, failures: v.failures, reason: v.reason, step: v.step });
         $("#pairing").hidden = true; $("#app").hidden = false; paint();     // always: with no data the page still shows the tabs and why
@@ -230,6 +230,6 @@ export async function start() {
   if (saved?.relayUrl) $("#relay").value = saved.relayUrl;
   if (saved) {
     remembered = true; cache = disk;
-    await begin({ secretHex: saved.secretHex, relayUrl: saved.relayUrl });
+    await begin({ secretHex: saved.secretHex, relayUrl: saved.relayUrl, tokenHex: saved.tokenHex });
   }
 }
