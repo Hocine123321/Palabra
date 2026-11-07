@@ -36,6 +36,16 @@ test("five wrong codes lock pairing, and then even the right code is refused", a
   done();
 });
 
+test("a lockout is reported straight from /hello, before any proof is sent", async () => {
+  const { address, done } = await setup();
+  for (let i = 0; i < 5; i++) await assert.rejects(pairWithPhone({ address, code: "111111" }));
+  let proofSent = false;
+  const spy = async (url, opts) => { if (opts && opts.method === "POST") proofSent = true; return fetch(url, opts); };
+  await assert.rejects(pairWithPhone({ address, code: "482913", fetchImpl: spy }), { kind: "locked" });
+  assert.equal(proofSent, false);
+  done();
+});
+
 test("an unreachable phone gives an actionable message, worded for a file page", async () => {
   await assert.rejects(pairWithPhone({ address: "127.0.0.1:1", code: "482913", isFileOrigin: true }),
     (e) => e.kind === "file-blocked-or-unreachable" && /same Wi-Fi/.test(e.message) && /Chrome or Edge/.test(e.message));

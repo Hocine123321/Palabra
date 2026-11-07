@@ -68,6 +68,8 @@ final class PairingService: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard code != nil else { return .badRequest }
         let t = now()
+        // Say so up front, so the page shows the wait before the person types a code.
+        if lockout.isLocked(now: t) { return .locked(seconds: Int(lockout.remaining(now: t).rounded(.up))) }
         nonces = nonces.filter { t.timeIntervalSince($0.value) < config.nonceLifetime }
         if nonces.count >= config.maxOpenNonces { return .badRequest }
         let nonce = LinkCrypto.randomBytes(16)

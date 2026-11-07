@@ -48,10 +48,11 @@ enum HTTPResponse {
         case ("OPTIONS", _):
             return status(204, origin: origin)
         case ("GET", "/hello"):
-            if case .hello(let nonce) = service.hello() {
-                return status(200, json: ["protocol": "palabra-link-v1", "nonce": nonce.hex], origin: origin)
+            switch service.hello() {
+            case .hello(let nonce): return status(200, json: ["protocol": "palabra-link-v1", "nonce": nonce.hex], origin: origin)
+            case .locked(let seconds): return status(423, json: ["error": "locked", "seconds": seconds], origin: origin)
+            default: return status(400, json: ["error": "closed"], origin: origin)
             }
-            return status(400, json: ["error": "closed"], origin: origin)
         case ("POST", "/pair"):
             guard let object = try? JSONSerialization.jsonObject(with: request.body) as? [String: String],
                   let nonce = object["nonce"].flatMap(Data.init(hexString:)),

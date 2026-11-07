@@ -33,6 +33,10 @@ export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOr
   let hello;
   try {
     const r = await fetchImpl(`${base}/hello`, { cache: "no-store" });
+    if (r.status === 423) {
+      const { seconds } = await r.json();
+      throw { kind: "locked", seconds, message: `Too many wrong codes. Try again in ${seconds} seconds.` };
+    }
     if (!r.ok) throw { kind: "closed", message: "The phone is not accepting a pairing. Open Pair a Browser on the phone." };
     hello = await r.json();
   } catch (e) {

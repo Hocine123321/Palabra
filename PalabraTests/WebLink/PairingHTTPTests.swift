@@ -69,6 +69,20 @@ final class PairingHTTPTests: XCTestCase {
         XCTAssertEqual(last.json?["error"] as? String, "locked")
     }
 
+    func testHelloAnswers423WhileLockedSoThePageCanShowTheWait() throws {
+        let service = PairingService()
+        service.open(code: "482913")
+        for _ in 0..<5 {
+            let nonceHex = try XCTUnwrap(respond(raw("GET", "/hello"), service).json?["nonce"] as? String)
+            let proof = LinkCrypto.pairingProof(code: "000000", nonce: Data(hexString: nonceHex)!).hex
+            _ = respond(raw("POST", "/pair", body: "{\"nonce\":\"\(nonceHex)\",\"proof\":\"\(proof)\"}"), service)
+        }
+        let locked = respond(raw("GET", "/hello"), service)
+        XCTAssertTrue(locked.head.hasPrefix("HTTP/1.1 423"))
+        XCTAssertEqual(locked.json?["error"] as? String, "locked")
+        XCTAssertNotNil(locked.json?["seconds"])
+    }
+
     func testClosedPairingAndUnknownRoutes() {
         XCTAssertTrue(respond(raw("GET", "/hello"), PairingService()).head.hasPrefix("HTTP/1.1 400"))
         XCTAssertTrue(respond(raw("GET", "/other"), PairingService()).head.hasPrefix("HTTP/1.1 404"))

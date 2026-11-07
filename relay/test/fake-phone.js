@@ -18,6 +18,7 @@ export async function startFakePhone({ code, relayUrl, now = () => Date.now() })
     const send = (status, json) => { res.writeHead(status, { ...cors, "content-type": "application/json" }); res.end(json ? JSON.stringify(json) : ""); };
     if (req.method === "OPTIONS") return send(204);
     if (req.method === "GET" && req.url === "/hello") {
+      if (now() < lockedUntil) return send(423, { error: "locked", seconds: Math.ceil((lockedUntil - now()) / 1000) });
       const nonce = randomBytes(16); nonces.set(toHex(nonce), now());
       return send(200, { protocol: "palabra-link-v1", nonce: toHex(nonce) });
     }
