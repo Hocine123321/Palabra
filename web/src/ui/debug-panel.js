@@ -14,26 +14,35 @@ export function environmentFacts(win) {
   ];
 }
 
+import { verdict } from "./debug-verdict.js";
+
 export function mountDebugPanel({ doc, log, t, getStatus, copyText, now = () => Date.now() }) {
   const button = doc.createElement("button");
   button.id = "debug-open"; button.type = "button"; button.className = "debug-fab";
-  button.textContent = t("Debug"); button.setAttribute("aria-haspopup", "dialog");
+  button.setAttribute("aria-label", t("Debug")); button.title = t("Debug"); button.setAttribute("aria-haspopup", "dialog");
+  const dot = doc.createElement("span"); dot.className = "debug-dot"; button.append(dot);
+  const glyph = doc.createElement("span"); glyph.className = "debug-glyph"; glyph.textContent = "🛠"; glyph.setAttribute("aria-hidden", "true"); button.append(glyph);
 
   const panel = doc.createElement("section");
   panel.id = "debug-panel"; panel.className = "debug-panel glass"; panel.hidden = true;
   panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", t("Debug console"));
   panel.innerHTML = `
-    <div class="debug-head"><strong></strong><span class="debug-actions">
-      <button type="button" class="chip" data-d="copy"></button><button type="button" class="chip" data-d="pause"></button>
-      <button type="button" class="chip" data-d="clear"></button><button type="button" class="chip" data-d="close"></button></span></div>
-    <dl class="debug-status" aria-live="off"></dl>
-    <div class="debug-filters"><input type="search" data-d="filter" autocomplete="off" spellcheck="false"><select data-d="level"></select></div>
-    <pre class="debug-log" tabindex="0" dir="ltr"></pre>
-    <p class="muted small debug-note"></p>`;
+    <div class="debug-head"><strong></strong><button type="button" class="debug-x" data-d="close"></button></div>
+    <div class="debug-verdict" data-tone="wait"><span class="debug-dot"></span><div><p class="debug-title"></p><p class="debug-help"></p></div></div>
+    <button type="button" class="primary debug-copy" data-d="copy"></button>
+    <button type="button" class="debug-more" data-d="more" aria-expanded="false"></button>
+    <div class="debug-details" hidden>
+      <dl class="debug-status" aria-live="off"></dl>
+      <div class="debug-filters"><input type="search" data-d="filter" autocomplete="off" spellcheck="false"><select data-d="level"></select></div>
+      <pre class="debug-log" tabindex="0" dir="ltr"></pre>
+      <div class="debug-tools"><button type="button" class="chip" data-d="pause"></button><button type="button" class="chip" data-d="clear"></button></div>
+      <p class="muted small debug-note"></p>
+    </div>`;
   const q = (s) => panel.querySelector(s);
   q(".debug-head strong").textContent = t("Debug console");
-  q('[data-d="copy"]').textContent = t("Copy log"); q('[data-d="clear"]').textContent = t("Clear");
-  q('[data-d="close"]').textContent = t("Close"); q('[data-d="pause"]').textContent = t("Pause");
+  q('[data-d="copy"]').textContent = t("Copy for support"); q('[data-d="clear"]').textContent = t("Clear");
+  q('[data-d="close"]').textContent = "✕"; q('[data-d="close"]').setAttribute("aria-label", t("Close")); q('[data-d="pause"]').textContent = t("Pause");
+  q('[data-d="more"]').textContent = t("Show details");
   q('[data-d="filter"]').placeholder = t("Filter, for example rx or presence");
   q('[data-d="filter"]').setAttribute("aria-label", t("Filter, for example rx or presence"));
   for (const [value, label] of [["", "All"], ["warn", "Warnings and errors"], ["error", "Errors only"]]) {
@@ -46,7 +55,15 @@ export function mountDebugPanel({ doc, log, t, getStatus, copyText, now = () => 
   const out = q(".debug-log");
   const filters = () => ({ filter: q('[data-d="filter"]').value, level: q('[data-d="level"]').value });
 
+  function paintVerdict() {
+    const s = getStatus?.() ?? {};
+    const v = verdict({ link: s.link, reason: s.reason, failures: s.failures, online: doc.defaultView?.navigator?.onLine !== false });
+    const box = q(".debug-verdict"); box.setAttribute("data-tone", v.tone);
+    q(".debug-title").textContent = t(v.title); q(".debug-help").textContent = t(v.help);
+    button.setAttribute("data-tone", v.tone);
+  }
   function paintStatus() {
+    paintVerdict();
     const s = getStatus?.() ?? {};
     const rows = [
       [t("Link"), s.link ?? "?"], [t("Step"), s.step || "-"], [t("Failed attempts"), String(s.failures ?? 0)],
@@ -62,6 +79,11 @@ export function mountDebugPanel({ doc, log, t, getStatus, copyText, now = () => 
   }
   const paintAll = () => { paintStatus(); paintLog(); };
 
+  q('[data-d="more"]').addEventListener("click", () => {
+    const details = q(".debug-details"); details.hidden = !details.hidden;
+    q('[data-d="more"]').textContent = t(details.hidden ? "Show details" : "Hide details");
+    q('[data-d="more"]').setAttribute("aria-expanded", String(!details.hidden)); if (!details.hidden) paintLog();
+  });
   const unsubscribe = log.onEntry(() => { if (!panel.hidden && !paused) { paintLog(); paintStatus(); } });
   const ticker = setInterval(() => { if (!panel.hidden) paintStatus(); }, 1000);
   out.addEventListener("scroll", () => { stick = out.scrollTop + out.clientHeight >= out.scrollHeight - 8; });
@@ -76,13 +98,14 @@ export function mountDebugPanel({ doc, log, t, getStatus, copyText, now = () => 
     const status = Object.entries(getStatus?.() ?? {}).filter(([k]) => ["link", "step", "failures", "reason"].includes(k)).map(([k, v]) => `${k}=${v}`).join(" ");
     const ok = await copyText(`${header}${status}\n${log.toText({})}`);
     const copy = q('[data-d="copy"]'); copy.textContent = t(ok ? "Copied" : "Select the log and copy it by hand");
-    setTimeout(() => { copy.textContent = t("Copy log"); }, 2500);
+    setTimeout(() => { copy.textContent = t("Copy for support"); }, 2500);
   });
-  const open = () => { panel.hidden = false; button.setAttribute("aria-expanded", "true"); stick = true; paintAll(); q('[data-d="close"]').focus(); };
+  const open = () => { panel.hidden = false; button.setAttribute("aria-expanded", "true"); stick = true; paintAll(); q('[data-d="copy"]').focus(); };
   const close = () => { panel.hidden = true; button.setAttribute("aria-expanded", "false"); button.focus(); };
   button.addEventListener("click", () => (panel.hidden ? open() : close()));
   q('[data-d="close"]').addEventListener("click", close);
   panel.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
 
+  paintVerdict();
   return { open, close, button, panel, destroy() { unsubscribe(); clearInterval(ticker); button.remove(); panel.remove(); } };
 }

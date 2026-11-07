@@ -58,15 +58,26 @@ ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-sm); 
 blockquote { margin-inline: 0; padding-inline-start: var(--sp-md); border-inline-start: 3px solid var(--fill); }
 dt { font-weight: 600; margin-block-start: var(--sp-xs); } dd { margin-inline-start: var(--sp-md); }
 
-/* Debug console: a floating button on every screen and a panel with the page's flight recorder. */
-.debug-fab { position: fixed; inset-inline-end: var(--sp-md); inset-block-end: calc(var(--sp-md) + 64px); z-index: 50; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--glass-rim); background: var(--glass); color: var(--ink); backdrop-filter: blur(14px); box-shadow: var(--shadow); font: inherit; font-size: .85rem; cursor: pointer; }
-.debug-fab:hover, .debug-fab[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-deep); }
-.debug-panel { position: fixed; inset-inline: var(--sp-sm); inset-block-end: var(--sp-sm); z-index: 60; max-height: 78vh; display: flex; flex-direction: column; gap: var(--sp-sm); padding: var(--sp-md); border-radius: 18px; border: 1px solid var(--glass-rim); background: var(--surface); box-shadow: var(--shadow); }
-.debug-panel[hidden] { display: none; }
-.debug-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm); flex-wrap: wrap; }
-.debug-actions { display: flex; gap: var(--sp-xs); flex-wrap: wrap; }
-.debug-status { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 2px var(--sp-md); margin: 0; font-size: .8rem; }
+/* Debug console: a small round button with a status dot, and a compact card that leads with a plain verdict. */
+.debug-fab { position: fixed; inset-inline-end: var(--sp-md); inset-block-end: calc(var(--sp-md) + 64px); z-index: 50; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border-radius: 50%; border: 1px solid var(--glass-rim); background: var(--glass); color: var(--ink); backdrop-filter: blur(14px); box-shadow: var(--shadow); cursor: pointer; }
+.debug-fab .debug-glyph { font-size: 17px; line-height: 1; }
+.debug-fab .debug-dot { position: absolute; top: 3px; inset-inline-end: 3px; width: 11px; height: 11px; border: 2px solid var(--surface); }
+.debug-dot { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--ink-2); }
+[data-tone="ok"] .debug-dot, .debug-fab[data-tone="ok"] .debug-dot { background: var(--success); }
+[data-tone="wait"] .debug-dot, .debug-fab[data-tone="wait"] .debug-dot { background: var(--accent); }
+[data-tone="bad"] .debug-dot, .debug-fab[data-tone="bad"] .debug-dot { background: var(--error); }
+.debug-panel { position: fixed; inset-inline-end: var(--sp-md); inset-block-end: calc(var(--sp-md) + 112px); z-index: 60; width: min(360px, calc(100vw - 2 * var(--sp-md))); max-height: min(70vh, 560px); overflow: auto; display: flex; flex-direction: column; gap: var(--sp-sm); padding: var(--sp-md); border-radius: 20px; border: 1px solid var(--glass-rim); background: var(--surface); box-shadow: var(--shadow); }
+.debug-panel[hidden], .debug-details[hidden] { display: none; }
+.debug-head { display: flex; align-items: center; justify-content: space-between; }
+.debug-x { border: 0; background: var(--fill); color: var(--ink); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font: inherit; }
+.debug-verdict { display: flex; gap: var(--sp-sm); align-items: flex-start; padding: var(--sp-sm) var(--sp-md); border-radius: 14px; background: var(--bg-bottom); }
+.debug-verdict .debug-dot { margin-block-start: 5px; }
+.debug-title { margin: 0; font-weight: 600; } .debug-help { margin: 2px 0 0; color: var(--ink-2); font-size: .85rem; }
+.debug-copy { width: 100%; }
+.debug-more { border: 0; background: none; color: var(--accent-deep); font: inherit; font-size: .85rem; cursor: pointer; padding: 2px 0; text-align: start; }
+.debug-details { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.debug-status { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px var(--sp-md); margin: 0; font-size: .75rem; }
 .debug-status dt { margin: 0; color: var(--ink-2); font-weight: 500; } .debug-status dd { margin: 0 0 4px; font-weight: 600; overflow-wrap: anywhere; }
 .debug-filters { display: flex; gap: var(--sp-xs); } .debug-filters input { flex: 1; min-width: 0; }
-.debug-log { flex: 1; min-height: 160px; margin: 0; padding: var(--sp-sm); overflow: auto; border-radius: 12px; background: var(--bg-bottom); color: var(--ink); font: .75rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
-.debug-note { margin: 0; }
+.debug-log { min-height: 120px; max-height: 220px; margin: 0; padding: var(--sp-sm); overflow: auto; border-radius: 12px; background: var(--bg-bottom); color: var(--ink); font: .7rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.debug-tools { display: flex; gap: var(--sp-xs); } .debug-note { margin: 0; }

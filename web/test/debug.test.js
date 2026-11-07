@@ -126,7 +126,7 @@ function el(tag) {
   node.fire = (type, ev = {}) => { for (const f of node.listeners[type] ?? []) f(ev); };
   node.scrollTop = 0; node.scrollHeight = 0; node.clientHeight = 0;
   const parts = {};
-  node.querySelector = (selector) => (parts[selector] ??= el("part"));
+  node.querySelector = (selector) => (parts[selector] ??= Object.assign(el("part"), { hidden: selector === ".debug-details" }));   // as the markup has it: details start hidden
   Object.defineProperty(node, "innerHTML", { get: () => node._html, set: (v) => { node._html = v; } });
   return node;
 }
@@ -136,10 +136,14 @@ test("the Debug button opens a panel that shows the log, filters it, copies it a
   const log = createDebugLog(); log.info("link", "socket open"); log.warn("heartbeat", "ping not answered");
   let copied = "";
   const ui = mountDebugPanel({ doc, log, t: (k) => k, copyText: async (text) => { copied = text; return true; }, getStatus: () => ({ link: "away", step: "phone", failures: 2, reason: "phone-away" }) });
-  assert.equal(ui.button.textContent, "Debug");
+  try {
+  assert.equal(ui.button.attrs["aria-label"], "Debug");
   assert.equal(ui.panel.hidden, true);
   ui.button.fire("click");
   assert.equal(ui.panel.hidden, false);
+  assert.equal(ui.panel.querySelector(".debug-title").textContent, "Waiting for your phone", "the panel leads with a plain verdict");
+  ui.panel.querySelector('[data-d="more"]').fire("click");        // the details start hidden behind "Show details"
+  assert.equal(ui.panel.querySelector(".debug-details").hidden, false);
   const view = ui.panel.querySelector(".debug-log");
   assert.match(view.textContent, /socket open/); assert.match(view.textContent, /ping not answered/);
   log.error("sync", "a new thing happens");
@@ -154,5 +158,5 @@ test("the Debug button opens a panel that shows the log, filters it, copies it a
   assert.ok(!view.textContent.includes("socket open"));
   ui.panel.querySelector('[data-d="close"]').fire("click");
   assert.equal(ui.panel.hidden, true);
-  ui.destroy();
+  } finally { ui.destroy(); }      // the ticker must never outlive a failing test
 });

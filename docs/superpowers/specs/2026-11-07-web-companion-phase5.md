@@ -110,3 +110,7 @@ Privacy by construction (`debug-log.js`, tested): hex runs of 24+ characters (se
 The relay sends "peer:here" the moment a second end joins, and the phone's socket reports "connected" on a different callback. The two reach the controller in either order. When the notice came first it was ignored (the phone was not yet "waiting"), and then "connected" set "waiting" and nothing ever changed it: the phone waited for a browser that was already there. The second end to join always hit this. `BrowserPresence` now remembers the last notice and "connected" reads it, so the order no longer matters (unit tested for both orders, leaving and returning, and a lost connection forgetting who was there).
 
 Also by design, and now said on the page: the phone leaves the relay whenever Palabra is not in front (iOS does not keep the socket alive), so the page shows the saved copy until Palabra is open on the phone screen again.
+
+## Debug console, beginner design
+
+The console now leads with a **verdict**: a colored dot (green connected, orange waiting, red problem) and one plain sentence with the one thing to do next (`debug-verdict.js`, every case tested, every sentence has an Arabic key). The main action is a single **Copy for support** button. The raw log, live status table, filters, Pause and Clear sit behind **Show details**. The floating button is a small round icon whose dot shows the same status, so a problem is visible without opening anything. The panel is a compact card (max 360 px) instead of a full-width sheet. Web bundle is 130.9 KB.
