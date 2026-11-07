@@ -83,6 +83,51 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveLessonStudioKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Add to book",
+            "Applying your change…",
+            "Changes only affect how it looks. After you add it, you can edit every page in the book.",
+            "Chapter title",
+            "Chapter",
+            "Check the text below. Fix anything that is wrong before it is formatted.",
+            "Doubtful spots",
+            "For example: use a timeline for the dates",
+            "Format lesson",
+            "Formatting the lesson…",
+            "How should it look? (optional)",
+            "Lesson Studio",
+            "Needs checking",
+            "New chapter",
+            "Numbers that are not in your text:",
+            "Or paste the lesson text",
+            "Read photos",
+            "Reading photos…",
+            "The AI only arranges what your notes say. It never adds to them.",
+            "The lesson couldn't be saved.",
+            "What I read",
+            "Words that are not in your text:",
+            "You can add up to 8 photos.",
+            "Add Lesson",
+            "Tap + to add your first lesson from a photo or from text.",
+            "The AI's answer wasn't a usable lesson. Try again.",
+            "Nothing could be read from that photo.",
+            "Back",
+            "Add Photo",
+            "Take Photo",
+            "Choose Photo",
+            "Remove photo",
+            "Send",
+            "Attached photo",
+            "That photo could not be read.",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+        for error in [LessonAuthorError.malformed(""), .nothingRead] {
+            XCTAssertFalse((table[error.userMessage] ?? "").isEmpty, "missing Arabic string: \(error.userMessage)")
+        }
+    }
+
     func testArabicStringsHaveStorageKeys() throws {
         let table = try arabicTable()
         let keys = [

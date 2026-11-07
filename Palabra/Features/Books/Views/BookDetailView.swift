@@ -5,6 +5,7 @@ struct BookDetailView: View {
     let bookID: String
 
     @Environment(AppEnvironment.self) private var environment
+    @State private var showStudio = false
 
     var body: some View {
         if let book = environment.books.book(id: bookID) {
@@ -27,7 +28,7 @@ struct BookDetailView: View {
                     EmptyStateView(
                         systemImage: "book.closed",
                         title: "No lessons yet",
-                        message: "Lessons are added to the app in updates."
+                        message: "Tap + to add your first lesson from a photo or from text."
                     )
                 } else {
                     NavigationLink(value: BooksRoute.reader(bookID: book.id, pageID: shelf.lastPageID(bookID: book.id))) {
@@ -48,6 +49,14 @@ struct BookDetailView: View {
         .background { ScreenBackdrop(style: .calm) }
         .navigationTitle(book.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showStudio = true } label: { Image(systemName: "plus") }
+                    .accessibilityLabel("Add Lesson")
+                    .accessibilityIdentifier("addLessonButton")
+            }
+        }
+        .sheet(isPresented: $showStudio) { LessonStudioView(bookID: book.id) }
     }
 
     private func chapterSection(_ chapter: BookChapter, in book: Book) -> some View {
