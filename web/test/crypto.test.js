@@ -74,3 +74,47 @@ test("frames are not readable and differ every time", async () => {
   assert.notEqual(toHex(f1), toHex(f2));
   assert.ok(!Buffer.from(f1).toString("latin1").includes("secreto"));
 });
+
+test("a reconnected end is a new stream, not a replay: the bug that left the page 'away' with no data", async () => {
+  const phone = await Session.open(secret, "app");
+  const first = await Session.open(secret, "web");
+  for (let i = 0; i < 3; i++) await phone.open(await first.seal({ type: "snapshot", i }));   // the first page connection used counters 0..2
+  const reloaded = await Session.open(secret, "web");                                      // page reloaded or retried: counter starts at 0 again
+  assert.deepEqual(await phone.open(await reloaded.seal({ type: "snapshot" })), { type: "snapshot" });
+  const rebuilt = await Session.open(secret, "app");                                       // phone rebuilt its session too
+  const page = await Session.open(secret, "web");
+  await page.open(await rebuilt.seal({ type: "ack" }));
+  await page.open(await (await Session.open(secret, "app")).seal({ type: "ack" }));        // and again
+});
+
+test("an old stream played back after a reconnect is still refused, as is a repeat inside a stream", async () => {
+  const phone = await Session.open(secret, "app");
+  const oldPage = await Session.open(secret, "web");
+  const oldFrame = await oldPage.seal({ type: "write" });
+  await phone.open(oldFrame);
+  await phone.open(await (await Session.open(secret, "web")).seal({ type: "snapshot" }));   // a new page connection takes over
+  await assert.rejects(phone.open(oldFrame), /replayed/);                                    // the old connection's frame cannot come back
+  const live = await Session.open(secret, "web");
+  const f = await live.seal({ type: "x" });
+  await phone.open(f);
+  await assert.rejects(phone.open(f), /replayed/);
+});
+
+test("the epoch is authenticated: swapping it in a frame makes the frame fail, so it cannot be used to dodge replay checks", async () => {
+  const phone = await Session.open(secret, "app");
+  const page = await Session.open(secret, "web");
+  const f = await page.seal({ type: "x" });
+  await phone.open(f);
+  const forged = f.slice(); forged.set(randomBytes(8), 12);
+  await assert.rejects(phone.open(forged), /bad frame/);
+});
+
+test("frames that arrive together are checked in the order they arrived, so a burst (a chunked snapshot) is never called a replay", async () => {
+  const phone = await Session.open(secret, "app");
+  const page = await Session.open(secret, "web");
+  const frames = [];
+  for (let i = 0; i < 40; i++) frames.push(await phone.seal({ i }));
+  const opened = await Promise.all(frames.map((f) => page.open(f)));        // all at once, as the socket delivers them
+  assert.deepEqual(opened.map((m) => m.i), [...Array(40).keys()]);
+  await assert.rejects(page.open(frames[5]), /replayed/);
+});

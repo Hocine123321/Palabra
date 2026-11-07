@@ -63,30 +63,37 @@ enum LinkCrypto {
 
     enum FrameError: Error, Equatable { case short, bad, replayed }
 
-    /// One end of the encrypted link. Frame: iv(12) | counter(8, big endian) | ciphertext+tag.
-    /// The role and counter are authenticated, so a frame cannot be reflected or replayed.
+    /// One end of the encrypted link. Frame: iv(12) | epoch(8) | counter(8, big endian) | ciphertext+tag.
+    /// Role, epoch and counter are all authenticated, so a frame cannot be reflected, altered or replayed. The epoch is a random
+    /// stream id chosen when the session is created: a peer that reconnects (new session, counter back at 0) is a new stream and
+    /// not a replay of the old one, while a frame from a stream already left behind is still refused.
     final class Session: @unchecked Sendable {
         private let key: SymmetricKey
         let role: Role
+        private let epoch = LinkCrypto.randomBytes(8)
         private let lock = NSLock()
         private var sendCounter: UInt64 = 0
+        private var peerEpoch: Data?
         private var lastReceived: Int64 = -1
+        private var leftEpochs: [Data] = []
 
         init(secret: Data, role: Role) {
-            self.key = LinkCrypto.hkdf(secret, salt: Data(), info: "palabra-aead-v1", count: 32)
+            self.key = LinkCrypto.hkdf(secret, salt: Data(), info: "palabra-aead-v2", count: 32)
             self.role = role
         }
 
-        private static func aad(_ role: Role, _ counter: UInt64) -> Data {
+        private static func aad(_ role: Role, _ epoch: Data, _ counter: UInt64) -> Data {
             var data = Data([role.rawValue])
+            data.append(epoch)
             withUnsafeBytes(of: counter.bigEndian) { data.append(contentsOf: $0) }
             return data
         }
 
         func seal(_ message: Data) throws -> Data {
             lock.lock(); let counter = sendCounter; sendCounter += 1; lock.unlock()
-            let box = try AES.GCM.seal(message, using: key, nonce: AES.GCM.Nonce(), authenticating: Self.aad(role, counter))
+            let box = try AES.GCM.seal(message, using: key, nonce: AES.GCM.Nonce(), authenticating: Self.aad(role, epoch, counter))
             var out = Data(box.nonce)
+            out.append(epoch)
             withUnsafeBytes(of: counter.bigEndian) { out.append(contentsOf: $0) }
             out.append(box.ciphertext)
             out.append(box.tag)
@@ -94,10 +101,11 @@ enum LinkCrypto {
         }
 
         func open(_ frame: Data) throws -> Data {
-            guard frame.count >= 12 + 8 + 16 else { throw FrameError.short }
+            guard frame.count >= 12 + 16 + 16 else { throw FrameError.short }
             let bytes = [UInt8](frame)
-            let counter = bytes[12..<20].reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
-            let body = Array(bytes[20...])
+            let frameEpoch = Data(bytes[12..<20])
+            let counter = bytes[20..<28].reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
+            let body = Array(bytes[28...])
             let plain: Data
             do {
                 let box = try AES.GCM.SealedBox(
@@ -105,11 +113,20 @@ enum LinkCrypto {
                     ciphertext: body.dropLast(16),
                     tag: body.suffix(16)
                 )
-                plain = try AES.GCM.open(box, using: key, authenticating: Self.aad(role.peer, counter))
+                plain = try AES.GCM.open(box, using: key, authenticating: Self.aad(role.peer, frameEpoch, counter))
             } catch {
                 throw FrameError.bad
             }
             lock.lock(); defer { lock.unlock() }
+            if frameEpoch != peerEpoch {
+                if leftEpochs.contains(frameEpoch) { throw FrameError.replayed }   // a stream we already moved on from
+                if let current = peerEpoch {
+                    leftEpochs.append(current)
+                    if leftEpochs.count > 64 { leftEpochs.removeFirst() }
+                }
+                peerEpoch = frameEpoch
+                lastReceived = -1
+            }
             guard Int64(clamping: counter) > lastReceived else { throw FrameError.replayed }
             lastReceived = Int64(clamping: counter)
             return plain

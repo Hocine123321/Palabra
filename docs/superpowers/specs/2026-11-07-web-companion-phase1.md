@@ -37,7 +37,9 @@ Branch: `experimental`. Parent: [web companion design](2026-11-07-web-companion-
 - `room = hex(HKDF(secret, "palabra-room-v1", 16))`. The relay never sees the code or the secret.
 - A room holds 2 sockets; a third is closed (4001). Binary frames only (4004), at most 256 KB (4002), at most 50 frames/s per socket with a burst of 100 (4003). Nothing is stored or logged.
 
-**Frames:** `iv(12) | counter(8, big endian) | AES-256-GCM(HKDF(secret, "palabra-aead-v1"))`, with AAD = `role byte | counter`. The role byte (`A` app, `W` web) stops a frame being reflected back; the counter stops replays. The plaintext is the envelope `{id, type, version, payload}`. Phase 1 uses `ping` and `ack`; unknown types are ignored.
+**Frames:** `iv(12) | epoch(8) | counter(8, big endian) | AES-256-GCM(HKDF(secret, "palabra-aead-v2"))`, with AAD = `role byte | epoch | counter`. The role byte (`A` app, `W` web) stops a frame being reflected back. The **epoch** is a random stream id each end picks when it creates its session; the counter stops replays *within* a stream. A frame carrying a new epoch means the other end reconnected (its counter is back at 0), so the receiver starts a new stream; a frame from a stream it already left is refused as a replay. Frames are checked one at a time, in arrival order. The plaintext is the envelope `{id, type, version, payload}`. Phase 1 uses `ping` and `ack`; unknown types are ignored.
+
+*Why the epoch exists (found on a real phone):* in the first version both ends kept a "last counter seen" that restarted at 0 whenever a session was rebuilt (page reload, retry, the phone returning to the foreground). The other end then dropped every frame as a replay without saying so, so the page connected and then sat on "phone away" with no data, for good. v1 and v2 do not talk to each other on purpose: a mismatched page and phone fail at once instead of half working.
 
 Both implementations are pinned to the same fixed vectors (`web/test/crypto.test.js`, `PalabraTests/WebLink/LinkCryptoTests.swift`), and the vectors were also checked with an independent Python implementation.
 

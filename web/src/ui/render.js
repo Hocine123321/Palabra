@@ -63,7 +63,7 @@ export function renderStudy(snapshot, t = makeT("en")) {
 }
 
 export function renderStatus({ state, takenAt, now = new Date(), message = "" }, t = makeT("en")) {
-  const label = { linked: t("Linked to your phone"), connecting: t("Connecting…"), away: t("Phone away, showing saved data"), error: message }[state] ?? "";
+  const label = { linked: t("Linked to your phone"), connecting: t("Connecting…"), away: t("Phone away, showing saved data"), empty: t("Phone not reachable"), error: message }[state] ?? "";
   const p = syncedParts(takenAt, now);
   const synced = p.kind === "never" ? t("Not synced yet") : p.kind === "now" ? t("Synced just now") : t(`Synced {n} ${p.unit} ago`).replace("{n}", p.n);
   return `<span class="dot ${esc(state)}"></span><span>${esc(label)}</span><span class="muted">${esc(synced)}</span>`;

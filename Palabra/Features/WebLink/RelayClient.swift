@@ -9,6 +9,8 @@ final class RelayClient: NSObject, URLSessionWebSocketDelegate, @unchecked Senda
 
     private let relayURL: URL
     private let roomID: String
+    /// The room this client joins, for callers that need to know whether a connection already covers it.
+    var roomIDValue: String { roomID }
     private var task: URLSessionWebSocketTask?
     private lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
     private let lock = NSLock()

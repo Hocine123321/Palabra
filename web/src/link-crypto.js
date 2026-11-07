@@ -76,44 +76,63 @@ export class Session {
   constructor(key, role) {
     this.key = key;
     this.role = role;
+    this.epoch = randomBytes(8);          // this end's stream id: a rebuilt session is a new stream, not a replay of the old one
     this.sendCounter = 0;
+    this.peerEpoch = null;                // hex of the stream we are currently listening to
     this.lastReceived = -1;
+    this.leftEpochs = new Set();          // streams we moved on from: a frame from one of them is an old replay
+    this.queue = Promise.resolve();       // frames are checked one at a time, in arrival order (decrypting is asynchronous)
   }
 
   static async open(secret, role) {
-    const raw = await hkdf(secret, new Uint8Array(0), "palabra-aead-v1", 32);
+    const raw = await hkdf(secret, new Uint8Array(0), "palabra-aead-v2", 32);
     const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
     return new Session(key, role);
   }
 
-  /** Frame layout: iv(12) | counter(8, big endian, inside the AAD) | ciphertext+tag. Returns bytes. */
+  /** Frame layout: iv(12) | epoch(8) | counter(8, big endian) | ciphertext+tag. Direction, epoch and counter are all authenticated. */
   async seal(message) {
     const iv = randomBytes(12);
     const counter = this.sendCounter++;
-    const aad = frameAad(DIR[this.role], counter);
+    const aad = frameAad(DIR[this.role], this.epoch, counter);
     const ct = new Uint8Array(
       await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad }, this.key, enc.encode(JSON.stringify(message))),
     );
-    const out = new Uint8Array(12 + 8 + ct.length);
+    const out = new Uint8Array(12 + 16 + ct.length);
     out.set(iv, 0);
     out.set(aad.subarray(1), 12);
-    out.set(ct, 20);
+    out.set(ct, 28);
     return out;
   }
 
-  /** Opens a frame from the other end. Rejects tampering, reflection and replays. */
-  async open(frame) {
-    if (!(frame instanceof Uint8Array) || frame.length < 12 + 8 + 16) throw new Error("short frame");
+  /** Opens a frame from the other end. Rejects tampering, reflection and replays. A new epoch is a reconnected peer, not a replay. */
+  open(frame) {
+    const turn = this.queue.then(() => this.#open(frame));
+    this.queue = turn.catch(() => {});     // one bad frame never blocks the ones behind it
+    return turn;
+  }
+
+  async #open(frame) {
+    if (!(frame instanceof Uint8Array) || frame.length < 12 + 16 + 16) throw new Error("short frame");
     const peer = this.role === "app" ? DIR.web : DIR.app;
     const iv = frame.subarray(0, 12);
-    const counterBytes = frame.subarray(12, 20);
+    const epoch = frame.slice(12, 20);
+    const counterBytes = frame.slice(20, 28);
     const counter = Number(new DataView(counterBytes.buffer, counterBytes.byteOffset, 8).getBigUint64(0));
-    const aad = frameAad(peer, counter);
+    const aad = frameAad(peer, epoch, counter);
     let pt;
     try {
-      pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: aad }, this.key, frame.subarray(20));
+      pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: aad }, this.key, frame.subarray(28));
     } catch {
       throw new Error("bad frame");
+    }
+    const id = toHex(epoch);
+    if (id !== this.peerEpoch) {
+      if (this.leftEpochs.has(id)) throw new Error("replayed frame");          // an earlier stream, played back
+      if (this.peerEpoch !== null) this.leftEpochs.add(this.peerEpoch);
+      if (this.leftEpochs.size > 64) this.leftEpochs.delete(this.leftEpochs.values().next().value);
+      this.peerEpoch = id;
+      this.lastReceived = -1;
     }
     if (counter <= this.lastReceived) throw new Error("replayed frame");
     this.lastReceived = counter;
@@ -121,9 +140,10 @@ export class Session {
   }
 }
 
-function frameAad(dir, counter) {
-  const aad = new Uint8Array(9);
+function frameAad(dir, epoch, counter) {
+  const aad = new Uint8Array(17);
   aad[0] = dir;
-  new DataView(aad.buffer).setBigUint64(1, BigInt(counter));
+  aad.set(epoch, 1);
+  new DataView(aad.buffer).setBigUint64(9, BigInt(counter));
   return aad;
 }

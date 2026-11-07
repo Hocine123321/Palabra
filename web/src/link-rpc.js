@@ -69,6 +69,8 @@ export function reasonText(reason) {
   switch (reason) {
     case "no-answer": return "The phone did not answer. Keep Palabra open on screen.";
     case "link-lost": return "The link to the phone was lost.";
+    case "relay": return "Could not reach the relay. Check its address.";
+    case "bad-reply": return "The phone sent something this page could not read.";
     case "forbidden": return "That is not allowed from the web.";
     case "bad-args": case "bad-request": return "The phone could not understand the request.";
     case "rate-limited": return "Too many requests. Wait a moment.";

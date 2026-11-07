@@ -56,3 +56,39 @@ test("a bad room path is refused", async () => {
   await assert.rejects(connect(`${relay.url}/r/not-a-room`));
   relay.close();
 });
+
+// The failure seen on a real phone: after pairing, the page showed "away" with no data. Either end can rebuild its
+// session at any time (the page reloads or retries; the phone comes back to the foreground). Counters then restart
+// at 0, and the other end used to drop every frame as "replayed", with no error anywhere.
+test("a page that reloads, and a phone that rebuilds its session, both still get answered over real sockets", async () => {
+  const relay = await startRelay();
+  const secret = randomBytes(32);
+  const room = await roomId(secret);
+  const answerWith = async (phoneWs, phone, webSocket, session, id) => {
+    webSocket.send(await session.seal({ id, type: "snapshot", version: 1, payload: null }));
+    const request = await phone.open((await phoneWs.next()).d);
+    assert.equal(request.id, id);
+    phoneWs.send(await phone.seal({ id, type: "ack", version: 1, payload: { snapshot: { words: [] }, takenAt: "t" } }));
+    return (await session.open((await webSocket.next()).d)).payload.snapshot;
+  };
+
+  let phoneWs = await connect(`${relay.url}/r/${room}`);
+  let phone = await Session.open(secret, "app");
+  let webWs = await connect(`${relay.url}/r/${room}`);
+  let web = await Session.open(secret, "web");
+  for (const id of ["a", "b", "c"]) assert.deepEqual(await answerWith(phoneWs, phone, webWs, web, id), { words: [] });   // counters 0..2 used
+
+  webWs.close(); await webWs.closed;                                        // the page reloads: new socket, new session, counter 0 again
+  await new Promise((r) => setTimeout(r, 100));                              // the relay frees the room slot
+  webWs = await connect(`${relay.url}/r/${room}`);
+  web = await Session.open(secret, "web");
+  assert.deepEqual(await answerWith(phoneWs, phone, webWs, web, "d"), { words: [] });
+
+  phoneWs.close(); await phoneWs.closed;                                     // the phone leaves and returns: new socket, new session
+  await new Promise((r) => setTimeout(r, 100));
+  phoneWs = await connect(`${relay.url}/r/${room}`);
+  phone = await Session.open(secret, "app");
+  assert.deepEqual(await answerWith(phoneWs, phone, webWs, web, "e"), { words: [] });
+
+  phoneWs.close(); webWs.close(); relay.close();
+});

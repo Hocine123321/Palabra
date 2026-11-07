@@ -324,3 +324,26 @@ test("with the phone away, the Artifacts tab says so instead of showing nothing"
   await until(() => /phone must be connected/.test(r.nodes.view.innerHTML), "notice shown");
   assert.doesNotMatch(r.nodes.view.innerHTML, /data-artifact/);
 });
+
+test("when the first connection fails the page is not dead: tabs work and it says why, with a way to retry", async () => {
+  const r = await run();
+  const phone = await phoneThatTakesWrites("482913");
+  class SilentSocket extends phone.Socket { async send() { /* the phone never answers */ } }
+  Object.assign(r.sandbox, { fetch: phone.fetch, WebSocket: SilentSocket, PALABRA_RPC_TIMEOUT_MS: 30, setTimeout, clearTimeout });
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await new Promise((x) => setImmediate(x));
+  Object.assign(r.nodes.address, { value: "192.168.1.20" }); Object.assign(r.nodes.code, { value: "482913" }); Object.assign(r.nodes.relay, { value: "wss://relay.example" });
+  r.nodes.remember.checked = false;
+  await r.nodes.pair.listeners.submit({ preventDefault() {} });
+  await until(() => r.nodes.app.hidden === false, "app shown even without data");
+  await until(() => /Nothing to show yet/.test(r.nodes.view.innerHTML), "empty state shown");
+  assert.match(r.nodes.view.innerHTML, /id="retry"/);
+  for (const tab of ["study", "library", "artifacts", "library"]) {   // every tab responds, none throws
+    r.tabs.find((t) => t.dataset.tab === tab).listeners.click();
+    await new Promise((x) => setImmediate(x));
+    assert.ok(r.nodes.view.innerHTML.length > 0, `${tab} drew something`);
+  }
+  assert.match(r.nodes.status.innerHTML, /Phone not reachable/);       // the status says it too, not a bare dot
+  r.nodes.forget.listeners.click();                                     // stops the retry timer so the test can end
+});

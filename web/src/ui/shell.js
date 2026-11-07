@@ -13,7 +13,7 @@ import { makeT, pickLanguage, dirFor, errorText } from "./strings.js";
 const $ = (s) => document.querySelector(s);
 
 export async function start() {
-  const state = { snapshot: null, takenAt: null, tab: "library", filters: {}, link: "connecting", message: "", artifacts: { list: null, page: null, note: "" } };
+  const state = { snapshot: null, takenAt: null, tab: "library", filters: {}, link: "connecting", message: "", reason: "", artifacts: { list: null, page: null, note: "" } };
   const isFile = location.protocol === "file:";
   const lang = pickLanguage(navigator.languages?.length ? navigator.languages : [navigator.language]);
   const t = makeT(lang);
@@ -64,10 +64,18 @@ export async function start() {
     paint();
   }
 
+  /** Why there is nothing to show yet, in words, with a way to try again. The tabs still work. */
+  function emptyState() {
+    const why = state.link === "connecting" ? t("Connecting…") : state.reason ? t(reasonText(state.reason)) : t("The phone did not answer. Keep Palabra open on screen.");
+    return `<section class="empty"><h2>${esc(t("Nothing to show yet"))}</h2><p class="muted">${esc(why)}</p><button id="retry" class="chip">${esc(t("Try again"))}</button></section>`;
+  }
+
   function paint() {
-    if (!state.snapshot) return;
     $("#status").innerHTML = renderStatus({ state: state.link, takenAt: state.takenAt, message: state.message }, t);
-    $("#view").innerHTML = body() + (state.tab === "artifacts" ? "" : renderChanges(changes, t, (r) => t(reasonText(r))));
+    $("#view").innerHTML = state.tab !== "artifacts" && !state.snapshot ? emptyState()
+      : body() + (state.tab === "artifacts" ? "" : renderChanges(changes, t, (r) => t(reasonText(r))));
+    const retry = $("#retry");
+    if (retry) retry.addEventListener("click", () => { if (pairing) sync?.start(pairing.secretHex, pairing.relayUrl); });
     for (const b of document.querySelectorAll("nav.tabs button")) {
       if (b.dataset.tab === state.tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     }
@@ -107,12 +115,11 @@ export async function start() {
     });
     outbox.load();
     sync = createSync({
-      cache, openLink,
+      cache, openLink: (options) => openLink({ ...options, timeoutMs: globalThis.PALABRA_RPC_TIMEOUT_MS ?? 15000 }),
       onChange: (v) => {
-        Object.assign(state, { snapshot: v.snapshot, takenAt: v.takenAt, link: v.state, message: v.message, failures: v.failures });
-        if (v.snapshot) { $("#pairing").hidden = true; $("#app").hidden = false; paint(); }
+        Object.assign(state, { snapshot: v.snapshot, takenAt: v.takenAt, link: v.state, message: v.message, failures: v.failures, reason: v.reason });
+        $("#pairing").hidden = true; $("#app").hidden = false; paint();     // always: with no data the page still shows the tabs and why
         if (v.state === "linked") outbox?.flush();      // the phone is back: send what waited, in order
-        else if (v.state === "empty") { $("#pairing").hidden = true; $("#app").hidden = false; $("#status").innerHTML = renderStatus({ state: "away", takenAt: null }, t); hint(); $("#view").innerHTML = ""; }
       },
     });
     return sync.showCached().then(() => sync.start(pair.secretHex, pair.relayUrl));   // saved copy first, then the phone

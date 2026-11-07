@@ -29,6 +29,9 @@ final class WebLinkController {
     @ObservationIgnored private var relay: RelayClient?
     @ObservationIgnored private var session: LinkCrypto.Session?
     @ObservationIgnored private var appActive = true
+    @ObservationIgnored private var relayIsUp = false      // true only between the socket opening and closing
+    @ObservationIgnored private var connectedRoom: String?
+    @ObservationIgnored private var connectedRelay: String?
     /// Set by the app once the capability registry exists. Without it the link only answers `ping`.
     @ObservationIgnored var dispatcher: WebLinkDispatcher?
     @ObservationIgnored private let setIdleTimerDisabled: @MainActor (Bool) -> Void
@@ -110,7 +113,7 @@ final class WebLinkController {
 
     func appBecameActive(_ active: Bool) {
         appActive = active
-        if active { connect() } else { relay?.disconnect(); relay = nil }
+        if active { connect() } else { disconnect() }
         refresh()
     }
 
@@ -119,7 +122,12 @@ final class WebLinkController {
     private func connect() {
         guard settings.isEnabled, appActive, let hex = keychain.read(), let secret = Data(hexString: hex),
               let client = RelayClient(relayURL: settings.relayURL, roomID: LinkCrypto.roomID(secret: secret)) else { return }
+        // Already connected to this very room: leave it alone. Rebuilding would kick the browser off for nothing
+        // (the scene phase flips to active for many small reasons).
+        if relay != nil, relayIsUp, connectedRoom == client.roomIDValue, connectedRelay == settings.relayURL { return }
         relay?.disconnect()
+        connectedRoom = client.roomIDValue
+        connectedRelay = settings.relayURL
         let session = LinkCrypto.Session(secret: secret, role: .app)
         self.session = session
         client.onState = { [weak self] state in Task { @MainActor in self?.relayChanged(state) } }
@@ -131,10 +139,14 @@ final class WebLinkController {
     private func disconnect() {
         relay?.disconnect()
         relay = nil
+        connectedRoom = nil
+        connectedRelay = nil
+        relayIsUp = false
         session = nil
     }
 
     private func relayChanged(_ state: RelayClient.State) {
+        relayIsUp = state == .connected
         switch state {
         case .connected: link = .waitingForBrowser
         case .failed(let message): link = .failed(message)

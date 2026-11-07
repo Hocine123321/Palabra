@@ -42,6 +42,30 @@ final class LinkCryptoTests: XCTestCase {
         XCTAssertEqual(try app.open(reply), Data("ack".utf8))
     }
 
+    /// The bug seen on a real phone: a page that reconnects starts its counter at 0 again, and the phone used to drop everything
+    /// as "replayed", so the page sat on "away" with no data.
+    func testAReconnectedEndIsANewStreamNotAReplay() throws {
+        let app = LinkCrypto.Session(secret: secret, role: .app)
+        let first = LinkCrypto.Session(secret: secret, role: .web)
+        for index in 0..<3 { XCTAssertEqual(try app.open(try first.seal(Data("a\(index)".utf8))), Data("a\(index)".utf8)) }
+        let reloaded = LinkCrypto.Session(secret: secret, role: .web)
+        XCTAssertEqual(try app.open(try reloaded.seal(Data("again".utf8))), Data("again".utf8))
+        // the old connection's frames cannot be played back, and a repeat inside the live stream is still refused
+        let stale = try first.seal(Data("late".utf8))
+        XCTAssertThrowsError(try app.open(stale)) { XCTAssertEqual($0 as? LinkCrypto.FrameError, .replayed) }
+        let live = try reloaded.seal(Data("x".utf8))
+        XCTAssertNoThrow(try app.open(live))
+        XCTAssertThrowsError(try app.open(live)) { XCTAssertEqual($0 as? LinkCrypto.FrameError, .replayed) }
+    }
+
+    func testTheEpochIsAuthenticated() throws {
+        let app = LinkCrypto.Session(secret: secret, role: .app)
+        let web = LinkCrypto.Session(secret: secret, role: .web)
+        var frame = try web.seal(Data("x".utf8))
+        frame[12] ^= 0xFF
+        XCTAssertThrowsError(try app.open(frame)) { XCTAssertEqual($0 as? LinkCrypto.FrameError, .bad) }
+    }
+
     func testAStrangerCannotOpenFrames() throws {
         let app = LinkCrypto.Session(secret: secret, role: .app)
         let stranger = LinkCrypto.Session(secret: LinkCrypto.randomBytes(32), role: .web)
