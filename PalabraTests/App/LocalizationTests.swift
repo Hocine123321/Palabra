@@ -301,4 +301,15 @@ final class LocalizationTests: XCTestCase {
         }
         XCTAssertTrue(missing.isEmpty, "UI strings without an Arabic entry:\n" + missing.sorted().joined(separator: "\n"))
     }
+
+    func testArabicStringsHaveWebAccessKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Web", "Web Access", "Web access is on", "Relay", "Browser", "Status", "Off", "Not paired", "Waiting for the browser",
+            "Linked", "Forget This Browser", "Pair a Browser", "Pair Another Browser", "Stop Pairing", "Use at least 6 digits.",
+            "Switch Web Access on first.", "Could not start on this network.", "Another browser is already linked",
+            "Use a wss:// address with no path.", "Choose a code (6 or more digits)",
+        ]
+        for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
+    }
 }

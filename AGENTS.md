@@ -151,8 +151,8 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 
 ## Branch workflow
 
-- All work happens directly on `main`. The `BETA` branch no longer exists.
-- Pushes to `main` run CI (`build-ipa.yml`: the `ipa` build and all unit and UI tests). Check it after every push, and fix a red build before starting new work.
+- Work happens directly on `main`, except the **web companion** (`web/`, `relay/`, `Palabra/Features/WebLink/`), which is developed on the `experimental` branch until the owner says to merge it. CI runs on both. The `BETA` branch no longer exists.
+- Pushes to `main` and `experimental` run CI (`build-ipa.yml`: the `ipa` build and all unit and UI tests). Check it after every push, and fix a red build before starting new work.
 
 ## Resilience (retries, backup key, per-error reactions)
 

@@ -187,6 +187,19 @@ struct SettingsView: View {
             }
             .themedSection()
 
+            Section("Web") {
+                NavigationLink {
+                    WebAccessView()
+                } label: {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "desktopcomputer", tint: Theme.tileTints[2], size: 30)
+                        Text("Web Access")
+                    }
+                }
+                .accessibilityIdentifier("webAccessSettingsLink")
+            }
+            .themedSection()
+
             Section("Books") {
                 NavigationLink {
                     BooksSettingsView()

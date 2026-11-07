@@ -1,6 +1,6 @@
 # Web companion: Palabra in a browser, linked to the app
 
-Status: **future work, vision only.** Nothing here is built. It records what was decided in conversation on 2026-11-07 so the
+Status: **phase 1 (link proof) is being built on the `experimental` branch**, see [phase 1](2026-11-07-web-companion-phase1.md). Everything beyond it is still vision. It records what was decided in conversation on 2026-11-07 so the
 build can start from it later. The open questions were answered the same day (see Decisions); what is still open is at the end.
 
 ## Intent
@@ -97,7 +97,7 @@ Palabra/App/CapabilityProviders.swift   reused as the data door: the web UI read
 - **Message envelope:** `{id, type, version, payload}` encrypted as a whole; `type` is one of `snapshot`, `read`, `write`,
   `ai`, `ack`, `reject`, `ping`. Unknown types are ignored, so old files and new apps keep working.
 - **Snapshot** carries the screens' data (words, sections, tags, stats, study state, artifacts) with a version per record.
-- **Relay:** a tiny WebSocket service keyed by a room id derived from the pairing code. It cannot read messages and keeps no
+- **Relay:** a tiny WebSocket service keyed by a room id derived from the **session secret** (not the pairing code, which the relay must never see). It cannot read messages and keeps no
   history. It is the only piece that has to be hosted; a free tier is enough.
 - **Build:** `web/` is bundled into one file by a script, with no external URLs (fonts and icons inlined), so it also runs offline.
 

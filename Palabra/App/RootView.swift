@@ -71,6 +71,7 @@ struct RootView: View {
         .task { environment.queueProcessor.drain(environment: environment) }
         .task { await environment.migrateLegacyPronunciation() }
         .onChange(of: scenePhase) { _, newPhase in
+            environment.webLink.appBecameActive(newPhase == .active)
             if newPhase == .active {
                 environment.queueProcessor.drain(environment: environment)
                 refreshDueBadge()

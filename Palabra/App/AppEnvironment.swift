@@ -56,6 +56,8 @@ final class AppEnvironment {
     /// Instant online/offline snapshot, shared with the resilient client so
     /// both see the same answer. Real device state outside of tests.
     let connectivity: ConnectivityWaiting
+    /// The web companion link (Settings > Web Access); idle until the person switches it on.
+    let webLink = WebLinkController()
     var router = Router()
 
     private let keychain: KeychainStore

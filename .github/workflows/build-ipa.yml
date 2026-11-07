@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, experimental]
   workflow_dispatch:
     inputs:
       scope:
@@ -20,6 +20,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The web companion's JavaScript (relay and web client). Plain Node on Linux: seconds, not minutes, and it fails
+  # fast before the macOS jobs. Skipped for the footage-only review run.
+  web:
+    if: inputs.scope != 'review'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Relay and link tests
+        working-directory: relay
+        run: npm ci && npm test
+      - name: Web crypto tests
+        working-directory: web
+        run: npm test
+
   # The IPA job is independent of the test job, so a failing test never blocks the deliverable; the run itself still
   # turns red when any unit or UI test fails.
   ipa:

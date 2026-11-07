@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palabra link proof</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 34rem; margin: 2rem auto; padding: 0 1rem; color: #1f1d1a; background: #f5f3ee; }
+  label { display: block; margin-top: 1rem; font-weight: 600; }
+  input { width: 100%; box-sizing: border-box; padding: .6rem; font: inherit; border: 1px solid #c9c5ba; border-radius: 10px; background: #fcfbf8; }
+  button { margin-top: 1rem; padding: .7rem 1.2rem; font: inherit; color: #fff; background: #d97757; border: 0; border-radius: 999px; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  pre { background: #fcfbf8; padding: 1rem; border-radius: 10px; white-space: pre-wrap; min-height: 6rem; }
+</style>
+</head>
+<body>
+<h1>Palabra link proof</h1>
+<p>Phase 1 test page: pairs with the phone on this Wi-Fi, then sends an encrypted ping through the relay. There is no app UI yet.</p>
+<label>Phone address (shown on the phone)<input id="address" placeholder="192.168.1.20" inputmode="decimal"></label>
+<label>Code you chose on the phone<input id="code" inputmode="numeric" autocomplete="off"></label>
+<label>Relay address<input id="relay" placeholder="wss://palabra-relay.yourname.workers.dev"></label>
+<button id="go">Pair and ping</button>
+<pre id="log" aria-live="polite"></pre>
+<script type="module">
+  import { pairWithPhone, openLink } from "./src/link-client.js";
+  const $ = (id) => document.getElementById(id);
+  const log = (line) => { $("log").textContent += line + "\n"; };
+  const isFileOrigin = location.protocol === "file:";
+  log(`Opened from: ${location.protocol}//  (${isFileOrigin ? "a file, the case this test is about" : "a server"})`);
+  $("go").addEventListener("click", async () => {
+    $("go").disabled = true; $("log").textContent = "";
+    try {
+      log("1. Pairing over the local network…");
+      const secret = await pairWithPhone({ address: $("address").value, code: $("code").value.trim(), isFileOrigin });
+      log("   Paired. The code and the secret never touch the relay.");
+      log("2. Connecting to the relay…");
+      const link = await openLink({ relayUrl: $("relay").value.trim(), secret });
+      log("3. Sending an encrypted ping…");
+      const t = performance.now();
+      await link.ping();
+      log(`   Phone answered in ${Math.round(performance.now() - t)} ms. The link works.`);
+      link.close();
+    } catch (e) {
+      log(`FAILED (${e.kind || "error"}): ${e.message || e}`);
+      if (e.detail) log(`   Browser said: ${e.detail}`);
+    } finally { $("go").disabled = false; }
+  });
+</script>
+</body>
+</html>

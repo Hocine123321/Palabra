@@ -854,3 +854,31 @@
 "Changes your data · asks first" = "تغيّر بياناتك · تطلب الإذن أولاً";
 "Uses your AI quota · asks first" = "تستخدم حصة الذكاء الاصطناعي · تطلب الإذن أولاً";
 "Its own storage · never asks" = "مساحتها الخاصة · لا تطلب إذناً";
+
+/* Web Access (Settings) */
+"Web" = "الويب";
+"Web Access" = "الوصول من الويب";
+"Web access is on" = "الوصول من الويب مفعّل";
+"Keeps this phone awake while it is on, which uses more battery. The link only works while Palabra is open on screen." = "يُبقي هذا الهاتف مستيقظاً أثناء التفعيل، وهذا يستهلك مزيداً من البطارية. يعمل الرابط فقط أثناء فتح Palabra على الشاشة.";
+"wss://your-relay.workers.dev" = "wss://your-relay.workers.dev";
+"Use a wss:// address with no path." = "استخدم عنوان wss:// بدون مسار.";
+"Relay" = "المرحّل";
+"Your own relay. It only passes scrambled messages along and keeps nothing." = "مرحّلك الخاص. يمرّر رسائل مشفّرة فقط ولا يحتفظ بشيء.";
+"Browser" = "المتصفح";
+"Status" = "الحالة";
+"Off" = "متوقف";
+"Not paired" = "غير مقترن";
+"Waiting for the browser" = "في انتظار المتصفح";
+"Linked" = "متصل";
+"Forget This Browser" = "نسيان هذا المتصفح";
+"Choose a code (6 or more digits)" = "اختر رمزاً (6 أرقام أو أكثر)";
+"Pair a Browser" = "اقتران بمتصفح";
+"Pair Another Browser" = "اقتران بمتصفح آخر";
+"Stop Pairing" = "إيقاف الاقتران";
+"Open the Palabra web file on your computer, on this Wi-Fi, and type:" = "افتح ملف الويب الخاص بـ Palabra على حاسوبك، على شبكة الواي فاي هذه، واكتب:";
+"Too many wrong codes. Try again in %lld seconds." = "رموز خاطئة كثيرة. حاول مجدداً بعد %lld ثانية.";
+"Pairing only works from the same Wi-Fi as the browser. After 5 wrong codes, pairing locks for a while." = "يعمل الاقتران فقط من شبكة الواي فاي نفسها التي يعمل عليها المتصفح. بعد 5 رموز خاطئة يُقفل الاقتران لبعض الوقت.";
+"Switch Web Access on first." = "فعّل الوصول من الويب أولاً.";
+"Use at least 6 digits." = "استخدم 6 أرقام على الأقل.";
+"Could not start on this network." = "تعذّر البدء على هذه الشبكة.";
+"Another browser is already linked" = "متصفح آخر متصل بالفعل";
