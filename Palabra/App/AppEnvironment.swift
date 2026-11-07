@@ -164,7 +164,25 @@ final class AppEnvironment {
             aiGateway: gateway
         )
         // The live section and tags of a word, for the conflict check on a placement change from the web page.
-        webLink.dispatcher = WebLinkDispatcher(registry: capabilities, placement: { [repository] ref in
+        // What the page may see of the person's artifacts (read-only; apps are listed but never sent).
+        let artifactStore = resolvedArtifacts
+        let artifactReader = WebArtifactReader(
+            list: { await MainActor.run { artifactStore.artifacts().map { WebArtifactReader.Entry(id: $0.id.uuidString, title: $0.title, kind: $0.kind, updatedAt: $0.updatedAt) } } },
+            payload: { id in
+                await MainActor.run {
+                    guard let uuid = UUID(uuidString: id) else { return nil }
+                    return artifactStore.versions(artifactID: uuid).first?.payload   // newest first
+                }
+            },
+            ticks: { id, blockID in
+                await MainActor.run {
+                    guard let uuid = UUID(uuidString: id) else { return [] }
+                    return ArtifactSpecStateStore(artifactID: uuid, repository: artifactStore).completed(blockID: blockID)
+                }
+            },
+            registry: capabilities
+        )
+        webLink.dispatcher = WebLinkDispatcher(registry: capabilities, artifacts: artifactReader, placement: { [repository] ref in
             await MainActor.run {
                 let all = repository.allWords()
                 let id = UUID(uuidString: ref)

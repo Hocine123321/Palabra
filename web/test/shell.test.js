@@ -21,13 +21,26 @@ function makeDom() {
     addEventListener(e, f) { this.listeners[e] = f; }, setAttribute() {}, removeAttribute() {}, focus() {}, setSelectionRange() {} });
   for (const id of ids) nodes[id] = make(id);
   nodes.pairing.hidden = false;
-  return { nodes, document: { documentElement: {}, querySelector: (s) => (s.startsWith("#") ? nodes[s.slice(1)] ?? make(s) : make(s)), querySelectorAll: () => [] } };
+  // querySelectorAll finds what the page really renders: the tab buttons, and any [data-x="..."] button in the current view.
+  const tabs = ["library", "study", "artifacts"].map((tab) => Object.assign(make("tab-" + tab), { dataset: { tab } }));
+  const found = new Map();   // one stable node per data-attribute value, so a test can click it
+  const querySelectorAll = (selector) => {
+    if (selector === "nav.tabs button") return tabs;
+    const attr = selector.match(/^\[data-([a-z]+)\]$/)?.[1];
+    if (!attr) return [];
+    return [...String(nodes.view.innerHTML).matchAll(new RegExp(`data-${attr}="([^"]*)"`, "g"))].map((m) => {
+      const key = `${attr}:${m[1]}`;
+      if (!found.has(key)) found.set(key, Object.assign(make(key), { dataset: { [attr]: m[1].replace(/&quot;/g, '"') } }));
+      return found.get(key);
+    });
+  };
+  return { nodes, tabs, document: { documentElement: {}, querySelector: (s) => (s.startsWith("#") ? nodes[s.slice(1)] ?? make(s) : make(s)), querySelectorAll } };
 }
 
 const SNAP = { words: [{ id: "1", key: "hola", spanish: "hola", translation: "hello", partOfSpeech: "n", category: null, tags: [] }], decks: [], review: [], wordsPerDay: [], wordsPerWeek: [] };
 
 async function run({ idb = new Map(), phoneUp = true, lang = "en" } = {}) {
-  const { nodes, document } = makeDom();
+  const { nodes, document, tabs } = makeDom();
   const closed = [];
   const fakeIndexedDB = { open: () => { const req = {}; queueMicrotask(() => {
     const os = () => ({ put: (v, k) => { idb.set(k, structuredClone(v)); return {}; }, get: (k) => ({ get result() { return idb.get(k); } }), delete: (k) => { idb.delete(k); return {}; }, getAllKeys: () => ({ get result() { return [...idb.keys()]; } }) });
@@ -42,7 +55,7 @@ async function run({ idb = new Map(), phoneUp = true, lang = "en" } = {}) {
       return { ok: true, status: 200, json: async () => ({ ok: true }) };
     },
   };
-  return { nodes, sandbox, idb, closed };
+  return { nodes, sandbox, idb, closed, tabs };
 }
 
 test("the page starts on the pairing card, with nothing saved and nothing sent", async () => {
@@ -202,24 +215,32 @@ test("after several silent attempts the page suggests forgetting the computer, i
   assert.match(r.nodes.hint.textContent, /forget this computer and pair again/);
 });
 
+const ARTIFACTS = [{ id: "p1", title: "My <b>plan</b>", kind: "spec", viewable: true, runnable: false }, { id: "g1", title: "Game", kind: "app", viewable: false, runnable: false }];
+const PAGES = { p1: { id: "p1", title: "My <b>plan</b>", blocks: [{ type: "heading", level: 1, text: "Week 1" }, { type: "checklist", items: [{ text: "Review", done: true }, { text: "Read", done: false }] }] } };
+
 /** Like phoneAndRelay, but the fake phone also records the `write` messages it receives and can be told to refuse. */
 async function phoneThatTakesWrites(code, { refuse = null } = {}) {
   const base = await phoneAndRelay(code);
-  const writes = [];
+  const writes = [], seen = [];
   const secret = new Uint8Array(32).fill(9);
   const appSession = await Session.open(secret, "app");
   class Socket extends base.Socket {
     async send(frame) {
       const probe = await Session.open(secret, "app");
       const request = await probe.open(new Uint8Array(frame));
-      const reply = request.type === "write"
+      seen.push(request.type);
+      const reply = request.type === "artifacts"
+        ? { id: request.id, type: "ack", version: 1, payload: { result: ARTIFACTS } }
+        : request.type === "artifact"
+          ? (PAGES[request.payload?.id] ? { id: request.id, type: "ack", version: 1, payload: { result: PAGES[request.payload.id] } } : { id: request.id, type: "reject", version: 1, payload: { reason: "not-found" } })
+        : request.type === "write"
         ? (writes.push(request.payload), refuse ? { id: request.id, type: "reject", version: 1, payload: { reason: refuse } } : { id: request.id, type: "ack", version: 1, payload: { result: { queued: 1 } } })
         : { id: request.id, type: "ack", version: 1, payload: { snapshot: SNAP, takenAt: "2026-11-07T10:00:00Z" } };
       const sealed = await appSession.seal(reply);
       queueMicrotask(() => this.listeners.message?.forEach((f) => f({ data: sealed.buffer.slice(sealed.byteOffset, sealed.byteOffset + sealed.byteLength) })));
     }
   }
-  return { fetch: base.fetch, Socket, writes };
+  return { fetch: base.fetch, Socket, writes, seen };
 }
 
 async function pairedPage({ remember = false, refuse = null } = {}) {
@@ -272,4 +293,34 @@ test("Forget this computer also removes waiting and refused changes", async () =
   await r.nodes.forget.listeners.click();
   await until(() => r.idb.size === 0, "browser emptied");
   assert.equal(r.idb.size, 0);
+});
+
+
+test("the Artifacts tab lists pages, opens one, escapes it, and goes back; apps are shown as phone-only and never requested", async () => {
+  const r = await pairedPage();
+  r.tabs.find((t) => t.dataset.tab === "artifacts").listeners.click();
+  await until(() => /Opens on your phone/.test(r.nodes.view.innerHTML), "list shown");
+  assert.doesNotMatch(r.nodes.view.innerHTML, /<b>plan/);               // the title is text, not markup
+  assert.match(r.nodes.view.innerHTML, /My &lt;b&gt;plan/);
+  assert.doesNotMatch(r.nodes.view.innerHTML, /data-artifact="g1"/);    // an app has no way to be opened here
+  r.nodes.view.innerHTML.match(/data-artifact="p1"/) || assert.fail("page not openable");
+  r.sandbox.document.querySelectorAll("[data-artifact]")[0].listeners.click();
+  await until(() => /Week 1/.test(r.nodes.view.innerHTML), "page shown");
+  assert.match(r.nodes.view.innerHTML, /☑/); assert.match(r.nodes.view.innerHTML, /☐/);
+  assert.deepEqual(r.phone.seen.filter((t) => t.startsWith("artifact")), ["artifacts", "artifact"]);
+  r.nodes.artifactBack.listeners.click();
+  await until(() => /Opens on your phone/.test(r.nodes.view.innerHTML), "back to list");
+});
+
+test("with the phone away, the Artifacts tab says so instead of showing nothing", async () => {
+  const idb = new Map();
+  idb.set("pairing", { schema: 1, secretHex: "ab".repeat(32), relayUrl: "wss://relay.example" });
+  idb.set("snapshot", { schema: 1, takenAt: "2026-11-07T10:00:00Z", snapshot: SNAP });
+  const r = await run({ idb, phoneUp: false });
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await until(() => /hola/.test(r.nodes.view.innerHTML), "saved copy shown");
+  r.tabs.find((t) => t.dataset.tab === "artifacts").listeners.click();
+  await until(() => /phone must be connected/.test(r.nodes.view.innerHTML), "notice shown");
+  assert.doesNotMatch(r.nodes.view.innerHTML, /data-artifact/);
 });

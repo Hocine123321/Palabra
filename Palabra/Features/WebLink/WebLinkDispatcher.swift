@@ -30,6 +30,8 @@ struct WebLinkDispatcher: Sendable {
     let registry: CapabilityRegistry
     let now: @Sendable () -> Date
     let recent: RecentActions
+    /// Optional: without it the page sees no artifacts (`artifacts` answers an empty list).
+    let artifacts: WebArtifactReader?
     /// The live placement of a word (section and tags), for the conflict check on `words.place`. `nil` = no such word.
     let placement: @Sendable (_ idOrKey: String) async -> (category: String?, tags: [String])?
 
@@ -37,11 +39,13 @@ struct WebLinkDispatcher: Sendable {
         registry: CapabilityRegistry,
         now: @escaping @Sendable () -> Date = { Date() },
         recent: RecentActions = RecentActions(),
+        artifacts: WebArtifactReader? = nil,
         placement: @escaping @Sendable (_ idOrKey: String) async -> (category: String?, tags: [String])? = { _ in nil }
     ) {
         self.registry = registry
         self.now = now
         self.recent = recent
+        self.artifacts = artifacts
         self.placement = placement
     }
 
@@ -52,6 +56,8 @@ struct WebLinkDispatcher: Sendable {
         case "snapshot": return await snapshot(message)
         case "write": return await write(message)
         case "ai": return await ai(message)
+        case "artifacts": return await artifactList(message)
+        case "artifact": return await artifactPage(message)
         default: return nil
         }
     }
@@ -130,6 +136,19 @@ struct WebLinkDispatcher: Sendable {
             if PlacementToken.make(category: live.category, tags: live.tags) != expected { return "conflict" }
         }
         return nil
+    }
+
+    /// The artifact list. Without a reader the answer is an empty list, not an error.
+    private func artifactList(_ message: LinkMessage) async -> LinkMessage {
+        let list = await artifacts?.listPayload() ?? .array([])
+        return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": list]))
+    }
+
+    /// One artifact page by id. Apps, unknown ids and undecodable specs all answer `not-found`: the page learns nothing more.
+    private func artifactPage(_ message: LinkMessage) async -> LinkMessage {
+        guard case .object(let payload)? = message.payload, let id = payload["id"]?.stringValue, id.count <= 80 else { return reject(message, reason: "bad-request") }
+        guard let page = await artifacts?.page(id: id) else { return reject(message, reason: "not-found") }
+        return LinkMessage(id: message.id, type: "ack", version: 1, payload: .object(["result": page]))
     }
 
     /// An AI request from the page: `{args}` for `ai.generate`. Same rules as any capability call (the registry's own

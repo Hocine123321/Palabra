@@ -3,7 +3,8 @@ import { pairWithPhone, openLink } from "../link-client.js";
 import { toHex } from "../link-crypto.js";
 import { createCache, idbStore, memoryStore } from "../cache.js";
 import { createSync } from "../sync.js";
-import { renderLibrary, renderStudy, renderStatus, renderAddWords, renderChanges } from "./render.js";
+import { renderLibrary, renderStudy, renderStatus, renderAddWords, renderChanges, esc } from "./render.js";
+import { renderArtifactList, renderArtifactPage } from "./artifacts.js";
 import { createOutbox } from "../outbox.js";
 import { sendOutboxItem, parseWords } from "../writes.js";
 import { reasonText } from "../link-rpc.js";
@@ -12,7 +13,7 @@ import { makeT, pickLanguage, dirFor, errorText } from "./strings.js";
 const $ = (s) => document.querySelector(s);
 
 export async function start() {
-  const state = { snapshot: null, takenAt: null, tab: "library", filters: {}, link: "connecting", message: "" };
+  const state = { snapshot: null, takenAt: null, tab: "library", filters: {}, link: "connecting", message: "", artifacts: { list: null, page: null, note: "" } };
   const isFile = location.protocol === "file:";
   const lang = pickLanguage(navigator.languages?.length ? navigator.languages : [navigator.language]);
   const t = makeT(lang);
@@ -36,15 +37,44 @@ export async function start() {
     $("#hint").textContent = key ? t(key) : "";
   }
 
+  /** The main area for the current tab. */
+  function body() {
+    if (state.tab === "library") return renderAddWords(t) + renderLibrary(state.snapshot, state.filters, t);
+    if (state.tab === "artifacts") {
+      const a = state.artifacts;
+      const note = a.note ? `<p class="muted">${esc(a.note)}</p>` : "";
+      if (a.page) return note + renderArtifactPage(a.page, t);
+      if (a.list) return note + renderArtifactList(a.list, t);
+      return note || `<p class="muted">${t("Connecting…")}</p>`;
+    }
+    return renderStudy(state.snapshot, t);
+  }
+
+  /** Asks the phone for the artifact list or one page. Needs the live link: nothing here is kept in the browser. */
+  async function loadArtifacts(id = null) {
+    const link = sync?.link;
+    if (!link) { state.artifacts.note = t("The phone must be connected to show artifacts."); paint(); return; }
+    try {
+      if (id) state.artifacts.page = (await link.request("artifact", { id })).result;
+      else { state.artifacts.page = null; state.artifacts.list = (await link.request("artifacts")).result ?? []; }
+      state.artifacts.note = "";
+    } catch (e) {
+      state.artifacts.note = t(reasonText(e?.kind ?? "failed"));
+    }
+    paint();
+  }
+
   function paint() {
     if (!state.snapshot) return;
     $("#status").innerHTML = renderStatus({ state: state.link, takenAt: state.takenAt, message: state.message }, t);
-    $("#view").innerHTML = (state.tab === "library" ? renderAddWords(t) + renderLibrary(state.snapshot, state.filters, t) : renderStudy(state.snapshot, t))
-      + renderChanges(changes, t, (r) => t(reasonText(r)));
+    $("#view").innerHTML = body() + (state.tab === "artifacts" ? "" : renderChanges(changes, t, (r) => t(reasonText(r))));
     for (const b of document.querySelectorAll("nav.tabs button")) {
       if (b.dataset.tab === state.tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     }
     hint();
+    for (const b of document.querySelectorAll("[data-artifact]")) b.addEventListener("click", () => loadArtifacts(b.dataset.artifact));
+    const back = $("#artifactBack");
+    if (back) back.addEventListener("click", () => { state.artifacts.page = null; paint(); });
     const add = $("#add");
     if (add) add.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -65,7 +95,7 @@ export async function start() {
     for (const c of document.querySelectorAll(".chip[data-tag]")) c.addEventListener("click", () => { state.filters.tag = c.dataset.tag || null; paint(); });
   }
 
-  for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => { state.tab = b.dataset.tab; paint(); });
+  for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => { state.tab = b.dataset.tab; paint(); if (state.tab === "artifacts" && !state.artifacts.page) loadArtifacts(); });
 
   let sync = null, pairing = null, outbox = null, changes = { queue: [], review: [] };
   function begin(pair) {
