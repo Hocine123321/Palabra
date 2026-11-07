@@ -1,6 +1,6 @@
 # Web companion: Palabra in a browser, linked to the app
 
-Status: **phase 1 (link proof) is being built on the `experimental` branch**, see [phase 1](2026-11-07-web-companion-phase1.md). Everything beyond it is still vision. It records what was decided in conversation on 2026-11-07 so the
+Status: **phases 1 to 3 are built on the `experimental` branch**, see [phase 1](2026-11-07-web-companion-phase1.md) and [phases 2 and 3](2026-11-07-web-companion-phase2-3.md). Everything beyond them is still vision. It records what was decided in conversation on 2026-11-07 so the
 build can start from it later. The open questions were answered the same day (see Decisions); what is still open is at the end.
 
 ## Intent

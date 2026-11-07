@@ -1,0 +1,203 @@
+// Drives the real bundled page against a tiny fake DOM, fake storage and a fake phone link.
+// Checks the behaviour a person sees: what is on screen, and what the browser keeps.
+import test from "node:test";
+import assert from "node:assert/strict";
+import vm from "node:vm";
+import { build } from "../scripts/build.js";
+
+const html = build();
+
+/** Waits until `check()` is true (or fails loudly after ~2 s). Counting event-loop turns is what made this flaky. */
+async function until(check, what) {
+  for (let i = 0; i < 400; i++) { if (check()) return; await new Promise((x) => setTimeout(x, 5)); }
+  assert.fail(`never reached: ${what}`);
+}
+const script = html.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
+const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+
+function makeDom() {
+  const nodes = {};
+  const make = (id) => ({ id, hidden: id === "app", value: "", checked: false, textContent: "", innerHTML: "", disabled: false, dataset: {}, listeners: {},
+    addEventListener(e, f) { this.listeners[e] = f; }, setAttribute() {}, removeAttribute() {}, focus() {}, setSelectionRange() {} });
+  for (const id of ids) nodes[id] = make(id);
+  nodes.pairing.hidden = false;
+  return { nodes, document: { documentElement: {}, querySelector: (s) => (s.startsWith("#") ? nodes[s.slice(1)] ?? make(s) : make(s)), querySelectorAll: () => [] } };
+}
+
+const SNAP = { words: [{ id: "1", key: "hola", spanish: "hola", translation: "hello", partOfSpeech: "n", category: null, tags: [] }], decks: [], review: [], wordsPerDay: [], wordsPerWeek: [] };
+
+async function run({ idb = new Map(), phoneUp = true, lang = "en" } = {}) {
+  const { nodes, document } = makeDom();
+  const closed = [];
+  const fakeIndexedDB = { open: () => { const req = {}; queueMicrotask(() => {
+    const os = () => ({ put: (v, k) => { idb.set(k, structuredClone(v)); return {}; }, get: (k) => ({ get result() { return idb.get(k); } }), delete: (k) => { idb.delete(k); return {}; }, getAllKeys: () => ({ get result() { return [...idb.keys()]; } }) });
+    req.result = { createObjectStore() {}, transaction() { const tx = { objectStore: os }; queueMicrotask(() => queueMicrotask(() => tx.oncomplete?.())); return tx; }, close() {} };
+    req.onupgradeneeded?.(); req.onsuccess?.(); }); return req; } };
+  // A phone that answers `snapshot` only when it is "up", reached through WebSocket + fetch fakes.
+  const sandbox = {
+    document, location: { protocol: "file:" }, navigator: { languages: [lang], language: lang }, indexedDB: fakeIndexedDB,
+    crypto: globalThis.crypto, TextEncoder, TextDecoder, atob, btoa, structuredClone, console, setTimeout: () => 0, clearTimeout() {}, queueMicrotask, Uint8Array, Promise,
+    fetch: async (url, opts) => {
+      if (String(url).endsWith("/hello")) return { ok: true, status: 200, json: async () => ({ nonce: "00".repeat(16) }) };
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    },
+  };
+  return { nodes, sandbox, idb, closed };
+}
+
+test("the page starts on the pairing card, with nothing saved and nothing sent", async () => {
+  const r = await run();
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await new Promise((x) => setImmediate(x));
+  assert.equal(r.nodes.pairing.hidden, false);
+  assert.equal(r.nodes.app.hidden, true);
+  assert.equal(r.idb.size, 0, "nothing is written to the browser before the person asks");
+});
+
+test("a remembered computer opens straight onto its saved copy while the phone is away", async () => {
+  const idb = new Map();
+  idb.set("pairing", { schema: 1, secretHex: "ab".repeat(32), relayUrl: "wss://relay.example" });
+  idb.set("snapshot", { schema: 1, snapshot: SNAP, takenAt: "2026-11-06T09:00:00Z" });
+  const r = await run({ idb });
+  r.sandbox.WebSocket = class { constructor() { throw new Error("relay down"); } };   // phone and relay unreachable
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await until(() => /Phone away/.test(r.nodes.status.innerHTML), "offline status shown");
+  assert.equal(r.nodes.app.hidden, false, "the app is shown without the phone");
+  assert.equal(r.nodes.pairing.hidden, true);
+  assert.match(r.nodes.view.innerHTML, /hola/, "saved words are on screen");
+  assert.match(r.nodes.status.innerHTML, /Phone away/);
+  assert.match(r.nodes.hint.textContent, /Saved copy from your phone/);
+});
+
+test("in Arabic the same offline start reads in Arabic", async () => {
+  const idb = new Map();
+  idb.set("pairing", { schema: 1, secretHex: "ab".repeat(32), relayUrl: "wss://relay.example" });
+  idb.set("snapshot", { schema: 1, snapshot: SNAP, takenAt: "2026-11-06T09:00:00Z" });
+  const r = await run({ idb, lang: "ar" });
+  r.sandbox.WebSocket = class { constructor() { throw new Error("relay down"); } };
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await until(() => /الهاتف بعيد/.test(r.nodes.status.innerHTML), "Arabic offline status");
+  assert.match(r.nodes.status.innerHTML, /الهاتف بعيد/);
+  assert.match(r.nodes.hint.textContent, /نسخة محفوظة/);
+  assert.equal(r.sandbox.document.documentElement.dir, "rtl");
+});
+
+test("Forget this computer deletes the key and every saved word, and returns to pairing", async () => {
+  const idb = new Map();
+  idb.set("pairing", { schema: 1, secretHex: "ab".repeat(32), relayUrl: "wss://relay.example" });
+  idb.set("snapshot", { schema: 1, snapshot: SNAP, takenAt: "2026-11-06T09:00:00Z" });
+  const r = await run({ idb });
+  r.sandbox.WebSocket = class { constructor() { throw new Error("relay down"); } };
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await until(() => r.nodes.app.hidden === false && /hola/.test(r.nodes.view.innerHTML), "saved copy shown");
+  assert.ok(idb.size > 0);
+  await r.nodes.forget.listeners.click();
+  await until(() => idb.size === 0, "browser emptied");
+  assert.equal(idb.size, 0, "nothing of the person's data is left in the browser");
+  assert.equal(r.nodes.pairing.hidden, false);
+  assert.equal(r.nodes.app.hidden, true);
+  assert.equal(r.nodes.view.innerHTML, "");
+});
+
+import { wrapSecret, toHex, Session } from "../src/link-crypto.js";
+
+/** A fake phone for the pairing form: real wrapping of a known secret, and a socket that answers `snapshot` like the app. */
+async function phoneAndRelay(code) {
+  const secret = new Uint8Array(32).fill(9);
+  const nonce = new Uint8Array(16).fill(1);
+  const { iv, ct } = await wrapSecret(code, nonce, secret);
+  const fetch = async (url, opts) => {
+    if (String(url).endsWith("/hello")) return { ok: true, status: 200, json: async () => ({ nonce: toHex(nonce) }) };
+    return { ok: true, status: 200, json: async () => ({ iv: toHex(iv), sealed: toHex(ct) }) };
+  };
+  const appSession = await Session.open(secret, "app");
+  class Socket {
+    constructor() { this.listeners = {}; queueMicrotask(() => this.listeners.open?.[0]()); }
+    addEventListener(e, f) { (this.listeners[e] ??= []).push(f); }
+    removeEventListener() {}
+    close() { this.listeners.close?.forEach((f) => f()); }
+    async send(frame) {
+      const request = await appSession.open(new Uint8Array(frame));
+      const reply = { id: request.id, type: "ack", version: 1, payload: { snapshot: SNAP, takenAt: "2026-11-07T10:00:00Z" } };
+      const sealedReply = await appSession.seal(reply);
+      queueMicrotask(() => this.listeners.message?.forEach((f) => f({ data: sealedReply.buffer.slice(sealedReply.byteOffset, sealedReply.byteOffset + sealedReply.byteLength) })));
+    }
+  }
+  return { fetch, Socket };
+}
+
+async function pairThroughTheForm({ remember }) {
+  const r = await run();
+  const { fetch, Socket } = await phoneAndRelay("482913");
+  Object.assign(r.sandbox, { fetch, WebSocket: Socket });
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await new Promise((x) => setImmediate(x));
+  Object.assign(r.nodes.address, { value: "192.168.1.20" });
+  Object.assign(r.nodes.code, { value: "482913" });
+  Object.assign(r.nodes.relay, { value: "wss://relay.example" });
+  r.nodes.remember.checked = remember;
+  await r.nodes.pair.listeners.submit({ preventDefault() {} });
+  await until(() => r.nodes.err.textContent !== "" || /hola/.test(r.nodes.view.innerHTML), "pairing finished");
+  if (remember) await until(() => r.idb.has("snapshot"), "snapshot saved");
+  return r;
+}
+
+test("pairing through the form shows the phone's words", async () => {
+  const r = await pairThroughTheForm({ remember: false });
+  assert.equal(r.nodes.err.textContent, "");
+  assert.equal(r.nodes.app.hidden, false);
+  assert.match(r.nodes.view.innerHTML, /hola/);
+  assert.match(r.nodes.status.innerHTML, /Linked to your phone/);
+  assert.equal(r.nodes.code.value, "", "the code is cleared once used");
+});
+
+test("with Remember OFF (the default) the browser keeps nothing: no key, no words", async () => {
+  const r = await pairThroughTheForm({ remember: false });
+  assert.equal(r.idb.size, 0);
+});
+
+test("with Remember ON the key and the words are saved, and the secret is the one the phone gave", async () => {
+  const r = await pairThroughTheForm({ remember: true });
+  assert.equal(r.idb.get("pairing").secretHex, "09".repeat(32));
+  assert.equal(r.idb.get("pairing").relayUrl, "wss://relay.example");
+  assert.equal(r.idb.get("snapshot").snapshot.words[0].spanish, "hola");
+});
+
+test("a wrong code shows the translated error and leaves the pairing card up", async () => {
+  const r = await run();
+  r.sandbox.fetch = async (url) => String(url).endsWith("/hello")
+    ? { ok: true, status: 200, json: async () => ({ nonce: "00".repeat(16) }) }
+    : { ok: false, status: 403, json: async () => ({ error: "wrong", triesLeft: 4 }) };
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await new Promise((x) => setImmediate(x));
+  Object.assign(r.nodes.address, { value: "192.168.1.20" }); Object.assign(r.nodes.code, { value: "111111" }); Object.assign(r.nodes.relay, { value: "wss://x" });
+  await r.nodes.pair.listeners.submit({ preventDefault() {} });
+  assert.equal(r.nodes.err.textContent, "Wrong code. 4 tries left.");
+  assert.equal(r.nodes.pairing.hidden, false);
+  assert.equal(r.idb.size, 0);
+});
+
+test("after several silent attempts the page suggests forgetting the computer, instead of saying 'away' forever", async () => {
+  const idb = new Map();
+  idb.set("pairing", { schema: 1, secretHex: "ab".repeat(32), relayUrl: "wss://relay.example" });
+  idb.set("snapshot", { schema: 1, snapshot: SNAP, takenAt: "2026-11-06T09:00:00Z" });
+  const r = await run({ idb });
+  const timers = [];
+  r.sandbox.setTimeout = (fn) => { timers.push(fn); return timers.length; };
+  r.sandbox.WebSocket = class { constructor() { throw new Error("relay down"); } };
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await until(() => /Saved copy from your phone/.test(r.nodes.hint.textContent), "the first offline hint");
+  for (let failures = 2; failures <= 4; failures++) {
+    await timers.shift()();
+    await until(() => timers.length > 0 || /forget this computer/.test(r.nodes.hint.textContent), `failure ${failures} handled`);
+  }
+  await until(() => /forget this computer and pair again/.test(r.nodes.hint.textContent), "the re-pair hint");
+  assert.match(r.nodes.hint.textContent, /forget this computer and pair again/);
+});

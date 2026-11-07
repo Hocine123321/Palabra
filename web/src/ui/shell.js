@@ -1,12 +1,15 @@
-// The page: pairing card, link, snapshot, tabs. Thin on purpose; the logic it calls is tested in Node.
+// The page: pairing card, offline copy, link, tabs. Thin on purpose; everything it calls is tested in Node.
 import { pairWithPhone, openLink } from "../link-client.js";
+import { toHex } from "../link-crypto.js";
+import { createCache, idbStore, memoryStore } from "../cache.js";
+import { createSync } from "../sync.js";
 import { renderLibrary, renderStudy, renderStatus } from "./render.js";
 import { makeT, pickLanguage, dirFor, errorText } from "./strings.js";
 
 const $ = (s) => document.querySelector(s);
 
-export function start(root = document) {
-  const state = { snapshot: null, takenAt: null, tab: "library", filters: {}, link: "idle", message: "" };
+export async function start() {
+  const state = { snapshot: null, takenAt: null, tab: "library", filters: {}, link: "connecting", message: "" };
   const isFile = location.protocol === "file:";
   const lang = pickLanguage(navigator.languages?.length ? navigator.languages : [navigator.language]);
   const t = makeT(lang);
@@ -15,32 +18,83 @@ export function start(root = document) {
   for (const node of document.querySelectorAll("[data-i18n]")) node.textContent = t(node.dataset.i18n);
   for (const node of document.querySelectorAll("[data-i18n-aria]")) node.setAttribute("aria-label", t(node.dataset.i18nAria));
 
+  // Nothing is written to the browser unless the person ticks "Remember this computer".
+  let remembered = false;
+  const memory = createCache(memoryStore());
+  const disk = (() => { try { return createCache(idbStore()); } catch { return memory; } })();
+  let cache = memory;
+
+  const STUCK_AFTER = 4;   // failed attempts in a row before suggesting the pairing may have been removed on the phone
+  function hint() {
+    const stuck = (state.failures ?? 0) >= STUCK_AFTER && (state.link === "away" || state.link === "empty");
+    const key = stuck ? "Phone not answering. If you removed this browser in the app, forget this computer and pair again."
+      : state.link === "away" ? "Saved copy from your phone. Open Palabra on the phone to update."
+      : state.link === "empty" ? "Nothing saved yet. Connect to your phone first." : "";
+    $("#hint").textContent = key ? t(key) : "";
+  }
+
   function paint() {
     if (!state.snapshot) return;
     $("#status").innerHTML = renderStatus({ state: state.link, takenAt: state.takenAt, message: state.message }, t);
     $("#view").innerHTML = state.tab === "library" ? renderLibrary(state.snapshot, state.filters, t) : renderStudy(state.snapshot, t);
-    for (const b of document.querySelectorAll("nav.tabs button")) b.toggleAttribute("aria-current", b.dataset.tab === state.tab) || b.removeAttribute("aria-current");
-    for (const b of document.querySelectorAll("nav.tabs button[aria-current]")) b.setAttribute("aria-current", "page");
+    for (const b of document.querySelectorAll("nav.tabs button")) {
+      if (b.dataset.tab === state.tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    }
+    hint();
     const search = $("#search");
-    if (search) search.addEventListener("input", (e) => { state.filters.query = e.target.value; const at = e.target.selectionStart; paint(); const s = $("#search"); s.focus(); s.setSelectionRange(at, at); });
-    for (const c of document.querySelectorAll(".chip")) c.addEventListener("click", () => { state.filters.tag = c.dataset.tag || null; paint(); });
+    if (search) search.addEventListener("input", (e) => {
+      state.filters.query = e.target.value; const at = e.target.selectionStart; paint();
+      const again = $("#search"); again.focus(); again.setSelectionRange(at, at);
+    });
+    for (const c of document.querySelectorAll(".chip[data-tag]")) c.addEventListener("click", () => { state.filters.tag = c.dataset.tag || null; paint(); });
   }
 
   for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => { state.tab = b.dataset.tab; paint(); });
+
+  let sync = null, pairing = null;
+  function begin(pair) {
+    pairing = pair;
+    sync?.stop();
+    sync = createSync({
+      cache, openLink,
+      onChange: (v) => {
+        Object.assign(state, { snapshot: v.snapshot, takenAt: v.takenAt, link: v.state, message: v.message, failures: v.failures });
+        if (v.snapshot) { $("#pairing").hidden = true; $("#app").hidden = false; paint(); }
+        else if (v.state === "empty") { $("#pairing").hidden = true; $("#app").hidden = false; $("#status").innerHTML = renderStatus({ state: "away", takenAt: null }, t); hint(); $("#view").innerHTML = ""; }
+      },
+    });
+    return sync.showCached().then(() => sync.start(pair.secretHex, pair.relayUrl));   // saved copy first, then the phone
+  }
+
+  $("#sync").addEventListener("click", () => sync?.refresh());
+  $("#forget").addEventListener("click", async () => {
+    sync?.stop(); sync = null; pairing = null;
+    await disk.clearAll(); await memory.clearAll();
+    Object.assign(state, { snapshot: null, takenAt: null, link: "idle" });
+    $("#app").hidden = true; $("#pairing").hidden = false; $("#view").innerHTML = ""; $("#err").textContent = "";
+  });
 
   $("#pair").addEventListener("submit", async (event) => {
     event.preventDefault();
     const go = $("#go"); go.disabled = true; $("#err").textContent = "";
     try {
       const secret = await pairWithPhone({ address: $("#address").value, code: $("#code").value.trim(), isFileOrigin: isFile });
-      state.link = "connecting"; $("#pairing").hidden = true; $("#app").hidden = false;
-      const link = await openLink({ relayUrl: $("#relay").value.trim(), secret });
-      const reply = await link.request("snapshot");
-      state.snapshot = reply.snapshot; state.takenAt = reply.takenAt; state.link = "linked";
-      paint();
+      const pair = { secretHex: toHex(secret), relayUrl: $("#relay").value.trim() };
+      remembered = $("#remember").checked;
+      cache = remembered ? disk : memory;
+      if (remembered) await disk.savePairing(pair);
+      $("#code").value = "";
+      await begin(pair);
     } catch (e) {
       $("#pairing").hidden = false; $("#app").hidden = true;
       $("#err").textContent = errorText(e, t);
     } finally { go.disabled = false; }
   });
+
+  // A remembered computer opens straight onto its saved copy, then reconnects on its own.
+  const saved = await disk.loadPairing();
+  if (saved) {
+    remembered = true; cache = disk;
+    await begin({ secretHex: saved.secretHex, relayUrl: saved.relayUrl });
+  }
 }

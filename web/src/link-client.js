@@ -70,7 +70,7 @@ export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOr
 }
 
 /** Connects to the relay with the session secret and returns a small object to send pings. */
-export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, timeoutMs = 15000 }) {
+export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, timeoutMs = 15000, onClose = () => {} }) {
   const room = await roomId(secret);
   const session = await Session.open(secret, "web");
   const ws = new WebSocketImpl(`${relayUrl.replace(/\/+$/, "")}/r/${room}`);
@@ -80,7 +80,7 @@ export async function openLink({ relayUrl, secret, WebSocketImpl = WebSocket, ti
     try { rpc.receive(await session.open(new Uint8Array(event.data))); }
     catch { /* not for us, tampered or replayed: ignore */ }
   });
-  ws.addEventListener("close", () => rpc.failAll("link-lost"));
+  ws.addEventListener("close", () => { rpc.failAll("link-lost"); onClose(); });
   await new Promise((resolve, reject) => {
     ws.addEventListener("open", resolve, { once: true });
     ws.addEventListener("error", () => reject({ kind: "relay", message: "Could not reach the relay. Check its address." }), { once: true });

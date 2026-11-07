@@ -35,3 +35,4 @@ ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-sm); 
 
 [dir="rtl"] .toolbar .count { text-align: start; }
 .es, .tr { unicode-bidi: plaintext; }
+.small { font-size: 13px; margin: 0; } .check { display: flex !important; grid-template-columns: none; gap: var(--sp-sm); align-items: center; font-weight: 500 !important; } .check input { width: auto; } .actions { display: flex; gap: var(--sp-xs); }

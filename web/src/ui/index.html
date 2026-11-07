@@ -16,12 +16,16 @@
       <label><span data-i18n="Phone address">Phone address</span><input id="address" placeholder="192.168.1.20" inputmode="decimal" required></label>
       <label><span data-i18n="Code you chose on the phone">Code you chose on the phone</span><input id="code" inputmode="numeric" autocomplete="off" required></label>
       <label><span data-i18n="Relay address">Relay address</span><input id="relay" placeholder="wss://palabra-relay.yourname.workers.dev" required></label>
+      <label class="check"><input id="remember" type="checkbox"><span data-i18n="Remember this computer">Remember this computer</span></label>
+      <p class="muted small" data-i18n="Saves your words and the link key in this browser so the page opens without the phone. Anyone who can use this browser profile can read them. Leave it off on a shared computer.">Saves your words and the link key in this browser so the page opens without the phone. Anyone who can use this browser profile can read them. Leave it off on a shared computer.</p>
       <p id="err" class="err" role="alert"></p>
       <button id="go" class="primary" type="submit" data-i18n="Connect">Connect</button>
     </form>
   </section>
   <div id="app" hidden>
-    <div class="bar-top glass"><div id="status" class="status" aria-live="polite"></div></div>
+    <div class="bar-top glass"><div id="status" class="status" aria-live="polite"></div>
+      <span class="actions"><button id="sync" class="chip" data-i18n="Sync now">Sync now</button><button id="forget" class="chip" data-i18n="Forget this computer">Forget this computer</button></span></div>
+    <p id="hint" class="muted small" role="status"></p>
     <div id="view"></div>
     <nav class="tabs glass" aria-label="Sections" data-i18n-aria="Sections">
       <button data-tab="library" aria-current="page" data-i18n="Library">Library</button>
