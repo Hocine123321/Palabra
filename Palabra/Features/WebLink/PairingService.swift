@@ -31,6 +31,11 @@ final class PairingService: @unchecked Sendable {
     /// If it did not, the page is told the pairing failed instead of being handed a secret the phone does not have.
     var onPaired: (@Sendable (Data) -> Bool)?
 
+    /// The relay address this phone uses. It travels to the browser inside the same sealed box as the secret, so the browser
+    /// joins the very relay the phone is on and nobody has to type the address twice (a mismatch looked like "both connected,
+    /// nobody there": two ends on different relays, each reporting a healthy connection).
+    var relayURL: @Sendable () -> String = { "" }
+
     init(lockout: PairingLockout = PairingLockout(),
          config: Config = Config(),
          now: @escaping @Sendable () -> Date = { Date() },
@@ -96,7 +101,7 @@ final class PairingService: @unchecked Sendable {
             lock.unlock()
             persist(snapshot)
             do {
-                let wrapped = try LinkCrypto.wrapSecret(code: code, nonce: nonce, secret: secret)
+                let wrapped = try LinkCrypto.wrapSecret(code: code, nonce: nonce, secret: secret + Data(relayURL().trimmingCharacters(in: .whitespacesAndNewlines).utf8.prefix(200)))
                 guard onPaired?(secret) ?? true else { return .badRequest }
                 return .paired(iv: wrapped.iv, sealed: wrapped.sealed)
             } catch {

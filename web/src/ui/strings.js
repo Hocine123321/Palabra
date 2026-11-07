@@ -107,6 +107,7 @@ export const AR = {
   "Lessons are added to the app in updates.": "تُضاف الدروس إلى التطبيق مع التحديثات.",
   "This part is best read on the phone.": "الأفضل قراءة هذا الجزء على الهاتف.",
   "The phone must be connected to show this.": "يجب أن يكون الهاتف متصلاً لعرض هذا.",
+  "Relay address (optional, the phone tells the page)": "عنوان المُرحِّل (اختياري، الهاتف يخبر الصفحة به)",
   "Nothing to show yet": "لا شيء لعرضه بعد",
   "Try again": "حاول مرة أخرى",
   "Phone not reachable": "الهاتف غير متاح",

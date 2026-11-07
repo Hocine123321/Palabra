@@ -119,17 +119,19 @@ test("Forget this computer deletes the key and every saved word, and returns to 
 import { wrapSecret, toHex, Session } from "../src/link-crypto.js";
 
 /** A fake phone for the pairing form: real wrapping of a known secret, and a socket that answers `snapshot` like the app. */
-async function phoneAndRelay(code) {
+async function phoneAndRelay(code, phoneRelay = "wss://phone-relay.example") {
   const secret = new Uint8Array(32).fill(9);
   const nonce = new Uint8Array(16).fill(1);
-  const { iv, ct } = await wrapSecret(code, nonce, secret);
+  const sealedPayload = new Uint8Array([...secret, ...new TextEncoder().encode(phoneRelay)]);   // like the app: secret, then its relay address
+  const { iv, ct } = await wrapSecret(code, nonce, sealedPayload);
   const fetch = async (url, opts) => {
     if (String(url).endsWith("/hello")) return { ok: true, status: 200, json: async () => ({ nonce: toHex(nonce) }) };
     return { ok: true, status: 200, json: async () => ({ iv: toHex(iv), sealed: toHex(ct) }) };
   };
   const appSession = await Session.open(secret, "app");
+  const opened = [];
   class Socket {
-    constructor() { this.listeners = {}; queueMicrotask(() => this.listeners.open?.[0]()); }
+    constructor(url) { opened.push(String(url)); this.listeners = {}; queueMicrotask(() => this.listeners.open?.[0]()); }
     addEventListener(e, f) { (this.listeners[e] ??= []).push(f); }
     removeEventListener() {}
     close() { this.listeners.close?.forEach((f) => f()); }
@@ -140,7 +142,7 @@ async function phoneAndRelay(code) {
       queueMicrotask(() => this.listeners.message?.forEach((f) => f({ data: sealedReply.buffer.slice(sealedReply.byteOffset, sealedReply.byteOffset + sealedReply.byteLength) })));
     }
   }
-  return { fetch, Socket };
+  return { fetch, Socket, opened };
 }
 
 async function pairThroughTheForm({ remember }) {
@@ -177,7 +179,7 @@ test("with Remember OFF (the default) the browser keeps nothing: no key, no word
 test("with Remember ON the key and the words are saved, and the secret is the one the phone gave", async () => {
   const r = await pairThroughTheForm({ remember: true });
   assert.equal(r.idb.get("pairing").secretHex, "09".repeat(32));
-  assert.equal(r.idb.get("pairing").relayUrl, "wss://relay.example");
+  assert.equal(r.idb.get("pairing").relayUrl, "wss://phone-relay.example");   // the phone's address wins over the one typed (wss://relay.example)
   assert.equal(r.idb.get("snapshot").snapshot.words[0].spanish, "hola");
 });
 
@@ -364,4 +366,37 @@ test("the Chat tab shows the latest chat and the Books tab opens a lesson, all t
   await until(() => /Historia/.test(r.nodes.view.innerHTML), "books shown");
   assert.match(r.nodes.view.innerHTML, /data-lesson="l1"/);
   assert.equal(r.idb.size, 0, "nothing stored for chat or books");
+});
+
+test("the page joins the relay the PHONE is on, even when a different one was typed (the 'both connected, nobody there' bug)", async () => {
+  const r = await run();
+  const phone = await phoneAndRelay("482913", "wss://phone-relay.example");
+  r.sandbox.fetch = phone.fetch;
+  r.sandbox.WebSocket = phone.Socket;
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await new Promise((x) => setImmediate(x));
+  Object.assign(r.nodes.address, { value: "192.168.1.20" });
+  Object.assign(r.nodes.code, { value: "482913" });
+  Object.assign(r.nodes.relay, { value: "wss://some-other-relay.example" });   // a typo, an old worker, anything
+  await r.nodes.pair.listeners.submit({ preventDefault() {} });
+  await until(() => phone.opened.length > 0, "a relay was joined");
+  assert.match(phone.opened[0], /^wss:\/\/phone-relay\.example\/r\//, phone.opened[0]);
+});
+
+test("pairing with an older app that sends no relay address still works from the typed one, and says so if neither exists", async () => {
+  const r = await run();
+  const phone = await phoneAndRelay("482913", "");            // an older app: the sealed payload is the secret alone
+  r.sandbox.fetch = phone.fetch;
+  r.sandbox.WebSocket = phone.Socket;
+  vm.createContext(r.sandbox);
+  vm.runInContext(script, r.sandbox);
+  await new Promise((x) => setImmediate(x));
+  Object.assign(r.nodes.address, { value: "192.168.1.20" });
+  Object.assign(r.nodes.code, { value: "482913" });
+  Object.assign(r.nodes.relay, { value: "" });
+  await r.nodes.pair.listeners.submit({ preventDefault() {} });
+  await until(() => r.nodes.err.textContent !== "", "asked for the relay address");
+  assert.match(r.nodes.err.textContent, /relay address/i);
+  assert.equal(phone.opened.length, 0, "nothing was joined without an address");
 });

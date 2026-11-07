@@ -2,7 +2,7 @@
 // No UI framework; link-proof.html drives it. Everything that touches the network takes its `fetch`
 // and `WebSocket` as arguments so the Node tests can run the whole flow against fakes.
 
-import { fromHex, toHex, pairingProof, unwrapSecret, roomId, Session } from "./link-crypto.js";
+import { fromHex, toHex, pairingProof, unwrapSecret, roomId, Session, SECRET_BYTES } from "./link-crypto.js";
 import { createRpc } from "./link-rpc.js";
 
 export const PAIRING_PORT = 47615;
@@ -67,6 +67,18 @@ export async function pairWithPhone({ address, code, fetchImpl = fetch, isFileOr
   } catch {
     throw { kind: "bad-reply", message: "The phone's answer could not be opened." };
   }
+}
+
+/** The sealed pairing payload is the 32-byte secret, then (from this version of the app) the phone's own relay address. */
+export function splitPairing(opened) {
+  const bytes = opened instanceof Uint8Array ? opened : new Uint8Array(opened);
+  const relay = bytes.length > SECRET_BYTES ? new TextDecoder().decode(bytes.subarray(SECRET_BYTES)).trim() : "";
+  return { secret: bytes.slice(0, SECRET_BYTES), relayUrl: relay };
+}
+
+/** Pairs, and also returns the relay address the phone is using (empty with an older app). */
+export async function pairWithPhoneFull(options) {
+  return splitPairing(await pairWithPhone(options));
 }
 
 /** Turns what the person typed for the relay into a websocket address. Accepts wss://, ws://, https://, http:// or a bare host. */

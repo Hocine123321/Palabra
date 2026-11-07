@@ -81,3 +81,16 @@ test("a relay that never opens is a failure with a reason, never an endless 'Con
     await assert.rejects(openLink({ relayUrl: "wss://r.example", secret, WebSocketImpl: class extends DeadSocket { constructor() { super(how); } }, connectTimeoutMs: 40 }), (e) => e.kind === kind, how);
   }
 });
+
+import { splitPairing } from "../src/link-client.js";
+import { SECRET_BYTES } from "../src/link-crypto.js";
+
+test("the sealed pairing payload is the secret, then the phone's relay address (older apps send the secret alone)", () => {
+  const secret = new Uint8Array(SECRET_BYTES).fill(7);
+  const withRelay = splitPairing(new Uint8Array([...secret, ...new TextEncoder().encode("wss://r.example ")]));
+  assert.deepEqual(withRelay.secret, secret);
+  assert.equal(withRelay.relayUrl, "wss://r.example");
+  const alone = splitPairing(secret);
+  assert.deepEqual(alone.secret, secret);
+  assert.equal(alone.relayUrl, "");
+});

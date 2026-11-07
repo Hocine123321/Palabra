@@ -154,4 +154,32 @@ final class PairingServiceTests: XCTestCase {
         XCTAssertEqual(secrets.count, 2)
         XCTAssertNotEqual(secrets[0], secrets[1])
     }
+
+    /// The browser opens the sealed box with the code; what it finds is the secret, then the phone's own relay address.
+    private func open(_ reply: PairingService.Reply, code: String, nonce: Data) throws -> Data {
+        guard case .paired(let iv, let sealed) = reply else { XCTFail("not paired"); return Data() }
+        return try LinkCrypto.unwrapSecret(code: code, nonce: nonce, iv: iv, sealed: sealed)
+    }
+
+    func testThePhoneTellsTheBrowserWhichRelayItIsOnAndTheStoredSecretStaysThirtyTwoBytes() throws {
+        let stored = Box<[Data]>([])
+        let service = make()
+        service.relayURL = { "  wss://my-relay.example.workers.dev " }
+        service.onPaired = { stored.value.append($0); return true }
+        service.open(code: "482913")
+        let n = nonce(service)
+        let opened = try open(service.pair(nonce: n, proof: LinkCrypto.pairingProof(code: "482913", nonce: n)), code: "482913", nonce: n)
+        XCTAssertEqual(opened.count, LinkCrypto.secretBytes + "wss://my-relay.example.workers.dev".utf8.count)
+        XCTAssertEqual(String(decoding: opened.suffix(from: LinkCrypto.secretBytes), as: UTF8.self), "wss://my-relay.example.workers.dev")
+        XCTAssertEqual(stored.value.first, opened.prefix(LinkCrypto.secretBytes), "the phone keeps only the secret")
+        XCTAssertEqual(stored.value.first?.count, LinkCrypto.secretBytes)
+    }
+
+    func testWithNoRelayAddressTheBoxIsJustTheSecretLikeBefore() throws {
+        let service = make()
+        service.open(code: "482913")
+        let n = nonce(service)
+        let opened = try open(service.pair(nonce: n, proof: LinkCrypto.pairingProof(code: "482913", nonce: n)), code: "482913", nonce: n)
+        XCTAssertEqual(opened.count, LinkCrypto.secretBytes)
+    }
 }

@@ -34,6 +34,8 @@ final class WebLinkController {
     @ObservationIgnored private var connectedRelay: String?
     /// Set by the app once the capability registry exists. Without it the link only answers `ping`.
     @ObservationIgnored var dispatcher: WebLinkDispatcher?
+    @ObservationIgnored private var reconnectTask: Task<Void, Never>?
+    @ObservationIgnored private var backoff = ReconnectBackoff()
     @ObservationIgnored private let setIdleTimerDisabled: @MainActor (Bool) -> Void
 
     init(settings: WebLinkSettings = WebLinkSettings(),
@@ -44,6 +46,7 @@ final class WebLinkController {
         self.setIdleTimerDisabled = setIdleTimerDisabled
         let store = settings
         self.service = PairingService(lockout: settings.lockout, persist: { store.lockout = $0 })
+        self.service.relayURL = { store.relayURL }
         self.listener = LocalPairingListener(service: service)
         refresh()
     }
@@ -125,6 +128,8 @@ final class WebLinkController {
         // Already connected to this very room: leave it alone. Rebuilding would kick the browser off for nothing
         // (the scene phase flips to active for many small reasons).
         if relay != nil, relayIsUp, connectedRoom == client.roomIDValue, connectedRelay == settings.relayURL { return }
+        relay?.onState = nil             // the old client's goodbye must not look like a dropped connection
+        relay?.onFrame = nil
         relay?.disconnect()
         connectedRoom = client.roomIDValue
         connectedRelay = settings.relayURL
@@ -137,6 +142,11 @@ final class WebLinkController {
     }
 
     private func disconnect() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        backoff.reset()
+        relay?.onState = nil             // leaving on purpose is not a dropped connection
+        relay?.onFrame = nil
         relay?.disconnect()
         relay = nil
         connectedRoom = nil
@@ -148,9 +158,35 @@ final class WebLinkController {
     private func relayChanged(_ state: RelayClient.State) {
         relayIsUp = state == .connected
         switch state {
-        case .connected: link = .waitingForBrowser
-        case .failed(let message): link = .failed(message)
-        case .connecting, .disconnected: link = settings.isEnabled ? .waitingForBrowser : .off
+        case .connected:
+            link = .waitingForBrowser
+            backoff.reset()
+        case .failed(let message):
+            link = .failed(message)
+            // "Room full" means another browser really holds the link: retrying would not help. Anything else is a dropped socket
+            // (Wi-Fi blip, iOS closing an idle connection) and must heal on its own, or the phone waits for a browser forever.
+            if !message.hasPrefix("Another browser") { scheduleReconnect() }
+        case .disconnected:
+            link = settings.isEnabled ? .waitingForBrowser : .off
+            if relay != nil { scheduleReconnect() }      // `relay` is nil when we disconnected on purpose
+        case .connecting:
+            link = settings.isEnabled ? .waitingForBrowser : .off
+        }
+    }
+
+    /// Tries again after 1, 2, 4, 8, then every 15 seconds, only while the app is in front and Web Access is on.
+    /// A newer connection (or leaving the foreground) cancels a pending try, so tries never pile up.
+    private func scheduleReconnect() {
+        guard settings.isEnabled, appActive, keychain.read() != nil else { return }
+        reconnectTask?.cancel()
+        let delay = backoff.next()
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.appActive, self.settings.isEnabled, !self.relayIsUp else { return }
+                self.connect()
+            }
         }
     }
 

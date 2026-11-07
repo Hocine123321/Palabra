@@ -1,5 +1,5 @@
 // The page: pairing card, offline copy, link, tabs. Thin on purpose; everything it calls is tested in Node.
-import { pairWithPhone, openLink } from "../link-client.js";
+import { pairWithPhoneFull, openLink, relayBase } from "../link-client.js";
 import { toHex } from "../link-crypto.js";
 import { createCache, idbStore, memoryStore } from "../cache.js";
 import { createSync } from "../sync.js";
@@ -174,8 +174,12 @@ export async function start() {
     event.preventDefault();
     const go = $("#go"); go.disabled = true; $("#err").textContent = "";
     try {
-      const secret = await pairWithPhone({ address: $("#address").value, code: $("#code").value.trim(), isFileOrigin: isFile });
-      const pair = { secretHex: toHex(secret), relayUrl: $("#relay").value.trim() };
+      const { secret, relayUrl: fromPhone } = await pairWithPhoneFull({ address: $("#address").value, code: $("#code").value.trim(), isFileOrigin: isFile });
+      // The phone says which relay it is on; that wins over anything typed here, so the two ends cannot end up on different relays.
+      const typed = $("#relay").value.trim();
+      const chosen = fromPhone || typed;
+      if (!chosen) throw { kind: "relay-address", message: "Type the relay address, like wss://palabra-relay.yourname.workers.dev" };
+      const pair = { secretHex: toHex(secret), relayUrl: relayBase(chosen) };
       remembered = $("#remember").checked;
       cache = remembered ? disk : memory;
       if (remembered) await disk.savePairing(pair);

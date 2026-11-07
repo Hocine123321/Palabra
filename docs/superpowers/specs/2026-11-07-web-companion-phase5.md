@@ -67,3 +67,15 @@ Two more tabs, read-only, over the same encrypted link. Nothing from either is s
 - The relay address is tidied (`https://` becomes `wss://`, trailing slashes dropped) and obvious mistakes are explained.
 - The status shows its step ("Reaching the relay...", then "Reached the relay. Waiting for the phone..."). At most about 25 s passes before a reason appears.
 - The phone never drops a request silently: a reply that cannot be built or sealed is answered with a `reject`.
+
+
+## Fix: "waiting for the browser" on the phone, "waiting for the phone" on the page
+
+Both ends said the relay was fine, yet never met. Two causes, both fixed:
+
+1. **The relay address was typed in two places.** The phone used the one in its Settings, the page the one typed on the pairing card. Any difference (another Worker, an old deploy, a typo) put the two ends in different relays, each reporting a healthy connection. Now the phone seals its own relay address together with the session secret (`secret(32) | address`, inside the same encrypted box, so the network sees neither). The page joins that address and ignores a typed one; the field is optional and only used with an older app that sends none. The phone stores only the 32-byte secret.
+2. **The phone never reconnected.** When its socket failed or closed (Wi-Fi blip, iOS closing an idle socket), it showed "waiting for the browser" with a dead connection until the app was reopened. It now retries after 1, 2, 4, 8, then every 15 seconds while the app is in front and Web Access is on, and stops only for "another browser is already linked". Leaving the app or switching relay does not trigger a retry.
+
+The relay still refuses a third end on purpose: evicting the oldest would let anyone who learns a room id push the real phone out.
+
+Pairings made with the old app have no relay address inside, so the page falls back to the typed one. Install the new build on the phone and pair again for the automatic behaviour.

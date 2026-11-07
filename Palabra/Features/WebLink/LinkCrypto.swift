@@ -40,6 +40,14 @@ enum LinkCrypto {
         return (Data(sealedBox.nonce), sealedBox.ciphertext + sealedBox.tag)
     }
 
+    /// The inverse of `wrapSecret`: what the browser does with the code it was given. The app itself never needs it; the tests use it
+    /// to check what really travels to the page.
+    static func unwrapSecret(code: String, nonce: Data, iv: Data, sealed: Data) throws -> Data {
+        let key = hkdf(Data(code.utf8), salt: nonce, info: "palabra-wrap-v1", count: 32)
+        let box = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: iv), ciphertext: sealed.dropLast(16), tag: sealed.suffix(16))
+        return try AES.GCM.open(box, using: key, authenticating: nonce)
+    }
+
     /// The relay room id, derived from the secret so the relay never learns the code or the secret.
     static func roomID(secret: Data) -> String {
         bytes(hkdf(secret, salt: Data(), info: "palabra-room-v1", count: 16)).map { String(format: "%02x", $0) }.joined()
