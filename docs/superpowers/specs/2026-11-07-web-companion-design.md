@@ -25,10 +25,10 @@ only allowed from the same Wi-Fi.
    typography, spacing and flows as the app (Recortes & Glass, Claude Orange accent, the app's radii), except iOS-only elements.
 2. **Link by relay.** The app and the file each open an outgoing WebSocket to the relay and exchange messages. Same-Wi-Fi and
    internet use the same path. A direct local connection may be tried first as a later optimisation; it is not required.
-3. **Pairing and encryption.** The HTML file carries a **pairing code hardcoded in it** (generated when the file is built or
-   exported from the app). The app shows the same code. The two must match for the link to open. Pairing only works from the
-   **same Wi-Fi network**, so a stranger on another network cannot pair (see "Same-Wi-Fi pairing" below). Once paired, messages
-   are end-to-end encrypted with a key derived from the code, so the relay sees only opaque bytes and holds nothing.
+3. **Pairing and encryption.** The person **chooses a pairing code in the app** and **types it into the HTML page**. The link only
+   opens when the two match; any other code is refused, and repeated wrong codes lock pairing out for a while (see
+   "Same-Wi-Fi pairing"). Pairing only works from the **same Wi-Fi network**, so a stranger on another network cannot pair. Once
+   paired, messages are end-to-end encrypted with a session secret, so the relay sees only opaque bytes and holds nothing.
 4. **Keep the phone awake while the feature is on.** The app disables the idle timer (`isIdleTimerDisabled`) while web access
    is switched on, and shows a clear "Web access is on" state. The setting says it uses more battery.
 5. **Works with the phone offline.** The first time the file connects it pulls a snapshot of the app's data into the browser's
@@ -58,17 +58,21 @@ connection**, and the relay is used only afterwards:
 1. The app opens a small local listener (Network.framework, `Bonjour` service) only while the **Pair a browser** screen is open.
 2. The HTML file, opened on the PC on the same network, finds it and connects to the phone's local address. This direct hop is
    the proof of "same network": a device on another Wi-Fi cannot reach a private address.
-3. The file sends its hardcoded code. The app checks it matches. If so, the app returns a **session secret** over that local
-   hop, and both store it. The code alone is not enough, and the secret never touches the relay in the clear.
+3. The person types the code (chosen in the app) into the page, and the page sends it. The app checks it matches. If so, the app
+   returns a **session secret** over that local hop, and both store it. The code alone is not enough, and the secret never
+   touches the relay in the clear. **A wrong code is refused. After 5 wrong tries the app refuses all attempts for a lockout
+   that grows with each repeat (30 seconds, then 2 minutes, then 10 minutes, capped at 1 hour), and says so on both screens.**
+   The counter lives in the app, so reloading the page does not reset it.
 4. From then on the two connect out to the relay (Wi-Fi or internet) and encrypt with the session secret. The relay never sees
    the code or the secret.
 5. Pairing can be redone or revoked from the app at any time; revoking invalidates the secret.
 
-Consequences, stated honestly: the hardcoded code only proves the file belongs to this person (it is not a secret that survives
-the file being shared); the **same-network check** is what blocks strangers. Because browsers may ask for local-network
-permission, or block `file://` pages from reaching a LAN address, pairing may need a one-time browser prompt, and the build must
-prototype this first (phase 1). If a browser refuses it outright, the fallback is to type the app's code into the page, with the
-app confirming from the local side.
+Consequences, stated honestly: the code is short enough to type, so it is not strong on its own. What protects the link is the
+**same-network check plus the lockout**: a stranger must be on this Wi-Fi, and gets only a few guesses per lockout window.
+The code should be at least 6 digits, shown in the app only while pairing is open, and changed each time pairing is opened.
+Because browsers may ask for local-network permission, or block `file://` pages from reaching a LAN address, pairing may need
+a one-time browser prompt, and the build must prototype this first (phase 1). If a browser refuses it outright, there is no
+automatic fallback: the page says so and points to a browser that allows it.
 
 ## Cache scope
 
@@ -137,7 +141,8 @@ Palabra/App/CapabilityProviders.swift   reused as the data door: the web UI read
 
 - **Relay host:** a Cloudflare Worker with a Durable Object relaying WebSocket frames, free tier, owned by the person's own
   Cloudflare account. Chosen because it needs no server, stores nothing, and the free tier covers one person's traffic.
-- **Pairing UI:** a hardcoded code in the HTML file that must match the app's code, no QR (see "Same-Wi-Fi pairing").
+- **Pairing UI:** the person chooses the code in the app and types it into the HTML page; a wrong code is refused and repeated
+  failures lock out for a growing time. No QR, and no code stored in the HTML file (see "Same-Wi-Fi pairing").
 - **Books:** only the 2D pages UI is part of the web version; Books content is cached by visit order (see "Cache scope"). The
   3D desk is not rebuilt in WebGL for the first versions.
 - **Chat:** only the most recent conversation is cached for offline use; older ones need a connection.
@@ -145,7 +150,7 @@ Palabra/App/CapabilityProviders.swift   reused as the data door: the web UI read
 ## Open questions
 
 - Whether browsers let a `file://` page reach the phone's local address for the pairing hop (Chrome and Edge ask for
-  local-network permission; Safari is stricter). Phase 1 settles this; the typed-code fallback is described above.
-- Who builds and refreshes the HTML file: exported from the app (code baked in per device) or built from `web/` and given a code
-  on first open. Exporting from the app is simpler for matching codes; it needs a share/save step on the phone.
+  local-network permission; Safari is stricter). Phase 1 settles this.
+- How the HTML file reaches the person's PC. It holds no per-device secret any more, so one built file works for everyone and
+  can simply be downloaded from the repo's releases or exported from the app. Which of the two is open.
 - What the relay does about abuse (rate limits per room), since it is a public address, even though it stores nothing.
