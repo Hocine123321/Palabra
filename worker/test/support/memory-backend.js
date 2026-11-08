@@ -14,6 +14,7 @@ export function makeMemoryBackend(opts = {}) {
   const mirrors = new Map();
   return {
     clock,
+    limits: opts.limits,
     gate,
     mirrors,
     async createMirror({ deviceId, ownerTokenHash }) {

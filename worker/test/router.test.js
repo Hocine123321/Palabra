@@ -12,7 +12,7 @@ async function call(backend, method, path, { body, auth, ip, headers = {}, raw }
   const init = { method, headers: h };
   if (raw !== undefined) init.body = raw;
   else if (body !== undefined) init.body = JSON.stringify(body);
-  const res = await handleApi(new Request(`https://x.test${path}`, init), backend);
+  const res = await handleApi(new Request(`https://x.test${path}`, init), backend, { limits: backend.limits });
   const text = await res.text();
   let json = null;
   try { json = JSON.parse(text); } catch { /* not json */ }
@@ -190,4 +190,60 @@ test("a store that throws becomes 500 without echoing the message", async () => 
   const r = await call(backend, "POST", "/api/pair/start");
   assert.deepEqual([r.status, r.json], [500, { error: "internal" }]);
   assert.ok(!r.text.includes("secret"));
+});
+
+test("per-address limits treat a whole IPv6 /64 as one address", async () => {
+  const backend = makeMemoryBackend();
+  for (let i = 0; i < 10; i++) {
+    const r = await call(backend, "POST", "/api/pair/start", { ip: `2001:db8:1:2:${i}::${i + 1}` });
+    assert.equal(r.status, 201);
+  }
+  assert.equal((await call(backend, "POST", "/api/pair/start", { ip: "2001:db8:1:2:ffff:1:2:3" })).status, 429);
+  assert.equal((await call(backend, "POST", "/api/pair/start", { ip: "2001:db8:1:3::1" })).status, 201, "another /64 is separate");
+});
+
+test("odd method names are 405 or 404, never a crash or a non-Response", async () => {
+  const backend = makeMemoryBackend();
+  for (const method of ["valueOf", "hasOwnProperty", "toString", "constructor"]) {
+    const res = await handleApi({ method, url: "https://x.test/api/mirrors", headers: new Headers() }, backend);
+    assert.ok(res instanceof Response, method);
+    assert.equal(res.status, 405, method);
+  }
+});
+
+test("the body cap stops reading a stream that has no Content-Length", async () => {
+  const backend = makeMemoryBackend();
+  let pulled = 0;
+  const chunk = new Uint8Array(65_536).fill(65);
+  const body = new ReadableStream({
+    pull(controller) {
+      pulled += chunk.length;
+      controller.enqueue(chunk);
+      if (pulled > 40 * 1024 * 1024) controller.close();
+    },
+  });
+  const res = await handleApi(new Request("https://x.test/api/mirrors", { method: "POST", body, duplex: "half" }), backend);
+  assert.equal(res.status, 413);
+  assert.ok(pulled < 4 * 1024 * 1024, `read ${pulled} bytes`);
+});
+
+test("an unauthenticated PUT is refused before its body is read", async () => {
+  const backend = makeMemoryBackend();
+  const { mirrorId } = await newMirror(backend);
+  const body = new ReadableStream({ pull(c) { c.enqueue(new Uint8Array(10)); c.close(); } });
+  const request = new Request(`https://x.test/api/m/${mirrorId}/items`, { method: "PUT", body, duplex: "half" });
+  const res = await handleApi(request, backend);
+  assert.equal(res.status, 401);
+  assert.equal(request.bodyUsed, false);
+  assert.equal(request.body.locked, false);
+});
+
+test("a global daily cap on new mirrors holds across addresses", async () => {
+  const backend = makeMemoryBackend({ limits: { rates: { ...LIMITS.rates, mirrorsDay: [3, 86400] } } });
+  for (let i = 0; i < 3; i++) {
+    const r = await call(backend, "POST", "/api/mirrors", { ip: `10.0.0.${i}`, body: { deviceId: `d${i}`, ownerTokenHash: await sha256Hex("t") } });
+    assert.equal(r.status, 201);
+  }
+  const r = await call(backend, "POST", "/api/mirrors", { ip: "10.0.0.99", body: { deviceId: "dx", ownerTokenHash: await sha256Hex("t") } });
+  assert.equal(r.status, 429);
 });

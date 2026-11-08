@@ -6,7 +6,6 @@ const fail = (status, error) => ({ ok: false, status, error });
 const PAIR_ID_CHARS = 22; // 16 random bytes, base64url
 const PHONE_PUB_CHARS = 87; // 65-byte uncompressed P-256 point, base64url
 const SEALED_MAX = 4096;
-const LONGEST_RATE_WINDOW = 3600;
 
 /** The singleton in front of everything: pairing slots and per-IP rate counters. Holds no keys, only opaque blobs. */
 export class GateStore {
@@ -28,7 +27,6 @@ export class GateStore {
   startPairing() {
     const now = this.now();
     this.sql.run("DELETE FROM slots WHERE expiresAt < ?", now);
-    this.sql.run("DELETE FROM rates WHERE windowStart + ? < ?", LONGEST_RATE_WINDOW, now);
     const pairId = randomId(16);
     const expiresAt = now + this.limits.pairTtlSec;
     this.sql.run("INSERT INTO slots (pairId, state, expiresAt) VALUES (?, 'waiting', ?)", pairId, expiresAt);

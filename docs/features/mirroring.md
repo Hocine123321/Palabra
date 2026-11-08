@@ -37,13 +37,13 @@ A bearer is `Authorization: Bearer <deviceId>.<token>`; the server keeps only SH
 | `GET /api/m/<mirrorId>/devices` | `{devices}` |
 | `DELETE /api/m/<mirrorId>/devices/<deviceId>` | owner only, 200 `{}` |
 | `PUT /api/m/<mirrorId>/items` | owner only, `{items: [{id, sealed, deleted?}]}`, 200 `{seq}`; all or nothing |
-| `GET /api/m/<mirrorId>/items?since=&limit=` | `{items, seq, more}` |
+| `GET /api/m/<mirrorId>/items?since=&limit=` | `{items, seq, more}`; `seq` is the mirror's head, so continue a page from the last item's `seq`, never from `seq` |
 | `GET /api/m/<mirrorId>/state` | `{seq}` |
 
 Limits (all in `worker/src/limits.js`): body 1,048,576 bytes; one sealed item 262,144 characters; 200 items per PUT; a list page
-at most 200 items and about 900,000 sealed characters; 20,000 items per mirror; 8 browsers per mirror; a pairing slot lives
+at most 200 items and about 900,000 sealed characters; 20,000 items and 50,000,000 sealed characters per mirror; 8 browsers per mirror; a pairing slot lives
 120 seconds. Rates: 5 mirror creations per hour, 10 pairing starts and 20 joins per 10 minutes, 300 pairing polls per 10 minutes
-(per address); 120 item writes and 240 item reads per minute (per device).
+(per address; an IPv6 address counts as its /64), 50 new mirrors per day in total; 120 item writes and 240 item reads per minute (per device).
 
 ## Trust model
 
@@ -58,3 +58,5 @@ at most 200 items and about 900,000 sealed characters; 20,000 items per mirror; 
 CI runs the Worker's logic on Node and bundles it with `wrangler deploy --dry-run`. The Cloudflare runtime itself (Durable Objects,
 static assets, headers) is only exercised by the smoke test that runs after a real deploy (`worker/scripts/smoke.mjs`); with no
 secrets that test does not run. Real browsers and the phone's camera are not exercised by CI.
+
+Known gaps (deferred): a mirror is never deleted when idle; tombstones are never purged; unauthenticated probes of random mirror ids are not rate limited per address.

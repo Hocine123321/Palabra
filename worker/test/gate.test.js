@@ -114,3 +114,12 @@ test("rate: limit per key, independent keys, window resets", () => {
   clock.advance(600);
   assert.equal(gate.rate("ip1", 3, 600).ok, true);
 });
+
+test("stale rate counters are pruned when a new window opens", () => {
+  const { gate, clock, db } = makeGate();
+  gate.rate("old", 5, 60);
+  clock.advance(7200);
+  gate.rate("new", 5, 60);
+  const keys = db.prepare("SELECT key FROM rates").all().map((r) => r.key);
+  assert.deepEqual(keys, ["new"]);
+});

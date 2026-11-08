@@ -163,3 +163,13 @@ test("per-device rate limit answers 429 with retryAfter and resets with the wind
   clock.advance(60);
   assert.equal((await store.putItems(ownerBearer, [item(3)])).ok, true);
 });
+
+test("a mirror has a total size cap; replacing with a smaller value frees room", async () => {
+  const { store, ownerBearer } = await makeStore({ bytesTotal: 100 });
+  assert.equal((await store.putItems(ownerBearer, [item(1, "A".repeat(60))])).ok, true);
+  assert.deepEqual(await store.putItems(ownerBearer, [item(2, "A".repeat(60))]), { ok: false, status: 409, error: "mirror_full" });
+  assert.equal((await store.putItems(ownerBearer, [item(1, "A".repeat(10))])).ok, true, "shrinking an item frees room");
+  assert.equal((await store.putItems(ownerBearer, [item(2, "A".repeat(60))])).ok, true);
+  await store.putItems(ownerBearer, [{ id: item(2).id, sealed: "", deleted: true }]);
+  assert.equal((await store.putItems(ownerBearer, [item(3, "A".repeat(80))])).ok, true, "a tombstone frees its bytes");
+});

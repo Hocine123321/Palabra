@@ -30,6 +30,7 @@ export class MirrorStore {
     this.sql.transaction(() => {
       this.sql.run("INSERT INTO devices (deviceId, role, tokenHash, createdAt, lastSeen) VALUES (?, 'owner', ?, ?, ?)", deviceId, ownerTokenHash, now, now);
       this.sql.run("INSERT OR IGNORE INTO meta (key, value) VALUES ('seq', 0)");
+      this.sql.run("INSERT OR IGNORE INTO meta (key, value) VALUES ('bytes', 0)");
     });
     return { ok: true };
   }
@@ -37,8 +38,9 @@ export class MirrorStore {
   async authenticate(bearer, role) {
     const parsed = parseBearer(bearer);
     if (!parsed) return fail(401, "unauthorized");
-    const row = this.sql.all("SELECT deviceId, role, tokenHash, lastSeen FROM devices WHERE deviceId = ?", parsed.deviceId)[0];
     const hash = await sha256Hex(parsed.token);
+    // Read the row only after the await, so a device removed meanwhile is already gone here.
+    const row = this.sql.all("SELECT deviceId, role, tokenHash, lastSeen FROM devices WHERE deviceId = ?", parsed.deviceId)[0];
     // Always hash and compare, so a missing device costs the same as a wrong token.
     if (!row || !timingSafeEqualHex(hash, row.tokenHash)) return fail(401, "unauthorized");
     if (role && row.role !== role) return fail(403, "forbidden");
@@ -111,14 +113,20 @@ export class MirrorStore {
     }
     const total = this.sql.all("SELECT COUNT(*) AS n FROM items")[0].n;
     if (total + (clean.length - existing.size) > this.limits.itemsTotal) return fail(409, "mirror_full");
+    let replaced = 0;
+    for (const id of existing) replaced += this.sql.all("SELECT length(sealed) AS n FROM items WHERE id = ?", id)[0].n;
+    const added = clean.reduce((sum, c) => sum + c.sealed.length, 0);
+    const bytes = this.meta("bytes") + added - replaced;
+    if (bytes > this.limits.bytesTotal) return fail(409, "mirror_full");
 
     const seq = this.sql.transaction(() => {
-      let next = this.currentSeq();
+      let next = this.meta("seq");
       for (const { id, sealed, deleted } of clean) {
         next += 1;
         this.sql.run("INSERT OR REPLACE INTO items (id, seq, sealed, deleted) VALUES (?, ?, ?, ?)", id, next, sealed, deleted ? 1 : 0);
       }
       this.sql.run("INSERT OR REPLACE INTO meta (key, value) VALUES ('seq', ?)", next);
+      this.sql.run("INSERT OR REPLACE INTO meta (key, value) VALUES ('bytes', ?)", bytes);
       return next;
     });
     return { ok: true, seq };
@@ -158,7 +166,11 @@ export class MirrorStore {
     return { ok: true, seq: this.currentSeq() };
   }
 
+  meta(key) {
+    return this.sql.all("SELECT value FROM meta WHERE key = ?", key)[0]?.value ?? 0;
+  }
+
   currentSeq() {
-    return this.sql.all("SELECT value FROM meta WHERE key = 'seq'")[0]?.value ?? 0;
+    return this.meta("seq");
   }
 }

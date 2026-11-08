@@ -25,9 +25,28 @@ function respond(result, successStatus = 200, pick = (rest) => rest) {
 async function readText(request, cap) {
   const declared = request.headers.get("content-length");
   if (declared !== null && DIGITS.test(declared) && Number(declared) > cap) return { response: error(413, "too_large") };
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > cap) return { response: error(413, "too_large") };
-  return { text };
+  if (!request.body) return { text: "" };
+  // Stream it, so a body without a length is dropped as soon as it passes the cap instead of being buffered whole.
+  const reader = request.body.getReader();
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > cap) {
+      await reader.cancel().catch(() => {});
+      return { response: error(413, "too_large") };
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    all.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return { text: new TextDecoder().decode(all) };
 }
 
 async function readJson(request, cap) {
@@ -56,7 +75,7 @@ export async function handleApi(request, backend, opts = {}) {
     if (parts[0] !== "" || parts[1] !== "api") return error(404, "not_found");
     const route = ROUTES.find((r) => r.match(parts.slice(2)));
     if (!route) return error(404, "not_found");
-    const handler = route.methods[request.method];
+    const handler = Object.hasOwn(route.methods, request.method) ? route.methods[request.method] : null;
     if (!handler) return error(405, "method_not_allowed", { Allow: Object.keys(route.methods).join(", ") });
     const ctx = { request, backend, limits, url, args: route.match(parts.slice(2)) };
     return await handler(ctx);
@@ -65,8 +84,18 @@ export async function handleApi(request, backend, opts = {}) {
   }
 }
 
+/** IPv4 as is; IPv6 as its /64 (one household or server owns the whole prefix, so rotating inside it must not evade a limit). */
+function addressKey(ip) {
+  if (!ip.includes(":")) return ip;
+  const [head, tail] = ip.split("::");
+  const front = head ? head.split(":") : [];
+  const back = tail ? tail.split(":") : [];
+  const fill = tail === undefined ? [] : Array(Math.max(0, 8 - front.length - back.length)).fill("0");
+  return [...front, ...fill, ...back].slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, "")).join(":");
+}
+
 async function ipRate(ctx, name) {
-  const ip = ctx.request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const ip = addressKey(ctx.request.headers.get("CF-Connecting-IP") ?? "unknown");
   const [limit, windowSec] = ctx.limits.rates[name];
   return ctx.backend.gate.rate(`${name}:${await sha256Hex(ip)}`, limit, windowSec);
 }
@@ -91,6 +120,9 @@ const ROUTES = [
       POST: async (ctx) => {
         const rate = await ipRate(ctx, "mirrorsCreate");
         if (!rate.ok) return respond(rate);
+        const [dayLimit, dayWindow] = ctx.limits.rates.mirrorsDay;
+        const day = await ctx.backend.gate.rate("mirrorsDay", dayLimit, dayWindow);
+        if (!day.ok) return respond(day);
         const body = await readJson(ctx.request, ctx.limits.bodyBytes);
         if (body.response) return body.response;
         const { deviceId, ownerTokenHash } = body.value;
@@ -157,10 +189,10 @@ const ROUTES = [
     match: (p) => (p.length === 3 && p[0] === "m" && ID(p[1]) && p[2] === "devices" ? [p[1]] : null),
     methods: {
       POST: async (ctx) => {
-        const body = await readJson(ctx.request, ctx.limits.bodyBytes);
-        if (body.response) return body.response;
         const m = mirrorOf(ctx);
         if (m.response) return m.response;
+        const body = await readJson(ctx.request, ctx.limits.bodyBytes);
+        if (body.response) return body.response;
         const { deviceId, tokenHash } = body.value;
         return respond(await m.mirror.addDevice(m.bearer, { deviceId, tokenHash }), 201, () => ({}));
       },
@@ -185,10 +217,10 @@ const ROUTES = [
     match: (p) => (p.length === 3 && p[0] === "m" && ID(p[1]) && p[2] === "items" ? [p[1]] : null),
     methods: {
       PUT: async (ctx) => {
-        const body = await readJson(ctx.request, ctx.limits.bodyBytes);
-        if (body.response) return body.response;
         const m = mirrorOf(ctx);
         if (m.response) return m.response;
+        const body = await readJson(ctx.request, ctx.limits.bodyBytes);
+        if (body.response) return body.response;
         return respond(await m.mirror.putItems(m.bearer, body.value.items));
       },
       GET: async (ctx) => {

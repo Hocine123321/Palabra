@@ -6,10 +6,12 @@ export const LIMITS = {
   listMax: 200,
   listSealedSoft: 900_000,
   itemsTotal: 20_000,
+  bytesTotal: 50_000_000, // sealed characters per mirror
   browserDevices: 8,
   pairTtlSec: 120,
   rates: {
     mirrorsCreate: [5, 3600],
+    mirrorsDay: [50, 86400], // all addresses together
     pairStart: [10, 600],
     pairJoin: [20, 600],
     pairPoll: [300, 600],
