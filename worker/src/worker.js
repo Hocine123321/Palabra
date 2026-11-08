@@ -1,6 +1,5 @@
-// Placeholder entry; replaced by the real router and Durable Objects in a later task.
-export default {
-  async fetch() {
-    return new Response("ok");
-  },
-};
+import { doBackend, Gate, Mirror } from "./do.js";
+import { makeFetch } from "./entry.js";
+
+export { Gate, Mirror };
+export default { fetch: makeFetch(doBackend) };
