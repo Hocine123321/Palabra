@@ -47,6 +47,11 @@ enum MirrorCrypto {
         return Data((0..<count).map { _ in UInt8.random(in: .min ... .max, using: &generator) })
     }
 
+    /// Lowercase hex SHA-256 of the UTF-8 text: the only form of a token the Worker ever sees.
+    static func sha256Hex(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
     // MARK: Items
 
     static func itemID(keys: MirrorKeys, kind: String, recordID: String) -> String {

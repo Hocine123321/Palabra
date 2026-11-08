@@ -135,6 +135,11 @@ final class MirrorCryptoTests: XCTestCase {
         }
     }
 
+    func testSHA256Hex() {
+        XCTAssertEqual(MirrorCrypto.sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+        XCTAssertEqual(MirrorCrypto.sha256Hex("").count, 64)
+    }
+
     func testRandomBytesDiffer() {
         XCTAssertNotEqual(MirrorCrypto.randomBytes(32), MirrorCrypto.randomBytes(32))
         XCTAssertEqual(MirrorCrypto.randomBytes(32).count, 32)
