@@ -27,7 +27,7 @@ test("happy path: start, join, reply, and the reply is read once", () => {
   assert.deepEqual(gate.joinPairing(pairId, PUB), { ok: true });
   assert.deepEqual(gate.getPairing(pairId), { ok: true, state: "joined", phonePub: PUB });
   assert.deepEqual(gate.replyPairing(pairId, SEALED), { ok: true });
-  assert.deepEqual(gate.getPairing(pairId), { ok: true, state: "replied", sealed: SEALED });
+  assert.deepEqual(gate.getPairing(pairId), { ok: true, state: "replied", phonePub: PUB, sealed: SEALED });
   assert.deepEqual(gate.getPairing(pairId), { ok: false, status: 404, error: "not_found" });
 });
 

@@ -29,7 +29,7 @@ A bearer is `Authorization: Bearer <deviceId>.<token>`; the server keeps only SH
 |---|---|
 | `POST /api/mirrors` | `{deviceId, ownerTokenHash}`, 201 `{mirrorId, deviceId}` |
 | `POST /api/pair/start` | 201 `{pairId, expiresAt}` |
-| `GET /api/pair/<id>` | `{state, phonePub?, sealed?}`; a reply is handed out once |
+| `GET /api/pair/<id>` | `{state, phonePub?, sealed?}` (`phonePub` from the join on, `sealed` only once); a reply is handed out once |
 | `POST /api/pair/<id>/join` | `{phonePub}`, 200 `{}` |
 | `POST /api/pair/<id>/reply` | `{sealed}`, 200 `{}` |
 | `POST /api/pair/<id>/cancel` | 200 `{}` |

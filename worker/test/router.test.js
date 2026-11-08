@@ -75,7 +75,7 @@ test("pairing flow over HTTP, reply read once", async () => {
   const second = await call(backend, "POST", `${p}/join`, { body: { phonePub: PUB } });
   assert.deepEqual([second.status, second.json], [409, { error: "slot_taken" }]);
   assert.equal((await call(backend, "POST", `${p}/reply`, { body: { sealed: "SEALED" } })).status, 200);
-  assert.deepEqual((await call(backend, "GET", p)).json, { state: "replied", sealed: "SEALED" });
+  assert.deepEqual((await call(backend, "GET", p)).json, { state: "replied", phonePub: PUB, sealed: "SEALED" });
   assert.deepEqual(await call(backend, "GET", p).then((r) => [r.status, r.json]), [404, { error: "not_found" }]);
   const other = (await call(backend, "POST", "/api/pair/start", {})).json.pairId;
   assert.equal((await call(backend, "POST", `/api/pair/${other}/cancel`)).status, 200);

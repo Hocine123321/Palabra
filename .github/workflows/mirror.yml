@@ -21,6 +21,9 @@ jobs:
       - name: Install worker dependencies
         run: npm ci
         working-directory: worker
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: web
       - name: Build the web app
         run: npm --prefix web run build
       - name: Verify protocol vectors independently (Python)
@@ -56,6 +59,10 @@ jobs:
         if: env.HAS_CF == 'true'
         run: npm ci
         working-directory: worker
+      - name: Install web dependencies
+        if: env.HAS_CF == 'true'
+        run: npm ci
+        working-directory: web
       - name: Build the web app
         if: env.HAS_CF == 'true'
         run: npm --prefix web run build

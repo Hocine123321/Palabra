@@ -61,7 +61,7 @@ export class GateStore {
     if (state === "joined") return { ok: true, state, phonePub };
     if (state === "replied") {
       this.sql.run("DELETE FROM slots WHERE pairId = ?", pairId);
-      return { ok: true, state, sealed };
+      return { ok: true, state, phonePub, sealed };
     }
     return { ok: true, state };
   }
