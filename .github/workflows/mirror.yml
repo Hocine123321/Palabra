@@ -23,6 +23,12 @@ jobs:
         working-directory: worker
       - name: Build the web app
         run: npm --prefix web run build
+      - name: Verify protocol vectors independently (Python)
+        run: |
+          pip install cryptography
+          node web/scripts/make-vectors.mjs
+          git diff --exit-code PalabraTests/Mirroring/Fixtures/mirror-vectors.json
+          python3 web/scripts/verify-vectors.py
       - name: Web tests
         run: npm --prefix web test
       - name: Worker tests

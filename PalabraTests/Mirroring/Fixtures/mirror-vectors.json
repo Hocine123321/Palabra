@@ -1,0 +1,28 @@
+{
+  "dataKeyHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "id": {
+    "kind": "word",
+    "recordId": "6F9619FF-8B86-D011-B42D-00C04FC964FF",
+    "expected": "tfHdvAbsliT7IJrn4dtDqA"
+  },
+  "item": {
+    "plaintextUtf8": "{\"v\":1,\"k\":\"word\",\"r\":\"6F9619FF-8B86-D011-B42D-00C04FC964FF\",\"h\":\"abc123\",\"g\":7,\"d\":{\"spanish\":\"mañana\",\"translation\":\"tomorrow\",\"tags\":[\"tiempo\"]}}",
+    "ivHex": "101010101010101010101010",
+    "expectedSealed": "EBAQEBAQEBAQEBAQjrRmlSIYQXAiW28VpKE3wRqH7bcM-sTnFglXeV4Ex1KAvgJEbPQoYiYrn1cDTJDFUGuB70uwQOILBPZ1TQ5hL5Bg1HI5395NIKMpPJLHxjNCBR2t0yKgFzo23BjWQGM5WIztWeBYDZkkKA9gzx7WtcGCwtbA0Ds3sqjb6Y2n0bv1H5vt-YqmMD_X42KBSGu9OEuWGg7tA5FQuf9SIgBWcKhlhb4x"
+  },
+  "pair": {
+    "browserPrivHex": "1111111111111111111111111111111111111111111111111111111111111111",
+    "phonePrivHex": "2222222222222222222222222222222222222222222222222222222222222222",
+    "browserPubHex": "040217e617f0b6443928278f96999e69a23a4f2c152bdf6d6cdf66e5b80282d4ed194a7debcb97712d2dda3ca85aa8765a56f45fc758599652f2897c65306e5794",
+    "phonePubHex": "04d65a93977caa3d1b081852ff57a79e465f1660577304baead505dd3a48589cf350185e895372df6221ea3a137557e473fddb6755f05bd507c3c533fce9c91285",
+    "nonceHex": "33333333333333333333333333333333",
+    "pairId": "RERERERERERERERERERERA",
+    "kPairHex": "9c8e60388488c55b20619df342e24202f11466e73853f23c133889e4f94906a0",
+    "matchCode": "3383"
+  },
+  "wrap": {
+    "plaintextUtf8": "{\"v\":1,\"mirrorId\":\"MIRRORID\",\"deviceId\":\"DEVICEID\",\"deviceToken\":\"TOKEN\",\"dataKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"}",
+    "ivHex": "555555555555555555555555",
+    "expectedSealed": "VVVVVVVVVVVVVVVVJi7RAUklUBwr_6ij4XaH_7XgskBKS5EUO98l7aln5UIKu0OSorRAhoc79LEPgLYI78F7gwETOkqd0zS5e41K-KmcsnbdTzrJsyAK3ZfuQ1X2ddN3cT76fnKg6HiDUFI-JOFGz3gT7bfa85TZTaFFthfDjF7vxcvRdpyvhRELVJagTnkVVDOPbMasll80-6bQmA"
+  }
+}

@@ -53,6 +53,21 @@ at most 200 items and about 900,000 sealed characters; 20,000 items and 50,000,0
   The web app ships no third-party scripts and a strict Content-Security-Policy (`web/public/_headers`).
 - A stolen unlocked PC or browser profile exposes the local copy. Revoking a browser cuts it off from future data; it keeps what it already downloaded.
 
+## Protocol v1
+
+Normative. The vectors in `PalabraTests/Mirroring/Fixtures/mirror-vectors.json` are produced by `web/scripts/make-vectors.mjs`, re-derived independently by `web/scripts/verify-vectors.py` (run in CI), and reproduced by both the web crypto (`web/src/crypto.js`) and the phone (`MirrorCrypto.swift`).
+
+- Base64url means unpadded (`A-Z a-z 0-9 - _`). Ids (`pairId`, `mirrorId`, `deviceId`) are 16 random bytes = 22 characters; tokens and the data key are 32 random bytes.
+- `dataKey` (32 bytes) never leaves phone and paired browsers. Two keys are derived with HKDF-SHA-256, empty salt, length 32: `kAes` with info `"palabra-mirror-aes-v1"` and `kId` with info `"palabra-mirror-id-key-v1"`.
+- **Item id** = base64url of the first 16 bytes of HMAC-SHA-256(`kId`, UTF-8 of `kind + "|" + recordId`) (22 characters).
+- **Sealed item** = `iv(12 random) | AES-256-GCM(kAes) ciphertext | tag(16)`, associated data = UTF-8 of `"palabra-mirror-item-v1|" + itemId`; sent as base64url.
+- **Item plaintext** = UTF-8 JSON `{"v":1,"k":<kind>,"r":<recordId>,"h":<content hash hex>,"g":<generation>,"d":<payload object>}`. `g` increases with every push that sends anything; the browser keeps the row with the higher `g`; only the phone computes `h`.
+- **Pair keys:** ECDH P-256; public keys are raw uncompressed points (65 bytes, base64url = 87 characters); shared secret = the 32-byte X coordinate; `kPair` = HKDF-SHA-256(ikm = shared, salt = the 16-byte nonce, info = `"palabra-mirror-pair-v1"`, length 32), used as an AES-256-GCM key.
+- **Match code** = the first 4 bytes of SHA-256(`browserPub | phonePub | nonce`) as a big-endian unsigned integer, modulo 10000, zero-padded to 4 digits.
+- **Wrap** (phone -> browser) = `iv(12) | AES-256-GCM(kPair) | tag` over UTF-8 JSON `{"v":1,"mirrorId","deviceId","deviceToken","dataKey"}` (`dataKey` base64url), associated data = UTF-8 of `"palabra-mirror-wrap-v1|" + pairId`.
+- **QR link:** `https://<worker host>/#p=<pairId>&k=<browserPub>&n=<nonce>` (nonce 16 bytes). `http` is accepted only for `localhost` and `127.0.0.1`.
+- **Bearer:** `Authorization: Bearer <deviceId>.<token>`; the server is only ever sent `sha256Hex(token)`.
+
 ## Not verified by CI
 
 CI runs the Worker's logic on Node and bundles it with `wrangler deploy --dry-run`. The Cloudflare runtime itself (Durable Objects,
