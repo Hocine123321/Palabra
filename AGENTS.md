@@ -72,6 +72,7 @@ Palabra/
       WordDetail/       word screen
       Chat/             follow-up chat about one word
   Resources/            Localizable.strings (ar); Books/ (textbooks.json catalogue + one lesson-<book>-<name>.json per lesson); Math/ (solver)
+  worker/, web/         Mirroring: the Cloudflare Worker and the browser web app (see docs/features/mirroring.md)
 PalabraTests/           unit tests; folders mirror Palabra/ (App, Core, Vocabulary, Support)
 PalabraUITests/         UI tests (stubbed AI)
 project.yml             XcodeGen project definition (the .xcodeproj is generated, never committed)
