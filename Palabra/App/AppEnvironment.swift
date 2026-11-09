@@ -34,6 +34,8 @@ final class AppEnvironment {
     let chat: ChatRepository
     /// The Solve tab: Wolfram|Alpha, photo reading, saved answers and the person's App ID.
     let solve: SolveTool
+    /// Mirroring (browser copy of the library). Inert until the phone is paired and the person turns it on.
+    let mirror: MirrorService
     /// Finished exams (Study → Exam).
     let exams: ExamRepository
     /// The History and Geography books (bundled lessons) and the person's reading position.
@@ -100,7 +102,8 @@ final class AppEnvironment {
         solveTool: SolveTool? = nil,
         examRepository: ExamRepository? = nil,
         speech: SpeechListening? = nil,
-        bookShelf: BookShelf? = nil
+        bookShelf: BookShelf? = nil,
+        mirrorService: MirrorService? = nil
     ) {
         self.rawAI = ai
         let policyBox = PolicyBox(settings.retryPolicy)
@@ -147,6 +150,7 @@ final class AppEnvironment {
         self.solve = solveTool ?? SolveTool.inMemory()
         self.exams = examRepository ?? SwiftDataExamRepository.inMemory()
         self.books = bookShelf ?? BookShelf.inMemory()
+        self.mirror = mirrorService ?? MirrorService.inMemory()
         self.speech = speech ?? SpeechListener()
         let gateway = AIGateway()
         self.aiGateway = gateway
@@ -475,7 +479,8 @@ final class AppEnvironment {
             chatRepository: SwiftDataChatRepository(context: modelContext),
             solveTool: SolveTool.live(context: modelContext),
             examRepository: SwiftDataExamRepository(context: modelContext),
-            bookShelf: BookShelf()
+            bookShelf: BookShelf(),
+            mirrorService: MirrorService()
         )
     }
 }

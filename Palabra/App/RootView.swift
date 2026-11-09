@@ -70,10 +70,12 @@ struct RootView: View {
         // progress, or an empty queue, makes this a no-op).
         .task { environment.queueProcessor.drain(environment: environment) }
         .task { await environment.migrateLegacyPronunciation() }
+        .task { await environment.mirrorSyncIfEnabled() }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 environment.queueProcessor.drain(environment: environment)
                 refreshDueBadge()
+                Task { await environment.mirrorSyncIfEnabled() }
             }
         }
     }

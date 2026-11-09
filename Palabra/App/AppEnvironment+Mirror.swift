@@ -2,6 +2,13 @@ import Foundation
 
 /// Mirroring's link to the rest of the app. `Features/Mirroring` never imports `Word`: this is where words become records.
 extension AppEnvironment {
+    /// Pushes the library to the paired mirror when Mirroring is on. Does nothing (and touches no network) otherwise;
+    /// `force` skips the 30-second throttle, for the Sync Now button.
+    func mirrorSyncIfEnabled(force: Bool = false) async {
+        guard mirror.isPaired, mirror.enabled || force else { return }
+        await mirror.sync(records: mirrorWordRecords(), force: force)
+    }
+
     /// Every library word as a mirror record. Never includes pronunciation audio, the old chat or the raw AI response.
     func mirrorWordRecords() -> [MirrorRecord] {
         let formatter = ISO8601DateFormatter()
