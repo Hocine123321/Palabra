@@ -340,6 +340,52 @@ final class LocalizationTests: XCTestCase {
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
 
+    func testArabicStringsHaveMirroringKeys() throws {
+        let table = try arabicTable()
+        let keys = [
+            "Mirror to a Computer",
+            "Mirroring",
+            "Camera access is off",
+            "Allow the camera to scan the pairing code, or paste the pairing link instead.",
+            "Remove this computer?",
+            "It stops getting new words at once. Its saved copy stays on that computer until you clear the browser data.",
+            "Turn off Mirroring and forget everything?",
+            "Turn Off and Forget",
+            "This phone forgets its keys and the paired computers. The encrypted copy stays on your Worker, unreadable without the keys.",
+            "Status",
+            "Send my library to paired computers",
+            "Last sent",
+            "Never",
+            "Sync Now",
+            "Computers",
+            "No computer is paired yet.",
+            "Pair a Computer",
+            "Paste the pairing link",
+            "Pair with This Link",
+            "That is not a Palabra pairing link. Open your Worker's address on the computer and scan the code it shows.",
+            "Open your Worker's address in the computer's browser. It shows a QR code and, after you scan it, a 4-digit code to compare.",
+            "Scan the Code",
+            "Your words are encrypted on this phone before they are sent to your own Cloudflare Worker, which cannot read them. They are sent when you open Palabra and when you tap Sync Now, so a computer shows what the phone sent last. Audio, chats and your API key are never sent.",
+            "You're offline. The library will be sent when you're back online.",
+            "The Worker no longer accepts this phone. Turn Mirroring off and pair again.",
+            "The Worker is busy. Try again in a few minutes.",
+            "Couldn't send the library. Try again later.",
+            "Pairing…",
+            "Joining…",
+            "Check that this computer shows the same code.",
+            "Confirm",
+            "The computer is paired.",
+            "Another phone already answered this code. Refresh the computer's page and try again.",
+            "The code expired. Refresh the computer's page and scan the new one.",
+            "You're offline. Connect and try again.",
+            "This phone is already paired with a different Worker. Turn Mirroring off first.",
+            "You've reached the limit of 8 computers. Remove one first.",
+            "Pairing didn't work. Refresh the computer's page and try again.",
+        ]
+        let missing = keys.filter { (table[$0] ?? "").isEmpty }
+        XCTAssertTrue(missing.isEmpty, "Missing Arabic for: \(missing)")
+    }
+
     func testArabicStringsHaveReliabilityKeys() throws {
         let table = try arabicTable()
         let keys = [

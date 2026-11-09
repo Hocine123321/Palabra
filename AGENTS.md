@@ -73,6 +73,7 @@ Palabra/
       Chat/             follow-up chat about one word
   Resources/            Localizable.strings (ar); Books/ (textbooks.json catalogue + one lesson-<book>-<name>.json per lesson); Math/ (solver)
   worker/, web/         Mirroring: the Cloudflare Worker and the browser web app (see docs/features/mirroring.md)
+  Features/Mirroring    Phone side of Mirroring: Crypto/ Storage/ Net/ Pairing/ Sync/ UI/ (service, pusher, scanner)
 PalabraTests/           unit tests; folders mirror Palabra/ (App, Core, Vocabulary, Support)
 PalabraUITests/         UI tests (stubbed AI)
 project.yml             XcodeGen project definition (the .xcodeproj is generated, never committed)
@@ -260,3 +261,10 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 4. Add a `Router.Destination` case, or give the tool its own tab/stack like Study (`RootView` is a `TabView` with Spanish, Study, Solve and Settings tabs; Study owns its `NavigationStack` and `StudyRoute`).
 5. Use feature-prefixed names for anything that could be mistaken for app-wide (`VocabularyLibraryView`, not `LibraryView`).
 6. Add tests, push, and make sure both CI jobs compile.
+
+## Mirroring rules
+
+- `Features/Mirroring` never imports Word/Deck/Card/ReviewNeed. `Palabra/App/AppEnvironment+Mirror.swift` is the only boundary: it turns words into `MirrorRecord`s.
+- Frozen names (changing one orphans existing installs): Keychain account `mirror-secrets`, UserDefaults key `mirrorSettings`, file `Application Support/Mirror/index.json`.
+- Protocol v1 constants (HKDF infos, AAD prefixes, envelope shape) are in docs/features/mirroring.md and pinned by `PalabraTests/Mirroring/Fixtures/mirror-vectors.json`; Swift and JS must both reproduce it.
+- New API-calling code gets a MockURLProtocol test that inspects the real request body and Authorization header.

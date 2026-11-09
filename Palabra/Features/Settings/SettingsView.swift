@@ -200,6 +200,19 @@ struct SettingsView: View {
             }
             .themedSection()
 
+            Section("Mirroring") {
+                NavigationLink {
+                    MirroringSettingsView()
+                } label: {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "desktopcomputer", tint: Theme.tileTints[2], size: 30)
+                        Text("Mirror to a Computer")
+                    }
+                }
+                .accessibilityIdentifier("mirroringSettingsLink")
+            }
+            .themedSection()
+
             Section("Storage") {
                 NavigationLink {
                     StorageView()

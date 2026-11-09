@@ -45,6 +45,23 @@ at most 200 items and about 900,000 sealed characters; 20,000 items and 50,000,0
 120 seconds. Rates: 5 mirror creations per hour, 10 pairing starts and 20 joins per 10 minutes, 300 pairing polls per 10 minutes
 (per address; an IPv6 address counts as its /64), 50 new mirrors per day in total; 120 item writes and 240 item reads per minute (per device).
 
+## Pairing a computer (on the phone)
+
+1. Open your Worker's address in the computer's browser. It shows a QR code.
+2. Phone: Settings → Mirror to a Computer → Pair a Computer, and scan the code (or paste the link into "Paste the pairing link").
+3. Both screens show a 4-digit code. Check they match, then tap Confirm on the phone and Yes on the computer.
+4. The phone sends the library at once; after that it sends changes when Palabra opens and on Sync Now (at most every 30 seconds).
+
+Remove a computer in the same screen: its token is revoked on the Worker first. "Turn Off and Forget" wipes the keys, the computer list and the push index from the phone; the encrypted copy stays on the Worker.
+
+## What is mirrored
+
+Kind `word`, one item per library word: id, key, Spanish, translation, part of speech, category, tags, created/updated dates and the full lesson content. Never: pronunciation audio, the old per-word chat, the raw AI response, the API key. A record over 262,144 sealed characters is skipped and reported, not truncated.
+
+## Limits seen from the phone
+
+200 items or about 900,000 characters per request; a `429` shows as "The Worker is busy"; `401` as "no longer accepts this phone"; no connection as "offline". `lastSyncAt` only moves on a successful push.
+
 ## Trust model
 
 - Cloudflare sees: that a mirror exists, how many encrypted items, their sizes, when they change and the IP addresses that connect.
