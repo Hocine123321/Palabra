@@ -44,6 +44,12 @@ const pairId = b64u(fill(16, 0x44));
 const wrapPlain = JSON.stringify({ v: 1, mirrorId: "MIRRORID", deviceId: "DEVICEID", deviceToken: "TOKEN", dataKey: b64u(dataKey) });
 const wrapSealed = seal(kPair, fill(12, 0x55), `palabra-mirror-wrap-v1|${pairId}`, Buffer.from(wrapPlain, "utf8"));
 
+// Manifest: ids in insertion order that differs from code-point order (`-` < digits < upper < `_` < lower).
+const manifestIds = ["bQ_x9AbCdEfGhIjKlMnOp", "Zz9-aAbBcCdDeEfFgGhHiI", "_lead0AAAAAAAAAAAAAAAA", "-dash1AAAAAAAAAAAAAAAA", "a0b1c2d3e4f5g6h7i8j9kL"];
+const sha256Hex = (text) => createHash("sha256").update(Buffer.from(text, "utf8")).digest("hex");
+const manifestVector = { ids: manifestIds, idsHashHex: sha256Hex([...manifestIds].sort().join("\n")) };
+const emptyVector = { idsHashHex: sha256Hex("") };
+
 writeFileSync(
   OUT,
   JSON.stringify(
@@ -62,6 +68,8 @@ writeFileSync(
         matchCode,
       },
       wrap: { plaintextUtf8: wrapPlain, ivHex: hex(fill(12, 0x55)), expectedSealed: b64u(wrapSealed) },
+      manifest: manifestVector,
+      empty: emptyVector,
     },
     null,
     2,

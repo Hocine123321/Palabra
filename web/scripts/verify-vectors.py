@@ -48,6 +48,11 @@ wiv = bytes.fromhex(w["ivHex"])
 wsealed = wiv + AESGCM(k_pair).encrypt(wiv, w["plaintextUtf8"].encode(), f'palabra-mirror-wrap-v1|{p["pairId"]}'.encode())
 check("sealed wrap", b64u(wsealed), w["expectedSealed"])
 
+ids = sorted(v["manifest"]["ids"])
+check("manifest idsHash", hashlib.sha256("\n".join(ids).encode()).hexdigest(), v["manifest"]["idsHashHex"])
+check("manifest ids are out of order in the file", v["manifest"]["ids"] != ids, True)
+check("empty idsHash", hashlib.sha256(b"").hexdigest(), v["empty"]["idsHashHex"])
+
 if failures:
     sys.exit(1)
 print("OK: vectors verified independently")

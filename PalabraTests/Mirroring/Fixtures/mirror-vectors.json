@@ -24,5 +24,18 @@
     "plaintextUtf8": "{\"v\":1,\"mirrorId\":\"MIRRORID\",\"deviceId\":\"DEVICEID\",\"deviceToken\":\"TOKEN\",\"dataKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"}",
     "ivHex": "555555555555555555555555",
     "expectedSealed": "VVVVVVVVVVVVVVVVJi7RAUklUBwr_6ij4XaH_7XgskBKS5EUO98l7aln5UIKu0OSorRAhoc79LEPgLYI78F7gwETOkqd0zS5e41K-KmcsnbdTzrJsyAK3ZfuQ1X2ddN3cT76fnKg6HiDUFI-JOFGz3gT7bfa85TZTaFFthfDjF7vxcvRdpyvhRELVJagTnkVVDOPbMasll80-6bQmA"
+  },
+  "manifest": {
+    "ids": [
+      "bQ_x9AbCdEfGhIjKlMnOp",
+      "Zz9-aAbBcCdDeEfFgGhHiI",
+      "_lead0AAAAAAAAAAAAAAAA",
+      "-dash1AAAAAAAAAAAAAAAA",
+      "a0b1c2d3e4f5g6h7i8j9kL"
+    ],
+    "idsHashHex": "cf3bcd50808de9cb427532fc7ee597ac2021a901c72efd4937b28113ee9d8897"
+  },
+  "empty": {
+    "idsHashHex": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   }
 }
