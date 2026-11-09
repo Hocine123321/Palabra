@@ -192,6 +192,8 @@ private struct PairingSheet: View {
         }
         .task { await session.start() }
         .interactiveDismissDisabled(session.phase == .finishing)
+        // Swiping the sheet away after "paired" must still update the phone, so report here, not in the Done button.
+        .onDisappear { finish(session.phase == .done) }
     }
 
     @ViewBuilder private var content: some View {
@@ -220,7 +222,7 @@ private struct PairingSheet: View {
             VStack(spacing: Theme.Spacing.md) {
                 Image(systemName: "checkmark.circle.fill").font(.largeTitle).foregroundStyle(Theme.success)
                 Text("The computer is paired.")
-                Button("Done") { finish(true); dismiss() }
+                Button("Done") { dismiss() }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.accent)
             }
@@ -228,10 +230,10 @@ private struct PairingSheet: View {
             VStack(spacing: Theme.Spacing.md) {
                 Image(systemName: "xmark.circle.fill").font(.largeTitle).foregroundStyle(Theme.error)
                 Text(Self.message(for: failure)).multilineTextAlignment(.center)
-                Button("Close") { finish(false); dismiss() }
+                Button("Close") { dismiss() }
             }
         case .cancelled:
-            Color.clear.onAppear { finish(false); dismiss() }
+            Color.clear.onAppear { dismiss() }
         }
     }
 
