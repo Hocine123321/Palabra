@@ -1,0 +1,79 @@
+/* Colours are the phone app's own (Palabra/Core/DesignSystem/Theme.swift); web/test/tokens.test.js keeps them equal. */
+:root {
+  color-scheme: light dark;
+  --surface: #fcfbf8;
+  --ink: #1f1d1a;
+  --ink-secondary: #67645c;
+  --fill: #e7e4db;
+  --accent: #d97757;
+  --accent-deep: #a9502f;
+  --accent-soft: #f4ddd2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #262522;
+    --ink: #f1efe8;
+    --ink-secondary: #b4b1a7;
+    --fill: #34322e;
+    --accent-deep: #e89574;
+    --accent-soft: #4a3228;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: 16px/1.5 ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.screen { max-inline-size: 42rem; margin-inline: auto; padding: 1.5rem 1rem 3rem; }
+h1 { font-size: 1.6rem; margin: 0 0 0.75rem; }
+.secondary { color: var(--ink-secondary); }
+.status { color: var(--accent-deep); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+
+.button {
+  min-block-size: 2.75rem;
+  padding: 0.5rem 1.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #1f1d1a;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.button:hover { background: var(--accent-deep); color: var(--surface); }
+.button:focus-visible { outline: 3px solid var(--accent-deep); outline-offset: 2px; }
+.secondary-button { background: var(--fill); color: var(--ink); }
+
+.qr-box { inline-size: min(20rem, 100%); margin-block: 1rem; padding: 0.5rem; border-radius: 1rem; background: #ffffff; }
+.qr { display: block; inline-size: 100%; block-size: auto; }
+
+.code {
+  margin-block: 1rem;
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-align: center;
+  color: var(--accent-deep);
+}
+
+.list { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
+.row {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 1rem;
+  border-radius: 1.25rem;
+  background: var(--fill);
+}
+.headword { font-size: 1.15rem; font-weight: 700; }
+.translation { color: var(--ink-secondary); }
+.category { font-size: 0.85rem; color: var(--accent-deep); }
+.tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.tag { padding: 0 0.6rem; border-radius: 999px; background: var(--accent-soft); font-size: 0.8rem; }
+.empty { color: var(--ink-secondary); padding-block: 2rem; text-align: center; }
