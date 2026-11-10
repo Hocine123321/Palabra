@@ -6,12 +6,12 @@ extension AppEnvironment {
     /// `force` skips the 30-second throttle, for the Sync Now button.
     func mirrorSyncIfEnabled(force: Bool = false) async {
         guard mirror.isPaired, mirror.enabled || force else { return }
-        await mirror.sync(collections: mirrorCollections(), force: force)
+        await mirror.sync(collections: await mirrorCollections(), force: force)
     }
 
     /// Every collection the phone mirrors, each built from the live repositories.
-    func mirrorCollections() -> [MirrorCollection] {
-        [MirrorCollection(kind: "word", records: mirrorWordRecords())] + mirrorStudyCollections()
+    func mirrorCollections() async -> [MirrorCollection] {
+        [MirrorCollection(kind: "word", records: mirrorWordRecords())] + mirrorStudyCollections() + (await mirrorContentCollections())
     }
 
     /// Every library word as a mirror record. Never includes pronunciation audio, the old chat or the raw AI response.
