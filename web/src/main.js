@@ -143,4 +143,7 @@ async function showWords() {
   window.addEventListener("online", () => token === screenToken && refresh());
 }
 
+// The shell is kept for offline use. A failed registration (private window, blocked) changes nothing: the page works without it.
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+
 main().catch(() => render(pairScreen({ link: "", status: "error", lang, onCancel: () => {}, onRestart: () => location.reload() })));

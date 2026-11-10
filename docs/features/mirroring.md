@@ -62,6 +62,10 @@ Kind `word`, one item per library word: id, key, Spanish, translation, part of s
 
 200 items or about 900,000 characters per request; a `429` shows as "The Worker is busy"; `401` as "no longer accepts this phone"; no connection as "offline". `lastSyncAt` only moves on a successful push.
 
+## Installing the web app
+
+The page is an installable web app: open your Worker's address in Chrome or Edge and use the install button in the address bar (Safari: Share, Add to Dock). A service worker (`web/src/sw.js`, built into `dist/sw.js`) keeps the shell (`/`, `app.js`, `app.css`, the manifest and two icons) in a cache named `palabra-shell-<hash of those files>`, so the page opens offline and shows the saved copy. It never handles `/api/*`, other methods or other origins; a new deploy changes the hash, installs a new cache, and deletes the old one. If registering it fails, nothing else changes. The icons are made from the phone app's icon by `web/scripts/make-icons.py`.
+
 ## Trust model
 
 - Cloudflare sees: that a mirror exists, how many encrypted items, their sizes, when they change and the IP addresses that connect.
