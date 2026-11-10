@@ -90,9 +90,10 @@ final class MirrorService {
         syncing = true
         lastAttemptAt = now()
         defer { syncing = false }
-        let pusher = MirrorPusher(client: MirrorClient(origin: origin, session: session), secrets: current, index: index)
+        let pusher = MirrorPusher(client: MirrorClient(origin: origin, session: session), secrets: current, index: index, now: now)
         do {
-            _ = try await pusher.push(records, kinds: ["word"])
+            let result = try await pusher.push(records, kinds: ["word"])
+            try await pushManifestIfDue(with: pusher, after: result)
             lastSyncAt = now()
             settingsValue.lastSyncAt = lastSyncAt
             settings.value = settingsValue
@@ -100,6 +101,19 @@ final class MirrorService {
         } catch {
             lastError = Self.syncError(for: error)
         }
+    }
+
+    /// The manifest goes last, in its own request, when something was sent, the id list changed, or it has gone stale.
+    private func pushManifestIfDue(with pusher: MirrorPusher, after result: MirrorPushResult) async throws {
+        let ids = index.itemIDs(excludingKind: MirrorManifest.kind)
+        let hash = MirrorManifest.idsHash(ids)
+        let stale = settingsValue.lastManifestAt.map { now().timeIntervalSince($0) >= MirrorManifest.heartbeat } ?? true
+        guard result.sent + result.deleted > 0 || hash != settingsValue.lastManifestIDsHash || stale else { return }
+        let record = MirrorManifest.record(ids: ids, counts: index.counts(excludingKind: MirrorManifest.kind), now: now())
+        _ = try await pusher.push([record], kinds: [MirrorManifest.kind])
+        settingsValue.lastManifestAt = now()
+        settingsValue.lastManifestIDsHash = hash
+        settings.value = settingsValue
     }
 
     // MARK: Computers

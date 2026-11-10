@@ -17,6 +17,7 @@ struct MirrorPusher {
     let client: MirrorClient
     let secrets: MirrorSecrets
     let index: MirrorIndex
+    var now: () -> Date = Date.init
 
     func push(_ records: [MirrorRecord], kinds: Set<String>) async throws -> MirrorPushResult {
         guard let dataKey = Base64URL.decode(secrets.dataKey), let keys = MirrorKeys(dataKey: dataKey) else {
@@ -37,7 +38,8 @@ struct MirrorPusher {
         let gone = kinds.flatMap { kind in index.itemIDs(ofKind: kind) }.filter { itemID in current[itemID] == nil }.sorted()
         guard !changed.isEmpty || !gone.isEmpty else { return MirrorPushResult(sent: 0, deleted: 0, skipped: [], seq: nil) }
 
-        index.generation += 1
+        // The clock keeps the generation climbing even if the index file was lost; the +1 covers two pushes in one second.
+        index.generation = max(index.generation + 1, Int(now().timeIntervalSince1970))
         let generation = index.generation
 
         struct Pending {

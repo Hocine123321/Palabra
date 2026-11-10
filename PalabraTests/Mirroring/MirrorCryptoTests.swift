@@ -18,6 +18,10 @@ struct MirrorVectors: Decodable {
     let item: Item
     let pair: Pair
     let wrap: Wrap
+    struct Manifest: Decodable { let ids: [String], idsHashHex: String }
+    struct Empty: Decodable { let idsHashHex: String }
+    let manifest: Manifest
+    let empty: Empty
 
     static func load() throws -> MirrorVectors {
         let bundle = Bundle(for: MirrorVectorsToken.self)

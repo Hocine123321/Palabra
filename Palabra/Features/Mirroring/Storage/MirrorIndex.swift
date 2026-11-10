@@ -40,6 +40,17 @@ final class MirrorIndex {
 
     func itemIDs(ofKind kind: String) -> [String] { stored.items.filter { $0.value.kind == kind }.map(\.key) }
 
+    /// Every item id except one kind (the manifest describes all the others), sorted.
+    func itemIDs(excludingKind kind: String) -> [String] {
+        stored.items.filter { $0.value.kind != kind }.map(\.key).sorted()
+    }
+
+    func counts(excludingKind kind: String) -> [String: Int] {
+        var result: [String: Int] = [:]
+        for entry in stored.items.values where entry.kind != kind { result[entry.kind, default: 0] += 1 }
+        return result
+    }
+
     func record(itemID: String, kind: String, hash: String) { stored.items[itemID] = Entry(kind: kind, hash: hash) }
 
     func remove(itemID: String) { stored.items[itemID] = nil }

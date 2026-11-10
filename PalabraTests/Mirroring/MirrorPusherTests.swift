@@ -30,8 +30,12 @@ final class MirrorPusherTests: XCTestCase {
 
     private func makeIndex() -> MirrorIndex { MirrorIndex(fileURL: directory.appendingPathComponent("index.json")) }
 
-    private func makePusher(_ index: MirrorIndex) -> MirrorPusher {
-        MirrorPusher(client: MirrorClient(origin: origin, session: MockURLProtocol.session()), secrets: secrets(), index: index)
+    /// `now` is whole seconds since 1970; 0 keeps generations at 1, 2, ... as the earlier tests expect.
+    private func makePusher(_ index: MirrorIndex, now: TimeInterval = 0) -> MirrorPusher {
+        MirrorPusher(
+            client: MirrorClient(origin: origin, session: MockURLProtocol.session()), secrets: secrets(), index: index,
+            now: { Date(timeIntervalSince1970: now) }
+        )
     }
 
     private func record(_ n: Int, kind: String = "word", text: String? = nil) -> MirrorRecord {
@@ -207,5 +211,27 @@ final class MirrorPusherTests: XCTestCase {
         let sent = try items(try XCTUnwrap(requests.value.first))
         XCTAssertEqual((try open(sent[0])["d"] as? [String: Any])?["spanish"] as? String, arabic)
         XCTAssertEqual((try open(sent[1])["d"] as? [String: Any])?["spanish"] as? String, markup)
+    }
+
+    func testGenerationNeverGoesBackwardsAfterTheIndexIsLost() async throws {
+        let first = server()
+        _ = try await makePusher(makeIndex(), now: 1000).push([record(1)], kinds: ["word"])
+        let before = try XCTUnwrap(try open(items(first.requests.value[0])[0])["g"] as? Int)
+        XCTAssertGreaterThanOrEqual(before, 1000)
+
+        let second = server()
+        let lost = MirrorIndex(fileURL: directory.appendingPathComponent("lost/index.json"))
+        _ = try await makePusher(lost, now: 1001).push([record(1, text: "edited")], kinds: ["word"])
+        let after = try XCTUnwrap(try open(items(second.requests.value[0])[0])["g"] as? Int)
+        XCTAssertGreaterThan(after, before, "a rebuilt index must not restart the generation")
+    }
+
+    func testTwoPushesInTheSameSecondStillIncrease() async throws {
+        let sent = server()
+        let index = makeIndex()
+        _ = try await makePusher(index, now: 1000).push([record(1)], kinds: ["word"])
+        _ = try await makePusher(index, now: 1000).push([record(1, text: "edited")], kinds: ["word"])
+        let generations = try sent.requests.value.map { try XCTUnwrap(try open(items($0)[0])["g"] as? Int) }
+        XCTAssertEqual(generations, [1000, 1001])
     }
 }

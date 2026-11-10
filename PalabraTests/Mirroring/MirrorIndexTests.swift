@@ -50,4 +50,15 @@ final class MirrorIndexTests: XCTestCase {
         XCTAssertNil(index.hash(of: "a"))
         XCTAssertEqual(index.generation, 0)
     }
+
+    func testIDsAndCountsExcludeAKind() {
+        let index = MirrorIndex(fileURL: file)
+        index.record(itemID: "w2", kind: "word", hash: "a")
+        index.record(itemID: "w1", kind: "word", hash: "b")
+        index.record(itemID: "w3", kind: "word", hash: "c")
+        index.record(itemID: "m", kind: "manifest", hash: "d")
+        XCTAssertEqual(index.itemIDs(excludingKind: "manifest"), ["w1", "w2", "w3"])
+        XCTAssertEqual(index.counts(excludingKind: "manifest"), ["word": 3])
+        XCTAssertEqual(MirrorIndex(fileURL: directory.appendingPathComponent("none.json")).counts(excludingKind: "manifest"), [:])
+    }
 }

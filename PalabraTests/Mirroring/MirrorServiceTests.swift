@@ -78,8 +78,8 @@ final class MirrorServiceTests: XCTestCase {
         let seen = respond()
         let service = makeService()
         await service.sync(records: [record(1)])
-        XCTAssertEqual(seen.value.count, 1)
-        XCTAssertEqual(seen.value.first?.httpMethod, "PUT")
+        XCTAssertEqual(seen.value.count, 2, "the items, then the manifest")
+        XCTAssertEqual(seen.value.map(\.httpMethod), ["PUT", "PUT"])
         XCTAssertEqual(service.lastSyncAt, clock)
         XCTAssertNil(service.lastError)
         XCTAssertEqual(MirrorSettingsStore(defaults: UserDefaults(suiteName: suite)!).value.lastSyncAt, clock, "the time is kept for the next launch")
@@ -91,17 +91,17 @@ final class MirrorServiceTests: XCTestCase {
         await service.sync(records: [record(1)])
         clock = clock.addingTimeInterval(10)
         await service.sync(records: [record(1), record(2)])
-        XCTAssertEqual(seen.value.count, 1, "skipped: too soon")
+        XCTAssertEqual(seen.value.count, 2, "skipped: too soon")
         await service.sync(records: [record(1), record(2)], force: true)
-        XCTAssertEqual(seen.value.count, 2, "forced: the new record goes out")
+        XCTAssertEqual(seen.value.count, 4, "forced: the new record goes out, then a new manifest")
         clock = clock.addingTimeInterval(5)
         let before = service.lastSyncAt
         await service.sync(records: [record(1), record(2)], force: true)
-        XCTAssertEqual(seen.value.count, 2, "nothing changed, so no PUT")
+        XCTAssertEqual(seen.value.count, 4, "nothing changed, so no PUT")
         XCTAssertNotEqual(service.lastSyncAt, before, "but the sync time still moves")
         clock = clock.addingTimeInterval(31)
         await service.sync(records: [record(1), record(2), record(3)])
-        XCTAssertEqual(seen.value.count, 3, "after 30 seconds it runs again")
+        XCTAssertEqual(seen.value.count, 6, "after 30 seconds it runs again")
     }
 
     func testRejectedKeepsTheLastSyncTimeAndReportsIt() async {
@@ -169,5 +169,81 @@ final class MirrorServiceTests: XCTestCase {
         XCTAssertTrue(service.isPaired)
         XCTAssertTrue(service.enabled)
         XCTAssertEqual(service.computers.count, 1)
+    }
+
+    // MARK: Manifest
+
+    private func sealedItems(_ request: URLRequest) throws -> [(id: String, sealed: Data)] {
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+        let list = try XCTUnwrap(body["items"] as? [[String: Any]])
+        return try list.map { (id: try XCTUnwrap($0["id"] as? String), sealed: try XCTUnwrap(Base64URL.decode(try XCTUnwrap($0["sealed"] as? String)))) }
+    }
+
+    private func opened(_ request: URLRequest) throws -> [String: Any] {
+        let keys = try XCTUnwrap(MirrorKeys(dataKey: Data(repeating: 9, count: 32)))
+        let item = try XCTUnwrap(try sealedItems(request).first)
+        let plain = try MirrorCrypto.openItem(keys: keys, itemID: item.id, sealed: item.sealed)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: plain) as? [String: Any])
+    }
+
+    func testTheManifestFollowsTheItemsAndDescribesThem() async throws {
+        let seen = respond()
+        let service = makeService()
+        await service.sync(records: [record(1)])
+        XCTAssertEqual(seen.value.count, 2)
+        let manifest = try opened(seen.value[1])
+        XCTAssertEqual(manifest["k"] as? String, "manifest")
+        XCTAssertEqual(manifest["r"] as? String, "manifest")
+        let payload = try XCTUnwrap(manifest["d"] as? [String: Any])
+        XCTAssertEqual(payload["counts"] as? [String: Int], ["word": 1])
+        let dataItem = try XCTUnwrap(try sealedItems(seen.value[0]).first)
+        XCTAssertEqual(payload["idsHash"] as? String, MirrorManifest.idsHash([dataItem.id]))
+        XCTAssertEqual(payload["pushedAt"] as? String, "2023-11-14T22:13:20Z", "the clock, as ISO-8601 UTC")
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(manifest["g"] as? Int), try XCTUnwrap(opened(seen.value[0])["g"] as? Int), "the manifest is never older than the items")
+    }
+
+    func testTheManifestIsSkippedWhenNothingChangedUntilTheHeartbeat() async throws {
+        let seen = respond()
+        let service = makeService()
+        await service.sync(records: [record(1)])
+        clock = clock.addingTimeInterval(5)
+        await service.sync(records: [record(1)], force: true)
+        XCTAssertEqual(seen.value.count, 2, "nothing changed and the manifest is fresh")
+        clock = clock.addingTimeInterval(601)
+        await service.sync(records: [record(1)], force: true)
+        XCTAssertEqual(seen.value.count, 3, "exactly one more PUT")
+        XCTAssertEqual(try opened(seen.value[2])["k"] as? String, "manifest")
+    }
+
+    func testAFailedManifestIsRetriedOnTheNextSync() async throws {
+        let puts = Box<Int>(0)
+        let seen = Box<[URLRequest]>([])
+        MockURLProtocol.handler = { request in
+            seen.value.append(request)
+            puts.value += 1
+            return puts.value == 2 ? (500, Data(#"{"error":"internal"}"#.utf8)) : (200, Data(#"{"seq":1}"#.utf8))
+        }
+        let service = makeService()
+        await service.sync(records: [record(1)])
+        XCTAssertEqual(service.lastError, .other)
+        XCTAssertNil(MirrorSettingsStore(defaults: UserDefaults(suiteName: suite)!).value.lastManifestIDsHash)
+        await service.sync(records: [record(1)], force: true)
+        XCTAssertEqual(seen.value.count, 3, "the items were already accepted: only a manifest goes out")
+        XCTAssertEqual(try opened(seen.value[2])["k"] as? String, "manifest")
+        XCTAssertNil(service.lastError)
+        XCTAssertNotNil(MirrorSettingsStore(defaults: UserDefaults(suiteName: suite)!).value.lastManifestIDsHash)
+    }
+
+    func testNoRecordsStillGetsAnEmptyManifestOnce() async throws {
+        let seen = respond()
+        let service = makeService()
+        await service.sync(records: [])
+        XCTAssertEqual(seen.value.count, 1)
+        let manifest = try opened(seen.value[0])
+        let payload = try XCTUnwrap(manifest["d"] as? [String: Any])
+        XCTAssertEqual((payload["counts"] as? [String: Int])?.isEmpty, true)
+        XCTAssertEqual(payload["idsHash"] as? String, MirrorManifest.idsHash([]))
+        await service.sync(records: [], force: true)
+        XCTAssertEqual(seen.value.count, 1, "unchanged and fresh: no second manifest")
     }
 }

@@ -56,4 +56,16 @@ final class MirrorStorageTests: XCTestCase {
         XCTAssertEqual(MirrorSettingsStore(defaults: defaults).value.enabled, true)
         XCTAssertNotNil(defaults.data(forKey: "mirrorSettings"))
     }
+
+    func testManifestFieldsAreOptionalAndRoundTrip() throws {
+        let decoder = JSONDecoder()
+        let old = try decoder.decode(MirrorSettings.self, from: Data(#"{"enabled":true,"lastSyncAt":5}"#.utf8))
+        XCTAssertNil(old.lastManifestAt)
+        XCTAssertNil(old.lastManifestIDsHash)
+        var settings = MirrorSettings(enabled: true)
+        settings.lastManifestAt = Date(timeIntervalSince1970: 700)
+        settings.lastManifestIDsHash = "abc"
+        let again = try decoder.decode(MirrorSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertEqual(again, settings)
+    }
 }
