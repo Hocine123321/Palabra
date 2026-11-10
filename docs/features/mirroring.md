@@ -96,6 +96,8 @@ Normative. The vectors in `PalabraTests/Mirroring/Fixtures/mirror-vectors.json` 
 
 CI runs the Worker's logic on Node and bundles it with `wrangler deploy --dry-run`. The Cloudflare runtime itself (Durable Objects,
 static assets, headers) is only exercised by the smoke test that runs after a real deploy (`worker/scripts/smoke.mjs`); with no
-secrets that test does not run. Real browsers and the phone's camera are not exercised by CI.
+secrets that test does not run. Real browsers and the phone's camera are not exercised by CI. `web/scripts/e2e-local.mjs` drives real Chromium
+by hand (pairing, the manifest states, a replayed server, the service worker offline); it needs Playwright and is not part of CI. Not yet tried
+on real hardware: installing the app on a PC, Safari and Firefox service workers, scanning the QR code with the phone camera, a real Cloudflare Worker.
 
-Known gaps (deferred): a mirror is never deleted when idle; tombstones are never purged; unauthenticated probes of random mirror ids are not rate limited per address.
+Known gaps (deferred): only words are mirrored so far (plan 3b adds the other collections); revoking a computer does not yet rotate the data key (plan 3c); there is no mailbox or live channel; a mirror is never deleted when idle; tombstones are never purged; unauthenticated probes of random mirror ids are not rate limited per address.
