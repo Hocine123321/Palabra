@@ -69,7 +69,25 @@ function formatTime(ms, lang) {
   }
 }
 
-export function wordsScreen({ words, syncedAt, status = null, lang, onRefresh }, tr = t) {
+const DAY_MS = 24 * 3_600_000;
+const ROLLBACK_TEXT = "The server sent older data than this computer already has, so it was ignored. Showing your saved copy.";
+const NO_FRESHNESS = { state: "unverified", pushedAt: null, rollback: false };
+
+/** The lines about the phone's data: when it last synced, whether the copy is complete, and the replay banner. */
+function freshnessLines({ freshness, status, lang, now }, tr) {
+  const { state, pushedAt, rollback } = { ...NO_FRESHNESS, ...(freshness ?? {}) };
+  const when = Number.isFinite(pushedAt) ? formatTime(pushedAt, lang) : "";
+  const stale = Number.isFinite(pushedAt) && now() - pushedAt > DAY_MS;
+  return [
+    rollback || status === "rollback" ? h("p", { class: "status", role: "alert" }, tr(ROLLBACK_TEXT, lang)) : null,
+    when ? h("p", { class: "secondary" }, `${tr("Phone synced", lang)}: ${when}`) : null,
+    state === "incomplete" ? h("p", { class: "status", role: "status" }, tr("Still receiving from your phone…", lang)) : null,
+    state === "unverified" ? h("p", { class: "secondary" }, tr("Not verified yet", lang)) : null,
+    stale ? h("p", { class: "status stale" }, tr("The phone has not synced for over a day, so this may be out of date.", lang)) : null,
+  ];
+}
+
+export function wordsScreen({ words, syncedAt, status = null, freshness, lang, onRefresh, now = Date.now }, tr = t) {
   const statusText = { offline: "Offline: showing your saved copy.", error: "Could not update. Showing your saved copy.", syncing: "Updating…" }[status];
   const rows = words.map((w) =>
     h(
@@ -87,6 +105,7 @@ export function wordsScreen({ words, syncedAt, status = null, lang, onRefresh },
     h("header", { class: "bar" }, h("h1", {}, tr("Your words", lang)), button(tr("Refresh", lang), onRefresh, { id: "refresh", class: "button secondary-button" })),
     h("p", { class: "secondary" }, syncedAt ? `${tr("Last updated", lang)}: ${formatTime(syncedAt, lang)}` : tr("Not updated yet", lang)),
     statusText ? h("p", { class: "status", role: "status" }, tr(statusText, lang)) : null,
+    ...freshnessLines({ freshness, status, lang, now }, tr),
     rows.length ? h("ul", { class: "list" }, ...rows) : h("p", { class: "empty" }, tr("No words yet. Add words in the Palabra app on your phone.", lang)),
   );
 }

@@ -77,3 +77,5 @@ h1 { font-size: 1.6rem; margin: 0 0 0.75rem; }
 .tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .tag { padding: 0 0.6rem; border-radius: 999px; background: var(--accent-soft); font-size: 0.8rem; }
 .empty { color: var(--ink-secondary); padding-block: 2rem; text-align: center; }
+
+.stale { font-weight: 600; }

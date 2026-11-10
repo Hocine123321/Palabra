@@ -28,6 +28,11 @@ export const KEYS = {
   "Pair it again from your phone to keep using Palabra here.": "اقرنه مرة أخرى من هاتفك لمتابعة استخدام Palabra هنا.",
   "Pair again": "اقرن مرة أخرى",
   "Loading…": "جارٍ التحميل…",
+  "Phone synced": "آخر مزامنة للهاتف",
+  "Still receiving from your phone…": "لا يزال الاستلام من هاتفك جاريًا…",
+  "Not verified yet": "لم يتم التحقق بعد",
+  "The phone has not synced for over a day, so this may be out of date.": "لم يتزامن الهاتف منذ أكثر من يوم، فقد تكون هذه البيانات قديمة.",
+  "The server sent older data than this computer already has, so it was ignored. Showing your saved copy.": "أرسل الخادم بيانات أقدم مما لدى هذا الحاسوب، فتم تجاهلها. يتم عرض نسختك المحفوظة.",
 };
 
 export function t(key, lang) {

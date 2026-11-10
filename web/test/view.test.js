@@ -36,6 +36,48 @@ test("three words make three rows with spanish, translation, category and tags",
   for (const expected of ["tomorrow", "Time", "a", "b", "mañana", "مرحبا", "Greetings"]) assert.ok(first.includes(expected), expected);
 });
 
+const PUSHED = Date.parse("2026-11-09T21:30:00Z");
+const HOUR = 3_600_000;
+const screenWith = (freshness, extra = {}) => wordsScreen({ words, syncedAt: null, lang: "en", freshness, now: () => PUSHED + HOUR, ...extra });
+
+test("the freshness line shows when the phone synced, without 'Invalid Date'", () => {
+  const all = texts(screenWith({ state: "verified", pushedAt: PUSHED, rollback: false }));
+  assert.ok(all.some((s) => s.startsWith("Phone synced: ") && s.length > "Phone synced: ".length), all.join("|"));
+  assert.ok(!all.some((s) => s.includes("Invalid Date")));
+  const none = texts(screenWith({ state: "verified", pushedAt: null, rollback: false }));
+  assert.ok(!none.some((s) => s.startsWith("Phone synced")), "no time, no line");
+  const bad = texts(screenWith({ state: "verified", pushedAt: Number.NaN, rollback: false }));
+  assert.ok(!bad.some((s) => s.includes("Invalid Date")));
+});
+
+test("incomplete and unverified copies say so", () => {
+  assert.ok(texts(screenWith({ state: "incomplete", pushedAt: PUSHED, rollback: false })).includes("Still receiving from your phone…"));
+  assert.ok(texts(screenWith({ state: "unverified", pushedAt: null, rollback: false })).includes("Not verified yet"));
+  assert.ok(!texts(screenWith({ state: "verified", pushedAt: PUSHED, rollback: false })).includes("Not verified yet"));
+});
+
+test("data older than a day gets a warning, a fresher copy does not", () => {
+  const warning = "The phone has not synced for over a day, so this may be out of date.";
+  assert.ok(texts(screenWith({ state: "verified", pushedAt: PUSHED, rollback: false }, { now: () => PUSHED + 25 * HOUR })).includes(warning));
+  assert.ok(!texts(screenWith({ state: "verified", pushedAt: PUSHED, rollback: false }, { now: () => PUSHED + 23 * HOUR })).includes(warning));
+});
+
+test("a replay banner is an alert, and word markup stays text in every freshness state", () => {
+  const banner = "The server sent older data than this computer already has, so it was ignored. Showing your saved copy.";
+  const tree = screenWith({ state: "verified", pushedAt: PUSHED, rollback: true });
+  assert.ok(texts(tree).includes(banner));
+  let alert = null;
+  walk(tree, (n) => n.attrs?.role === "alert" && (alert = n));
+  assert.ok(alert, "role=alert");
+  for (const state of ["verified", "incomplete", "unverified"]) {
+    walk(screenWith({ state, pushedAt: PUSHED, rollback: true }), (n) => {
+      assert.notEqual(n.tag, "img");
+      for (const name of Object.keys(n.attrs ?? {})) assert.ok(!/^on/i.test(name));
+    });
+    assert.ok(texts(screenWith({ state, pushedAt: PUSHED, rollback: false })).includes("<img src=x onerror=alert(1)>"));
+  }
+});
+
 test("an empty list shows the empty-state text", () => {
   const tree = wordsScreen({ words: [], syncedAt: null, lang: "en" });
   assert.ok(texts(tree).includes(t("No words yet. Add words in the Palabra app on your phone.", "en")));
@@ -62,6 +104,8 @@ test("every string a screen uses has an Arabic translation", () => {
   confirmScreen({ code: "1234", lang: "ar", waiting: true, onMatch: noop, onCancel: noop }, tr);
   for (const status of [null, "offline", "error", "syncing"]) wordsScreen({ words, syncedAt: 1, status, lang: "ar", onRefresh: noop }, tr);
   wordsScreen({ words: [], syncedAt: null, lang: "ar", onRefresh: noop }, tr);
+  const old = Date.now() - 48 * HOUR;
+  for (const state of ["verified", "incomplete", "unverified"]) for (const rollback of [false, true]) wordsScreen({ words, syncedAt: 1, lang: "ar", freshness: { state, pushedAt: old, rollback }, onRefresh: noop }, tr);
   removedScreen({ lang: "ar", onPairAgain: noop }, tr);
   assert.ok(used.size > 10);
   for (const key of used) {
