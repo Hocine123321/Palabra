@@ -164,6 +164,7 @@ struct MirroringSettingsView: View {
         case .offline: return "You're offline. The library will be sent when you're back online."
         case .rejected: return "The Worker no longer accepts this phone. Turn Mirroring off and pair again."
         case .rateLimited: return "The Worker is busy. Try again in a few minutes."
+        case .full: return "The Worker is full. Remove old data on the Worker or pair a new one."
         case .other: return "Couldn't send the library. Try again later."
         }
     }

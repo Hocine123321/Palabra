@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 enum MirrorSyncError: Equatable {
-    case offline, rejected, rateLimited, other
+    case offline, rejected, rateLimited, full, other
 }
 
 /// The phone's Mirroring as the rest of the app sees it: paired or not, on or off, the last sync and what to do next.
@@ -80,7 +80,7 @@ final class MirrorService {
     // MARK: Sync
 
     /// Pushes what changed. Never throws; the outcome is in `lastSyncAt` and `lastError`.
-    func sync(records: [MirrorRecord], force: Bool = false) async {
+    func sync(collections: [MirrorCollection], force: Bool = false) async {
         guard let current = stored, enabled || force, !syncing else { return }
         if !force, let last = lastAttemptAt, now().timeIntervalSince(last) < Self.minimumInterval { return }
         guard let origin = URL(string: current.origin) else {
@@ -92,7 +92,7 @@ final class MirrorService {
         defer { syncing = false }
         let pusher = MirrorPusher(client: MirrorClient(origin: origin, session: session), secrets: current, index: index, now: now)
         do {
-            let result = try await pusher.push(records, kinds: ["word"])
+            let result = try await pusher.push(collections.flatMap(\.records), kinds: Set(collections.map(\.kind)))
             try await pushManifestIfDue(with: pusher, after: result)
             lastSyncAt = now()
             settingsValue.lastSyncAt = lastSyncAt
@@ -155,9 +155,10 @@ final class MirrorService {
         switch client {
         case .offline: return .offline
         case .badResponse: return .other
-        case .http(let status, _):
+        case .http(let status, let code):
             if status == 401 || status == 403 { return .rejected }
             if status == 429 { return .rateLimited }
+            if status == 409, code == "mirror_full" { return .full }
             return .other
         }
     }

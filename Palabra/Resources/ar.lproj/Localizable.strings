@@ -980,3 +980,4 @@
 "This phone is already paired with a different Worker. Turn Mirroring off first." = "هذا الهاتف مقترن بالفعل بـ Worker مختلف. أوقف المرآة أولًا.";
 "You've reached the limit of 8 computers. Remove one first." = "وصلت إلى حد 8 حواسيب. أزل واحدًا أولًا.";
 "Pairing didn't work. Refresh the computer's page and try again." = "لم ينجح الاقتران. حدّث صفحة الحاسوب وحاول مرة أخرى.";
+"The Worker is full. Remove old data on the Worker or pair a new one." = "الـ Worker ممتلئ. احذف البيانات القديمة من الـ Worker أو اقترن بـ Worker جديد.";

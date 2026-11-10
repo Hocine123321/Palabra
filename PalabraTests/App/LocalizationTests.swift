@@ -381,6 +381,7 @@ final class LocalizationTests: XCTestCase {
             "This phone is already paired with a different Worker. Turn Mirroring off first.",
             "You've reached the limit of 8 computers. Remove one first.",
             "Pairing didn't work. Refresh the computer's page and try again.",
+            "The Worker is full. Remove old data on the Worker or pair a new one.",
         ]
         let missing = keys.filter { (table[$0] ?? "").isEmpty }
         XCTAssertTrue(missing.isEmpty, "Missing Arabic for: \(missing)")
