@@ -11,7 +11,7 @@ extension AppEnvironment {
 
     /// Every collection the phone mirrors, each built from the live repositories.
     func mirrorCollections() async -> [MirrorCollection] {
-        [MirrorCollection(kind: "word", records: mirrorWordRecords())] + mirrorStudyCollections() + (await mirrorContentCollections())
+        [MirrorCollection(kind: "word", records: mirrorWordRecords())] + mirrorStudyCollections() + (await mirrorContentCollections()) + mirrorBooksCollections()
     }
 
     /// Every library word as a mirror record. Never includes pronunciation audio, the old chat or the raw AI response.
