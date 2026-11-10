@@ -80,6 +80,17 @@ export async function openLocalDb(idb = globalThis.indexedDB) {
     getItem(id) {
       return run(db, ["items"], "readonly", async (tx) => wrap(tx.objectStore("items").get(id)));
     },
+    allItems() {
+      return run(db, ["items"], "readonly", async (tx) => wrap(tx.objectStore("items").getAll()));
+    },
+    getMeta(key) {
+      return run(db, ["meta"], "readonly", async (tx) => wrap(tx.objectStore("meta").get(key)));
+    },
+    setMeta(key, value) {
+      return run(db, ["meta"], "readwrite", async (tx) => {
+        await wrap(tx.objectStore("meta").put(value, key));
+      });
+    },
     itemsByKind(kind) {
       return run(db, ["items"], "readonly", async (tx) => wrap(tx.objectStore("items").index("kind").getAll(kind)));
     },

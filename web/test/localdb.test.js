@@ -60,3 +60,18 @@ test("clearAll empties credentials, items and the sequence", async () => {
   assert.equal(await db.getLastSeq(), 0);
   assert.deepEqual(await db.itemsByKind("word"), []);
 });
+
+test("allItems returns every row of every kind", async () => {
+  const db = await fresh();
+  await db.applyPage([row(1), row(2, "deck"), row(3, "manifest")], [], 3);
+  assert.deepEqual((await db.allItems()).map((r) => r.id).sort(), ["id1", "id2", "id3"]);
+});
+
+test("getMeta and setMeta round-trip, and clearAll empties meta", async () => {
+  const db = await fresh();
+  assert.equal(await db.getMeta("x"), undefined);
+  await db.setMeta("x", { a: 1 });
+  assert.deepEqual(await db.getMeta("x"), { a: 1 });
+  await db.clearAll();
+  assert.equal(await db.getMeta("x"), undefined);
+});
