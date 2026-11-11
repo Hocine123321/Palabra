@@ -278,4 +278,65 @@ final class MirrorServiceTests: XCTestCase {
         await sync(service, [record(1)])
         XCTAssertEqual(service.lastError, .full)
     }
+
+    // MARK: Every collection
+
+    private func allCollections(words: Int, deckName: String = "deck") -> [MirrorCollection] {
+        func make(_ kind: String, _ n: Int) -> [MirrorRecord] {
+            (0..<n).map { MirrorRecord(kind: kind, recordID: "\(kind)\($0)", payload: .object(["name": .string(kind == "deck" ? deckName : "x\($0)")])) }
+        }
+        return [
+            MirrorCollection(kind: "word", records: make("word", words)),
+            MirrorCollection(kind: "deck", records: make("deck", 1)),
+            MirrorCollection(kind: "card", records: make("card", 3)),
+            MirrorCollection(kind: "stats", records: make("stats", 1)),
+            MirrorCollection(kind: "review", records: make("review", 2)),
+            MirrorCollection(kind: "artifact", records: make("artifact", 2)),
+            MirrorCollection(kind: "chat", records: make("chat", 1)),
+            MirrorCollection(kind: "lesson", records: make("lesson", 2)),
+            MirrorCollection(kind: "lessonPage", records: make("lessonPage", 3)),
+        ]
+    }
+
+    func testAllCollectionsGoOutInBatchesOfAtMost200ItemsAndTheManifestCountsEachKind() async throws {
+        let seen = respond()
+        let service = makeService()
+        await service.sync(collections: allCollections(words: 450), force: true)
+        // 450 words + 15 others = 465 items: 200 + 200 + 65, then the manifest alone
+        let sizes = try seen.value.map { try sealedItems($0).count }
+        XCTAssertEqual(sizes, [200, 200, 65, 1])
+        for request in seen.value {
+            let body = try XCTUnwrap(request.httpBody)
+            XCTAssertLessThan(body.count, 1_000_000)
+        }
+        let counts = try XCTUnwrap(opened(try XCTUnwrap(seen.value.last))["d"] as? [String: Any])["counts"] as? [String: Int]
+        XCTAssertEqual(counts, ["word": 450, "deck": 1, "card": 3, "stats": 1, "review": 2, "artifact": 2, "chat": 1, "lesson": 2, "lessonPage": 3])
+    }
+
+    func testAnIdenticalSecondSyncSendsNothingUntilTheHeartbeatThenOnlyTheManifest() async throws {
+        let seen = respond()
+        let service = makeService()
+        await service.sync(collections: allCollections(words: 5), force: true)
+        let first = seen.value.count
+        clock = clock.addingTimeInterval(40)
+        await service.sync(collections: allCollections(words: 5))
+        XCTAssertEqual(seen.value.count, first, "nothing changed and the manifest is fresh")
+        clock = clock.addingTimeInterval(MirrorManifest.heartbeat)
+        await service.sync(collections: allCollections(words: 5))
+        XCTAssertEqual(seen.value.count, first + 1, "after the heartbeat: one request")
+        XCTAssertEqual(try opened(try XCTUnwrap(seen.value.last))["k"] as? String, "manifest")
+    }
+
+    func testChangingOneDeckSendsExactlyThatItemAndAManifest() async throws {
+        let seen = respond()
+        let service = makeService()
+        await service.sync(collections: allCollections(words: 5), force: true)
+        let first = seen.value.count
+        clock = clock.addingTimeInterval(40)
+        await service.sync(collections: allCollections(words: 5, deckName: "renamed"))
+        XCTAssertEqual(seen.value.count, first + 2)
+        XCTAssertEqual(try sealedItems(seen.value[first]).count, 1)
+        XCTAssertEqual(try opened(seen.value[first])["k"] as? String, "deck")
+        XCTAssertEqual(try opened(seen.value[first + 1])["k"] as? String, "manifest")
+    }
 }

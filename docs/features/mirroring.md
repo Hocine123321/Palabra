@@ -56,7 +56,23 @@ Remove a computer in the same screen: its token is revoked on the Worker first. 
 
 ## What is mirrored
 
-Kind `word`, one item per library word: id, key, Spanish, translation, part of speech, category, tags, created/updated dates and the full lesson content. Never: pronunciation audio, the old per-word chat, the raw AI response, the API key. A record over 262,144 sealed characters is skipped and reported, not truncated.
+Each kind is one record per thing; the phone's own id is the record id.
+
+| Kind | Record id | Content |
+|---|---|---|
+| `word` | word UUID | id, key, Spanish, translation, part of speech, category, tags, dates, the full lesson content |
+| `deck` | deck UUID | name, `vocabulary`/`user`, created date, counts `{total, due, new}` and `countsAt` |
+| `card` | card UUID | user decks only (the vocabulary deck comes from the words): front, back, due, reps, lapses, phase, created |
+| `stats` | `stats` | reviewed today, streak, last seven days, `asOf` |
+| `review` | need UUID | open Need Review items only: headword, translation, score, note, flag count, updated |
+| `artifact` | artifact UUID | title, `spec`/`app`, version, updated, `blocks`. Spec tables and charts are resolved by the phone (a failed bind becomes an `error` block); an app is listed with `blocks: null`, its page is never sent |
+| `chat` | `latest` | the most recently updated conversation: title, word, turn roles, texts, dates, status (newest turns kept within a text budget) |
+| `lesson` | lesson id | title, summary, book, chapter, language, `pageIds`, terms, transcription notes |
+| `lessonPage` | `<lessonId>/<pageId>` | number, title, date label, blocks in the lesson-file JSON shape (an image keeps only `alt` and `caption`) |
+
+The page shows due counts, streak and scores exactly as the phone sent them, labelled with their `asOf`/`countsAt` time; it applies no rules of its own.
+
+Never mirrored: pronunciation audio, image bytes, API keys, older chats, chat thumbnails, actions and error text, Lesson Studio drafts, the raw AI response, app artifact pages. A record over 262,144 sealed characters is skipped and reported, not truncated. A kind the phone could not build in one sync is left alone on the Worker; a kind built empty removes its items. A `409 mirror_full` from the Worker shows as "The Worker is full."
 
 ## Limits seen from the phone
 
