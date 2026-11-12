@@ -54,6 +54,16 @@ export const KEYS = {
   "No data": "لا توجد بيانات",
   "Image": "صورة",
   "Couldn't load data": "تعذّر تحميل البيانات",
+  "Progress": "التقدّم",
+  "Reviewed today": "تمت مراجعته اليوم",
+  "Day streak": "أيام متتالية",
+  "Last 7 days": "آخر 7 أيام",
+  "As of": "حتى",
+  "Decks": "المجموعات",
+  "Total": "الكل",
+  "Due": "مستحقة",
+  "New": "جديدة",
+  "Flagged": "عدد مرات الإشارة",
   "This page can't be shown here": "لا يمكن عرض هذه الصفحة هنا",
 };
 

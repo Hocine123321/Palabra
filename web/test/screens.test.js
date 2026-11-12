@@ -145,3 +145,84 @@ test("the routed screen opens the right word and shows the navigation", () => {
   const gone = routedScreen({ route: { name: "word", id: "nope" }, model, frame, lang: "en" }, t);
   assert.ok(texts(gone).includes("That item is gone"));
 });
+
+// MARK: Study and Need Review
+
+import { reviewScreen } from "../src/render/review.js";
+import { sevenDays, studyScreen } from "../src/render/study.js";
+
+const deck = (over = {}) => ({ id: "di", recordId: "d1", name: "Verbs", kind: "user", counts: { total: 5, due: 2, new: 3 }, countsAt: "2026-11-09T21:30:00Z", ...over });
+
+test("decks and cards with markup are text only, with the phone's numbers and time", () => {
+  const tree = studyScreen({
+    decks: [deck({ name: MARKUP }), deck({ id: "dv", recordId: "dv", name: "Vocabulary", kind: "vocabulary", counts: { total: 9, due: 1, new: 0 } })],
+    cards: [{ id: "c1", deckId: "d1", front: MARKUP, back: MARKUP, createdAt: "2026-01-01T00:00:00Z" }, { id: "c2", deckId: "dv", front: "from-words", back: "x" }],
+    stats: { reviewedToday: 4, streak: 7, lastSevenDays: [1, 2, 3, 4, 5, 6, 7], asOf: "2026-11-09T21:30:00Z" },
+    lang: "en", frame,
+  }, t);
+  assertTextOnly(tree, "study");
+  const all = texts(tree);
+  assert.ok(all.includes(MARKUP));
+  assert.ok(all.some((s) => s.includes("Total 5 · Due 2 · New 3")), all.join("|"));
+  assert.ok(all.some((s) => s.startsWith("As of ") && s.length > 6));
+  assert.ok(!all.includes("from-words"), "the vocabulary deck's cards come from the words");
+  assert.ok(tags(tree).includes("details"), "a user deck's cards are behind a details element");
+  assert.ok(all.includes("7"), "the streak");
+  assert.ok(all.includes("1  2  3  4  5  6  7"));
+});
+
+test("an unparseable countsAt shows no time and nothing says Invalid Date", () => {
+  for (const countsAt of ["nonsense", "", null, 12, undefined]) {
+    const all = texts(studyScreen({ decks: [deck({ countsAt })], cards: [], stats: null, lang: "en", frame }, t));
+    assert.ok(!all.some((s) => s.includes("As of") || s.includes("Invalid")), String(countsAt));
+  }
+});
+
+test("a seven-day list of the wrong length or with other types becomes seven zeros", () => {
+  const zeros = [0, 0, 0, 0, 0, 0, 0];
+  for (const bad of [[1, 2], [1, 2, 3, 4, 5, 6, 7, 8], ["a", 1, 2, 3, 4, 5, 6], [null, 1, 2, 3, 4, 5, 6], "1234567", null, undefined, {}, [-1, 0, 0, 0, 0, 0, 0], [Infinity, 0, 0, 0, 0, 0, 0]]) {
+    assert.deepEqual(sevenDays(bad), zeros, JSON.stringify(bad));
+  }
+  assert.deepEqual(sevenDays([1, 2, 3, 4, 5, 6, 7]), [1, 2, 3, 4, 5, 6, 7]);
+  const tree = studyScreen({ decks: [], cards: [], stats: { reviewedToday: "x", streak: -3, lastSevenDays: ["a"] }, lang: "en", frame }, t);
+  let rects = 0;
+  walk(tree, (n) => n.tag === "rect" && (rects += 1));
+  assert.equal(rects, 7);
+});
+
+test("empty study collections show the empty line, in Arabic too", () => {
+  assert.ok(texts(studyScreen({ decks: [], cards: [], stats: null, lang: "en", frame }, t)).includes("Nothing here yet"));
+  assert.ok(texts(studyScreen({ decks: [], cards: [], stats: null, lang: "ar", frame }, t)).includes("لا يوجد شيء هنا بعد"));
+  assert.ok(texts(studyScreen({ decks: null, cards: undefined, stats: 5, lang: "en", frame }, t)).length > 0);
+});
+
+test("decks are sorted by name", () => {
+  const tree = studyScreen({ decks: [deck({ id: "b", recordId: "b", name: "Beta" }), deck({ id: "a", recordId: "a", name: "Alpha" })], cards: [], stats: null, lang: "en", frame }, t);
+  const names = [];
+  walk(tree, (n) => n.tag === "strong" && names.push(texts(n)[0]));
+  assert.deepEqual(names, ["Alpha", "Beta"]);
+});
+
+test("needs show their note and flag count, newest first, and link only when the word exists", () => {
+  const needs = [
+    { id: "n1", wordId: "w-missing", headword: "viejo", translation: "old", note: "x", flagCount: 1, updatedAt: "2026-01-01T00:00:00Z" },
+    { id: "n2", wordId: "w1", headword: MARKUP, translation: MARKUP, note: MARKUP, flagCount: 3, score: 0.4, updatedAt: "2026-03-01T00:00:00Z" },
+  ];
+  const tree = reviewScreen({ needs, words: [{ id: "itemW", recordId: "w1" }], lang: "en", frame }, t);
+  assertTextOnly(tree, "review");
+  const heads = [];
+  walk(tree, (n) => n.attrs?.class === "headword" && heads.push({ tag: n.tag, href: n.attrs.href, text: texts(n)[0] }));
+  assert.deepEqual(heads, [{ tag: "a", href: "#/words/itemW", text: MARKUP }, { tag: "span", href: undefined, text: "viejo" }]);
+  assert.ok(texts(tree).includes("Flagged: 3"));
+  assert.ok(texts(reviewScreen({ needs: [], words: [], lang: "en", frame }, t)).includes("Nothing here yet"));
+  assert.ok(texts(reviewScreen({ needs: [{ headword: 5, flagCount: "x", updatedAt: {} }, null, "x"], words: null, lang: "en", frame }, t)).length > 0);
+});
+
+test("the routed screen shows Study and Need Review from the model", () => {
+  const model = buildModel([
+    { id: "i1", kind: "deck", recordId: "d1", d: { name: "Verbs", kind: "user", counts: { total: 1, due: 0, new: 1 } } },
+    { id: "i2", kind: "review", recordId: "n1", d: { wordId: "x", headword: "viejo", translation: "old", flagCount: 1, updatedAt: "2026-01-01T00:00:00Z" } },
+  ]);
+  assert.ok(texts(routedScreen({ route: { name: "study", id: null }, model, frame, lang: "en" }, t)).includes("Verbs"));
+  assert.ok(texts(routedScreen({ route: { name: "review", id: null }, model, frame, lang: "en" }, t)).includes("viejo"));
+});

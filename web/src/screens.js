@@ -1,5 +1,7 @@
 // The signed-in page: the opened items grouped by kind, and which screen a route shows.
 import { navBar } from "./nav.js";
+import { reviewScreen } from "./render/review.js";
+import { studyScreen } from "./render/study.js";
 import { wordDetail } from "./render/word.js";
 import { arr } from "./render/util.js";
 import { h, screenFrame, wordsScreen } from "./view.js";
@@ -38,6 +40,10 @@ export function routedScreen({ route, model, frame, lang }, tr) {
       return wordDetail({ word: model.words.find((w) => w.id === route.id) ?? null, lang, frame: { ...frame, nav } }, tr);
     case "words":
       return wordsScreen({ ...shared, words: model.words }, tr);
+    case "study":
+      return studyScreen({ decks: model.decks, cards: model.cards, stats: model.stats, lang, frame: shared }, tr);
+    case "review":
+      return reviewScreen({ needs: model.needs, words: model.words, lang, frame: shared }, tr);
     default:
       return screenFrame({ ...shared, title: tr("Palabra Mirroring", lang) }, tr, h("p", { class: "empty" }, tr("Nothing here yet", lang)));
   }
