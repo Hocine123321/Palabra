@@ -1,6 +1,7 @@
 // Screens as plain element trees, and a mount that builds DOM with createElement and text nodes only
 // (no innerHTML, no inline styles: the page's CSP forbids both, and nothing from the phone is ever treated as markup).
 import { qrTree } from "./qr.js";
+import { formatTime } from "./render/util.js";
 import { t } from "./strings.js";
 
 /** h("button", {class: "x", onClick: fn}, "text") -> {tag, attrs, handlers, children}. Functions never become attributes. */
@@ -15,7 +16,7 @@ export function h(tag, attrs = {}, ...children) {
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const SVG_TAGS = new Set(["svg", "path", "rect"]);
+const SVG_TAGS = new Set(["svg", "path", "rect", "title"]);
 const FORBIDDEN_ATTR = /^(on|style$|innerhtml$|srcdoc$)/i;
 
 export function mount(root, tree, doc = globalThis.document) {
@@ -61,14 +62,6 @@ export function confirmScreen({ code, lang, waiting, onMatch, onCancel }, tr = t
   );
 }
 
-function formatTime(ms, lang) {
-  try {
-    return new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ms));
-  } catch {
-    return "";
-  }
-}
-
 const DAY_MS = 24 * 3_600_000;
 const ROLLBACK_TEXT = "The server sent older data than this computer already has, so it was ignored. Showing your saved copy.";
 const NO_FRESHNESS = { state: "unverified", pushedAt: null, rollback: false };
@@ -87,25 +80,38 @@ function freshnessLines({ freshness, status, lang, now }, tr) {
   ];
 }
 
-export function wordsScreen({ words, syncedAt, status = null, freshness, lang, onRefresh, now = Date.now }, tr = t) {
+/**
+ * What every screen of the signed-in page has: the navigation bar, a title with the Refresh button, when this computer last
+ * updated, the status line and the phone's freshness lines. `body` is the screen itself.
+ */
+export function screenFrame({ title, titleDir, nav, syncedAt = null, status = null, freshness, lang, onRefresh, now = Date.now }, tr, ...body) {
   const statusText = { offline: "Offline: showing your saved copy.", error: "Could not update. Showing your saved copy.", syncing: "Updating…" }[status];
+  return h(
+    "main",
+    { class: "screen", lang },
+    nav ?? null,
+    h("header", { class: "bar" }, h("h1", { dir: titleDir ?? null }, title), button(tr("Refresh", lang), onRefresh, { id: "refresh", class: "button secondary-button" })),
+    h("p", { class: "secondary" }, syncedAt ? `${tr("Last updated", lang)}: ${formatTime(syncedAt, lang)}` : tr("Not updated yet", lang)),
+    statusText ? h("p", { class: "status", role: "status" }, tr(statusText, lang)) : null,
+    ...freshnessLines({ freshness, status, lang, now }, tr),
+    ...body,
+  );
+}
+
+export function wordsScreen({ words, syncedAt, status = null, freshness, lang, onRefresh, now = Date.now, nav = null }, tr = t) {
   const rows = words.map((w) =>
     h(
       "li",
       { class: "row" },
-      h("span", { class: "headword", dir: "auto" }, String(w.spanish ?? "")),
+      typeof w.id === "string" && w.id ? h("a", { class: "headword", dir: "auto", href: `#/words/${w.id}` }, String(w.spanish ?? "")) : h("span", { class: "headword", dir: "auto" }, String(w.spanish ?? "")),
       h("span", { class: "translation", dir: "auto" }, String(w.translation ?? "")),
       w.category ? h("span", { class: "category", dir: "auto" }, String(w.category)) : null,
       Array.isArray(w.tags) && w.tags.length ? h("span", { class: "tags" }, ...w.tags.map((tag) => h("span", { class: "tag", dir: "auto" }, String(tag)))) : null,
     ),
   );
-  return h(
-    "main",
-    { class: "screen", lang },
-    h("header", { class: "bar" }, h("h1", {}, tr("Your words", lang)), button(tr("Refresh", lang), onRefresh, { id: "refresh", class: "button secondary-button" })),
-    h("p", { class: "secondary" }, syncedAt ? `${tr("Last updated", lang)}: ${formatTime(syncedAt, lang)}` : tr("Not updated yet", lang)),
-    statusText ? h("p", { class: "status", role: "status" }, tr(statusText, lang)) : null,
-    ...freshnessLines({ freshness, status, lang, now }, tr),
+  return screenFrame(
+    { title: tr("Your words", lang), nav, syncedAt, status, freshness, lang, onRefresh, now },
+    tr,
     rows.length ? h("ul", { class: "list" }, ...rows) : h("p", { class: "empty" }, tr("No words yet. Add words in the Palabra app on your phone.", lang)),
   );
 }

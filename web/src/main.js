@@ -4,10 +4,12 @@ import { OfflineError, createApi } from "./api.js";
 import { importDataKey } from "./crypto.js";
 import { openLocalDb } from "./localdb.js";
 import { createPairing } from "./pairing.js";
-import { dirFor, pickLang } from "./strings.js";
+import { dirFor, pickLang, t } from "./strings.js";
 import { refreshDelay } from "./schedule.js";
 import { AuthRevoked, RollbackDetected, describeCopy, pullOnce } from "./sync.js";
-import { confirmScreen, mount, pairScreen, removedScreen, wordsScreen } from "./view.js";
+import { parseRoute } from "./router.js";
+import { buildModel, routedScreen } from "./screens.js";
+import { confirmScreen, mount, pairScreen, removedScreen } from "./view.js";
 
 const root = document.getElementById("app");
 const lang = pickLang(navigator.language);
@@ -99,11 +101,13 @@ async function showWords() {
 
   const draw = async () => {
     copy = await describeCopy(db);
-    const rows = await db.itemsByKind("word");
-    const words = rows
-      .map((r) => ({ id: r.id, ...r.d }))
-      .sort((a, b) => Date.parse(b.createdAt ?? "") - Date.parse(a.createdAt ?? "") || 0);
-    render(wordsScreen({ words, syncedAt, status, freshness: { state: copy.state, pushedAt: copy.pushedAt, rollback }, lang, onRefresh: refresh }));
+    const model = buildModel(await db.allItems());
+    render(
+      routedScreen(
+        { route: parseRoute(location.hash), model, lang, frame: { syncedAt, status, freshness: { state: copy.state, pushedAt: copy.pushedAt, rollback }, onRefresh: refresh } },
+        t,
+      ),
+    );
   };
 
   async function refresh() {
@@ -141,6 +145,7 @@ async function showWords() {
   };
   loop();
   window.addEventListener("online", () => token === screenToken && refresh());
+  window.addEventListener("hashchange", () => token === screenToken && draw());
 }
 
 // The shell is kept for offline use. A failed registration (private window, blocked) changes nothing: the page works without it.

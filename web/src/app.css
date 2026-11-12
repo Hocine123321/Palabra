@@ -79,3 +79,60 @@ h1 { font-size: 1.6rem; margin: 0 0 0.75rem; }
 .empty { color: var(--ink-secondary); padding-block: 2rem; text-align: center; }
 
 .stale { font-weight: 600; }
+
+/* Navigation */
+.nav { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-block-end: 1rem; }
+.nav-link {
+  display: inline-flex; align-items: center; gap: 0.35rem; min-block-size: 2.5rem; padding: 0.25rem 0.9rem;
+  border-radius: 999px; background: var(--fill); color: var(--ink); text-decoration: none; font-weight: 600;
+}
+.nav-link:hover { background: var(--accent-soft); }
+.nav-link:focus-visible, .back:focus-visible, .headword:focus-visible { outline: 3px solid var(--accent-deep); outline-offset: 2px; }
+.nav-link[aria-current="page"] { background: var(--accent); color: #1f1d1a; }
+.count { min-inline-size: 1.4rem; padding: 0 0.35rem; border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 0.8rem; text-align: center; }
+
+a.headword { color: var(--ink); text-decoration: none; }
+a.headword:hover { text-decoration: underline; }
+.back { display: inline-block; margin-block-end: 0.75rem; color: var(--accent-deep); }
+
+/* Word detail */
+.big { font-size: 1.25rem; margin: 0 0 0.5rem; }
+.meta { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 1rem; }
+.detail-section { margin-block: 1.25rem; }
+.detail-section h2 { font-size: 1.05rem; color: var(--accent-deep); margin: 0 0 0.5rem; }
+.detail-section h3 { font-size: 0.95rem; margin: 0.5rem 0 0.25rem; }
+.detail-section p, .detail-section ul { margin: 0.25rem 0; }
+.example { padding: 0.6rem 0.9rem; margin-block: 0.5rem; border-radius: 1rem; background: var(--fill); }
+.example p { margin: 0.15rem 0; }
+.spanish { font-weight: 700; }
+.example .translation, .translations { color: var(--ink-secondary); }
+
+/* Blocks (artifacts and lessons) */
+.block, .block-section { margin-block: 1rem; }
+.block-heading { margin: 1.25rem 0 0.5rem; }
+.block-title { font-size: 1rem; margin: 0 0 0.4rem; }
+.block-text { margin: 0.5rem 0; }
+.block-list, .steps, .timeline { margin: 0.4rem 0; padding-inline-start: 1.4rem; }
+.checklist { list-style: none; padding-inline-start: 0; }
+.table-wrap { overflow-x: auto; margin-block: 0.75rem; }
+.block-table { border-collapse: collapse; inline-size: 100%; }
+.block-table th, .block-table td { padding: 0.4rem 0.7rem; border-block-end: 1px solid var(--fill); text-align: start; }
+.block-table thead th { background: var(--fill); }
+.stat-tiles { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.stat-tile { display: grid; gap: 0.1rem; min-inline-size: 7rem; padding: 0.6rem 0.9rem; border-radius: 1rem; background: var(--fill); }
+.stat-value { font-size: 1.4rem; font-weight: 700; color: var(--accent-deep); }
+.key-point { margin-block: 0.75rem; padding: 0.6rem 0.9rem; border-inline-start: 4px solid var(--accent); border-radius: 0.5rem; background: var(--accent-soft); }
+.key-point p { margin: 0.2rem 0 0; }
+.quote { margin: 0.75rem 0; padding-inline-start: 1rem; border-inline-start: 3px solid var(--fill); color: var(--ink-secondary); }
+.quote cite { display: block; font-size: 0.85rem; }
+.definitions dt { font-weight: 700; margin-block-start: 0.5rem; }
+.definitions dd { margin: 0 0 0 0; margin-inline-start: 1rem; }
+.columns { display: flex; flex-wrap: wrap; gap: 1rem; }
+.column { flex: 1 1 14rem; min-inline-size: 0; }
+.image-note { margin: 0.75rem 0; padding: 0.6rem 0.9rem; border: 1px dashed var(--ink-secondary); border-radius: 0.75rem; color: var(--ink-secondary); }
+.image-note p { margin: 0; }
+.chart { margin: 0.75rem 0; }
+.chart-svg { display: block; inline-size: 100%; max-inline-size: 28rem; block-size: auto; }
+.chart-bar { fill: var(--accent); }
+.chart-line { fill: none; stroke: var(--accent-deep); stroke-width: 1; }
+.chart-values { max-inline-size: 28rem; font-size: 0.85rem; }
