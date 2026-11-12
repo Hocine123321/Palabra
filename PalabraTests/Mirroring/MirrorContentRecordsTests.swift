@@ -30,7 +30,8 @@ final class MirrorContentRecordsTests: XCTestCase {
     }
 
     private func collection(_ kind: String) async throws -> MirrorCollection {
-        try XCTUnwrap(await env.mirrorContentCollections().first { $0.kind == kind }, kind)
+        let all = await env.mirrorContentCollections()
+        return try XCTUnwrap(all.first { $0.kind == kind }, kind)
     }
 
     @discardableResult
@@ -59,7 +60,8 @@ final class MirrorContentRecordsTests: XCTestCase {
         ]}
         """
         let artifact = addSpec(spec, title: markup)
-        let record = try XCTUnwrap(try await collection("artifact").records.first)
+        let artifactRecords = try await collection("artifact").records
+        let record = try XCTUnwrap(artifactRecords.first)
         XCTAssertEqual(record.recordID, artifact.id.uuidString)
         let payload = try XCTUnwrap(record.payload.objectValue)
         XCTAssertEqual(Set(payload.keys), ["id", "title", "kind", "version", "updatedAt", "blocks"])
@@ -86,7 +88,8 @@ final class MirrorContentRecordsTests: XCTestCase {
           {"type":"table","columns":[{"title":"W","field":"w"}],"bind":{"capability":"no.such.capability"}},
           {"type":"text","text":"after"}]}
         """)
-        let record = try XCTUnwrap(try await collection("artifact").records.first)
+        let artifactRecords = try await collection("artifact").records
+        let record = try XCTUnwrap(artifactRecords.first)
         let blocks = try XCTUnwrap(record.payload["blocks"]?.arrayValue)
         XCTAssertEqual(blocks.count, 3)
         XCTAssertEqual(blocks[0]["text"]?.stringValue, "before")
@@ -142,7 +145,8 @@ final class MirrorContentRecordsTests: XCTestCase {
         let long = String(repeating: "a", count: 8_000)
         let turns = (0..<40).map { ChatTurn(role: $0 % 2 == 0 ? .user : .assistant, text: "\($0) " + long, createdAt: now) }
         chats.create(title: "Big", wordID: nil, turns: turns, now: now)
-        let record = try XCTUnwrap(try await collection("chat").records.first)
+        let chatRecords = try await collection("chat").records
+        let record = try XCTUnwrap(chatRecords.first)
         let mirrored = try XCTUnwrap(record.payload["turns"]?.arrayValue)
         XCTAssertLessThan(mirrored.count, 40)
         XCTAssertGreaterThan(mirrored.count, 10)
