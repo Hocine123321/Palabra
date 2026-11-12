@@ -82,6 +82,10 @@ Never mirrored: pronunciation audio, image bytes, API keys, older chats, chat th
 
 The page is an installable web app: open your Worker's address in Chrome or Edge and use the install button in the address bar (Safari: Share, Add to Dock). A service worker (`web/src/sw.js`, built into `dist/sw.js`) keeps the shell (`/`, `app.js`, `app.css`, the manifest and two icons) in a cache named `palabra-shell-<hash of those files>`, so the page opens offline and shows the saved copy. It never handles `/api/*`, other methods or other origins; a new deploy changes the hash, installs a new cache, and deletes the old one. If registering it fails, nothing else changes. The icons are made from the phone app's icon by `web/scripts/make-icons.py`.
 
+## Screens in the web app
+
+Hash routes: `#/words`, `#/words/<id>` (word details), `#/study`, `#/review`, `#/artifacts`, `#/artifacts/<id>`, `#/chat`, `#/books`, `#/books/<id>`; anything else opens the words list, and an id that no longer exists shows "That item is gone". `<id>` is the item id. Every screen has the navigation bar, a Refresh button and the freshness lines. Everything from the phone is a text node: an unknown block type shows its text (or its type name), a field of the wrong type is skipped, nothing throws. A book follows its own `language` for reading direction (an Arabic lesson is right to left in an English browser); the app chrome follows the browser. Spec artifact charts are drawn from numbers only (bars or one line) with the values also in a table below. Apps (HTML artifacts) are listed with "Open this on your phone".
+
 ## Trust model
 
 - Cloudflare sees: that a mirror exists, how many encrypted items, their sizes, when they change and the IP addresses that connect.

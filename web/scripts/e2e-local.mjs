@@ -2,6 +2,7 @@
 // NOT run by CI: it needs Playwright and a Chromium (`npm i --no-save playwright`, or a global install linked into
 // web/node_modules). Run after `npm run build`:   node web/scripts/e2e-local.mjs [screenshot-dir]
 // Checks: pairing with the match code, pull + decrypt + render, the manifest states (verified / incomplete / replay),
+// every collection (study, review, artifacts, chat, books) on its screen with every nav link and detail route,
 // markup stays text, no console error or CSP violation, the service worker serves the page offline, the web manifest.
 import http from "node:http";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -110,7 +111,7 @@ await page.waitForSelector("#refresh", { timeout: 15000 });
 
 const keys = await importDataKey(dataKey);
 let generation = 1;
-const live = new Map(); // item id -> true
+const live = new Map(); // item id -> kind
 async function item(kind, recordId, d, g) {
   const id = await deriveItemId(keys, kind, recordId);
   const plain = new TextEncoder().encode(JSON.stringify({ v: 1, k: kind, r: recordId, h: "h", g, d }));
@@ -121,7 +122,7 @@ async function pushWords(list) {
   const items = [];
   for (const [i, [spanish, translation, createdAt]] of list.entries()) {
     const built = await item("word", `w-${spanish}-${i}`, { spanish, translation, category: "Test", tags: ["t"], createdAt }, generation);
-    live.set(built.id, true);
+    live.set(built.id, "word");
     items.push(built);
   }
   return (await api("PUT", `/api/m/${mirrorId}/items`, { items }, owner)).status;
@@ -129,7 +130,10 @@ async function pushWords(list) {
 async function pushManifest({ extraCount = 0, pushedAt = new Date().toISOString().replace(/\.\d+Z$/, "Z") } = {}) {
   generation += 1;
   const ids = [...live.keys()];
-  const m = await item("manifest", "manifest", { counts: { word: ids.length + extraCount }, idsHash: await idsHash(ids), pushedAt }, generation);
+  const counts = {};
+  for (const kind of live.values()) counts[kind] = (counts[kind] ?? 0) + 1;
+  counts.word = (counts.word ?? 0) + extraCount;
+  const m = await item("manifest", "manifest", { counts, idsHash: await idsHash(ids), pushedAt }, generation);
   return (await api("PUT", `/api/m/${mirrorId}/items`, { items: [m] }, owner)).status;
 }
 // Click Refresh, give the pull a moment to start, then wait until the "Updating…" line is gone and the screen has settled.
@@ -173,6 +177,103 @@ await page.screenshot({ path: `${shots}/5-replay.png` });
 serveOlderState = false;
 await refresh();
 check("the banner goes away once the server is sane", !(await bodyText()).includes("The server sent older data"));
+
+// 3b. every collection: one record of each kind, then every nav link and detail route in a real browser
+const MARKUP = "<img src=x onerror=window.__pwned=1>";
+async function pushRecords(list) {
+  generation += 1;
+  const items = [];
+  for (const [kind, recordId, d] of list) {
+    const built = await item(kind, recordId, d, generation);
+    live.set(built.id, kind);
+    items.push(built);
+  }
+  return (await api("PUT", `/api/m/${mirrorId}/items`, { items }, owner)).status;
+}
+const iso = "2026-11-09T21:30:00Z";
+await pushRecords([
+  ["deck", "d1", { id: "d1", name: MARKUP, kind: "user", createdAt: iso, counts: { total: 2, due: 1, new: 1 }, countsAt: iso }],
+  ["deck", "dv", { id: "dv", name: "Vocabulary", kind: "vocabulary", createdAt: iso, counts: { total: 4, due: 0, new: 4 }, countsAt: iso }],
+  ["card", "c1", { id: "c1", deckId: "d1", front: MARKUP, back: "back one", due: iso, reps: 0, lapses: 0, phase: "new", createdAt: iso }],
+  ["stats", "stats", { reviewedToday: 4, streak: 7, lastSevenDays: [1, 2, 3, 4, 5, 6, 7], asOf: iso }],
+  ["review", "n1", { id: "n1", wordId: "w-casa-2", headword: "casa", translation: MARKUP, score: 0.4, note: MARKUP, flagCount: 2, updatedAt: iso }],
+  ["artifact", "a1", { id: "a1", title: MARKUP, kind: "spec", version: 1, updatedAt: iso, blocks: [
+    { type: "heading", level: 1, text: MARKUP },
+    { type: "table", columns: [{ title: "Word" }], rows: [[MARKUP], ["casa"]] },
+    { type: "chart", style: "bar", title: "Words per day", labels: ["Mon", "Tue", "Wed"], series: [{ name: "Words", values: [3, 5, 2] }] },
+    { type: "checklist", id: "c", items: [MARKUP] },
+  ] }],
+  ["artifact", "a2", { id: "a2", title: "A game", kind: "app", version: 1, updatedAt: iso, blocks: null }],
+  ["chat", "latest", { id: "ch1", title: "About casa", wordId: null, updatedAt: iso, turns: [
+    { role: "user", text: `${MARKUP}\nsecond line`, createdAt: iso, status: "sent" },
+    { role: "assistant", text: "مرحبا بك", createdAt: iso, status: "sent" },
+  ] }],
+  ["lesson", "les1", { id: "les1", version: 1, title: "الدرس الأول", summary: MARKUP, bookId: "history", bookTitle: "التاريخ", chapterId: "u1", chapterTitle: "الوحدة الأولى", language: "ar", pageIds: ["p1", "p2"], terms: { t1: { term: MARKUP, definition: "تعريف" } }, notes: [] }],
+  ["lessonPage", "les1/p1", { lessonId: "les1", id: "p1", number: 1, title: "الصفحة الأولى", dateLabel: null, blocks: [{ type: "paragraph", text: `نص عربي ${MARKUP} {{مصطلح|t1}}` }, { type: "keyPoint", label: "مهم", text: "نقطة" }] }],
+  ["lessonPage", "les1/p2", { lessonId: "les1", id: "p2", number: 2, title: "الصفحة الثانية", dateLabel: "١٩٥٤", blocks: [{ type: "timeline", events: [{ date: "1954", title: "بداية" }] }, { type: "hologram" }] }],
+]);
+await pushManifest();
+await refresh();
+const gotoSection = async (href) => {
+  await page.click(`a.nav-link[href="${href}"]`);
+  await page.waitForFunction((h) => location.hash === h, href);
+  await page.waitForTimeout(200);
+};
+const markupIsText = async (name) => {
+  const body = await bodyText();
+  check(`${name}: markup is shown as text`, body.includes("<img src=x onerror=window.__pwned=1>"));
+  check(`${name}: nothing was built from it`, (await page.locator("img").count()) === 0 && (await page.evaluate(() => window.__pwned ?? null)) === null);
+};
+check("every kind arrived: the copy is verified", !(await bodyText()).includes("Still receiving"));
+
+await gotoSection("#/study");
+text = await bodyText();
+check("Study shows the deck counts, the cards and the streak", text.includes("Total 2 · Due 1 · New 1") && text.includes("Vocabulary") && text.includes("Day streak"));
+await page.click("summary");
+await markupIsText("Study");
+await page.screenshot({ path: `${shots}/9-study.png` });
+
+await gotoSection("#/review");
+await markupIsText("Need Review");
+check("a need links to its word", (await page.locator('a.headword[href^="#/words/"]').count()) === 1);
+await page.screenshot({ path: `${shots}/10-review.png` });
+
+await gotoSection("#/artifacts");
+check("the app artifact is listed as open-on-phone", (await bodyText()).includes("Open this on your phone"));
+await page.click('a.headword[href^="#/artifacts/"]');
+await page.waitForSelector(".artifact-page");
+await markupIsText("Artifact");
+check("the chart has three bars and a values table", (await page.locator("svg.chart-svg rect").count()) === 3 && (await page.locator("table.chart-values").count()) === 1);
+await page.screenshot({ path: `${shots}/11-artifact.png` });
+
+await gotoSection("#/chat");
+await markupIsText("Chat");
+check("chat keeps order and the line break", (await page.locator("li.turn").count()) === 2 && (await page.locator("li.turn br").count()) === 1);
+await page.screenshot({ path: `${shots}/12-chat.png` });
+
+await gotoSection("#/books");
+await page.click('a.headword[href^="#/books/"]');
+await page.waitForSelector(".reader");
+await markupIsText("Books reader");
+check("the Arabic lesson reads right to left even in an English browser", (await page.locator('.reader[dir="rtl"]').count()) === 1 && (await page.locator("article.lesson-page").count()) === 2);
+check("lesson markup is plain text (the term keeps its words)", (await bodyText()).includes("مصطلح") && !(await bodyText()).includes("{{"));
+await page.screenshot({ path: `${shots}/13-books-reader.png` });
+await page.emulateMedia({ colorScheme: "dark" });
+await page.screenshot({ path: `${shots}/14-books-reader-dark.png` });
+await page.setViewportSize({ width: 390, height: 780 });
+await page.screenshot({ path: `${shots}/15-books-reader-narrow.png` });
+await page.setViewportSize({ width: 1100, height: 720 });
+await page.emulateMedia({ colorScheme: "light" });
+
+await gotoSection("#/words");
+await page.click("a.headword");
+await page.waitForSelector(".detail-section, .meta");
+check("a word opens its detail page", (await page.locator("a.back").count()) === 1);
+await page.screenshot({ path: `${shots}/16-word-detail.png` });
+await page.evaluate(() => { location.hash = "#/words/does-not-exist"; });
+await page.waitForTimeout(200);
+check("a route to a vanished item says so", (await bodyText()).includes("That item is gone"));
+await gotoSection("#/words");
 
 // 4. dark mode and a narrow window
 await page.emulateMedia({ colorScheme: "dark" });
