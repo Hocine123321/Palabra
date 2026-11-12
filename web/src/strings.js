@@ -64,6 +64,16 @@ export const KEYS = {
   "Due": "مستحقة",
   "New": "جديدة",
   "Flagged": "عدد مرات الإشارة",
+  "Open this on your phone": "افتح هذا على هاتفك",
+  "Back to artifacts": "العودة إلى المنتجات",
+  "Back to books": "العودة إلى الكتب",
+  "You": "أنت",
+  "Palabra": "Palabra",
+  "Not sent": "لم تُرسَل",
+  "Pages": "الصفحات",
+  "Terms": "المصطلحات",
+  "Notes": "ملاحظات",
+  "Some pages have not arrived yet": "لم تصل بعض الصفحات بعد",
   "This page can't be shown here": "لا يمكن عرض هذه الصفحة هنا",
 };
 

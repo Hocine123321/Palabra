@@ -6,25 +6,7 @@ import { wordDetail } from "../src/render/word.js";
 import { buildModel, routedScreen } from "../src/screens.js";
 import { t } from "../src/strings.js";
 
-export const MARKUP = "<img src=x onerror=alert(1)>";
-
-export function walk(node, fn) {
-  fn(node);
-  for (const c of node.children ?? []) if (typeof c !== "string") walk(c, fn);
-}
-export const texts = (tree) => { const out = []; walk(tree, (n) => n.children?.forEach((c) => typeof c === "string" && out.push(c))); return out; };
-export const tags = (tree) => { const out = []; walk(tree, (n) => out.push(n.tag)); return out; };
-/** Text nodes only: no element named img/script/iframe/svg-script anywhere, no handler or style anywhere, no attribute carrying the markup. */
-export function assertTextOnly(tree, where) {
-  walk(tree, (n) => {
-    assert.ok(!["img", "script", "iframe", "object", "embed"].includes(n.tag), `${where}: <${n.tag}>`);
-    for (const [name, value] of Object.entries(n.attrs ?? {})) {
-      assert.ok(!/^on/i.test(name) && name !== "style" && name !== "innerHTML", `${where}: attribute ${name}`);
-      assert.ok(!String(value).includes("onerror"), `${where}: attribute ${name} carries data`);
-    }
-    assert.deepEqual(Object.keys(n.handlers ?? {}).filter((k) => k !== "click"), [], `${where}: handlers`);
-  });
-}
+import { MARKUP, assertTextOnly, tags, texts, walk } from "./helpers.js";
 
 const frame = { syncedAt: null, status: null, freshness: undefined, onRefresh: () => {}, now: () => 0 };
 
@@ -225,4 +207,97 @@ test("the routed screen shows Study and Need Review from the model", () => {
   ]);
   assert.ok(texts(routedScreen({ route: { name: "study", id: null }, model, frame, lang: "en" }, t)).includes("Verbs"));
   assert.ok(texts(routedScreen({ route: { name: "review", id: null }, model, frame, lang: "en" }, t)).includes("viejo"));
+});
+
+// MARK: Artifacts, Chat and Books
+
+import { artifactList, artifactScreen } from "../src/render/artifacts.js";
+import { bookReader, booksScreen, dirOfLanguage } from "../src/render/books.js";
+import { chatScreen } from "../src/render/chat.js";
+
+test("the artifact list puts spec pages first and offers apps only as 'open on your phone'", () => {
+  const tree = artifactList({ artifacts: [
+    { id: "a1", kind: "app", title: "Game", updatedAt: "2026-05-01T00:00:00Z" },
+    { id: "s1", kind: "spec", title: MARKUP, updatedAt: "2026-01-01T00:00:00Z" },
+  ], lang: "en", frame }, t);
+  assertTextOnly(tree, "artifacts");
+  const heads = [];
+  walk(tree, (n) => n.attrs?.class === "headword" && heads.push({ tag: n.tag, href: n.attrs.href, text: texts(n)[0] }));
+  assert.deepEqual(heads, [{ tag: "a", href: "#/artifacts/s1", text: MARKUP }, { tag: "span", href: undefined, text: "Game" }]);
+  assert.ok(texts(tree).includes("Open this on your phone"));
+  assert.ok(texts(artifactList({ artifacts: [], lang: "en", frame }, t)).includes("Nothing here yet"));
+});
+
+test("an artifact page shows its blocks; odd blocks and gone items have their own lines", () => {
+  const page = artifactScreen({ artifact: { id: "s1", kind: "spec", title: MARKUP, blocks: [{ type: "text", text: MARKUP }, { type: "table", columns: [{ title: "A" }], rows: [[MARKUP]] }, { type: "checklist", items: [MARKUP] }] }, lang: "en", frame }, t);
+  assertTextOnly(page, "artifact");
+  assert.ok(texts(page).filter((s) => s === MARKUP || s === `☐ ${MARKUP}`).length >= 4);
+  for (const blocks of ["x", null, {}, 5, undefined]) {
+    assert.ok(texts(artifactScreen({ artifact: { kind: "spec", title: "t", blocks }, lang: "en", frame }, t)).includes("This page can't be shown here"), String(blocks));
+  }
+  assert.ok(texts(artifactScreen({ artifact: { kind: "app", title: "G", blocks: null }, lang: "en", frame }, t)).includes("Open this on your phone"));
+  assert.ok(texts(artifactScreen({ artifact: null, lang: "en", frame }, t)).includes("That item is gone"));
+});
+
+test("chat turns come in order with line breaks as separate nodes and markup as text", () => {
+  const chat = { title: MARKUP, turns: [{ role: "user", text: `${MARKUP}\nsecond line`, createdAt: "2026-01-01T00:00:00Z", status: "sent" }, { role: "assistant", text: "مرحبا", status: "failed" }] };
+  const tree = chatScreen({ chat, lang: "en", frame }, t);
+  assertTextOnly(tree, "chat");
+  const all = texts(tree);
+  assert.ok(all.indexOf(MARKUP) < all.indexOf("second line") && all.indexOf("second line") < all.indexOf("مرحبا"));
+  assert.ok(tags(tree).includes("br"));
+  assert.ok(all.some((s) => s.includes("Not sent")));
+  assert.ok(Array.isArray(chatScreen({ chat: { turns: [{}] }, lang: "en", frame }, t).children));
+  for (const odd of [null, undefined, {}, { turns: "x" }, { turns: [null, 5] }]) {
+    assert.ok(texts(chatScreen({ chat: odd, lang: "en", frame }, t)).includes("Nothing here yet"), JSON.stringify(odd));
+  }
+});
+
+const lesson = (over = {}) => ({ id: "li1", recordId: "les1", title: MARKUP, summary: MARKUP, bookId: "b", bookTitle: MARKUP, chapterId: "c", chapterTitle: MARKUP, language: "ar", pageIds: ["p1", "p2"], terms: { m: { term: MARKUP, definition: MARKUP } }, notes: [MARKUP], ...over });
+const page = (n, over = {}) => ({ id: `pg${n}`, lessonId: "les1", number: n, title: `${MARKUP} ${n}`, dateLabel: MARKUP, blocks: [{ type: "paragraph", text: MARKUP }, { type: "hologram" }], ...over });
+
+test("the books list groups by book and chapter and links lessons", () => {
+  const tree = booksScreen({ lessons: [lesson(), lesson({ id: "li2", recordId: "les2", title: "Other", chapterId: "c2", chapterTitle: "Unit 2" })], lang: "en", frame }, t);
+  assertTextOnly(tree, "books");
+  const links = [];
+  walk(tree, (n) => n.tag === "a" && n.attrs.class === "headword" && links.push(n.attrs.href));
+  assert.deepEqual(links.sort(), ["#/books/li1", "#/books/li2"]);
+  assert.ok(texts(booksScreen({ lessons: [], lang: "en", frame }, t)).includes("Nothing here yet"));
+});
+
+test("the reader shows pages in number order from one lesson, with markup as text", () => {
+  const tree = bookReader({ lesson: lesson(), pages: [page(2), page(1), page(1, { lessonId: "other", id: "x", title: "FOREIGN" })], lang: "en", frame }, t);
+  assertTextOnly(tree, "reader");
+  const all = texts(tree);
+  assert.ok(all.indexOf(`${MARKUP} 1`) < all.indexOf(`${MARKUP} 2`));
+  assert.ok(!all.includes("FOREIGN"));
+  assert.ok(all.includes("hologram"), "an unknown block shows its type");
+  assert.ok(!all.includes("Some pages have not arrived yet"));
+  assert.ok(texts(bookReader({ lesson: lesson(), pages: [page(1)], lang: "en", frame }, t)).includes("Some pages have not arrived yet"));
+});
+
+test("a lesson with no pages shows its title and the empty line", () => {
+  const all = texts(bookReader({ lesson: lesson({ pageIds: [] }), pages: [], lang: "en", frame }, t));
+  assert.ok(all.includes(MARKUP) && all.includes("Nothing here yet"));
+  assert.ok(texts(bookReader({ lesson: lesson({ pageIds: undefined, terms: 5, notes: "x" }), pages: null, lang: "en", frame }, t)).length > 0);
+});
+
+test("the reader's direction follows the lesson's language, not the browser's", () => {
+  const rootOf = (tree) => { let found = null; walk(tree, (n) => n.attrs?.class === "reader" && (found = n)); return found; };
+  assert.equal(rootOf(bookReader({ lesson: lesson({ language: "ar" }), pages: [], lang: "en", frame }, t)).attrs.dir, "rtl");
+  assert.equal(rootOf(bookReader({ lesson: lesson({ language: "en" }), pages: [], lang: "ar", frame }, t)).attrs.dir, "ltr");
+  assert.equal(rootOf(bookReader({ lesson: lesson({ language: undefined }), pages: [], lang: "ar", frame }, t)).attrs.dir, "ltr");
+  assert.equal(dirOfLanguage("ar-EG"), "rtl");
+  assert.equal(dirOfLanguage("HE"), "rtl");
+  assert.equal(dirOfLanguage("es"), "ltr");
+});
+
+test("a vanished lesson, artifact or word shows 'That item is gone' through the router", () => {
+  const model = buildModel([]);
+  for (const name of ["word", "artifact", "book"]) {
+    assert.ok(texts(routedScreen({ route: { name, id: "nope" }, model, frame, lang: "en" }, t)).includes("That item is gone"), name);
+  }
+  for (const name of ["words", "study", "review", "artifacts", "chat", "books"]) {
+    assert.ok(texts(routedScreen({ route: { name, id: null }, model, frame, lang: "ar" }, t)).length > 0, name);
+  }
 });

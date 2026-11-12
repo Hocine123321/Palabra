@@ -1,5 +1,8 @@
 // The signed-in page: the opened items grouped by kind, and which screen a route shows.
 import { navBar } from "./nav.js";
+import { artifactList, artifactScreen } from "./render/artifacts.js";
+import { bookReader, booksScreen } from "./render/books.js";
+import { chatScreen } from "./render/chat.js";
 import { reviewScreen } from "./render/review.js";
 import { studyScreen } from "./render/study.js";
 import { wordDetail } from "./render/word.js";
@@ -44,6 +47,16 @@ export function routedScreen({ route, model, frame, lang }, tr) {
       return studyScreen({ decks: model.decks, cards: model.cards, stats: model.stats, lang, frame: shared }, tr);
     case "review":
       return reviewScreen({ needs: model.needs, words: model.words, lang, frame: shared }, tr);
+    case "artifacts":
+      return artifactList({ artifacts: model.artifacts, lang, frame: shared }, tr);
+    case "artifact":
+      return artifactScreen({ artifact: model.artifacts.find((a) => a.id === route.id) ?? null, lang, frame: shared }, tr);
+    case "chat":
+      return chatScreen({ chat: model.chat, lang, frame: shared }, tr);
+    case "books":
+      return booksScreen({ lessons: model.lessons, lang, frame: shared }, tr);
+    case "book":
+      return bookReader({ lesson: model.lessons.find((l) => l.id === route.id) ?? null, pages: model.pages, lang, frame: shared }, tr);
     default:
       return screenFrame({ ...shared, title: tr("Palabra Mirroring", lang) }, tr, h("p", { class: "empty" }, tr("Nothing here yet", lang)));
   }
