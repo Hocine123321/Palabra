@@ -59,6 +59,12 @@ export class Mirror extends DurableObject {
   state(bearer) {
     return this.object.state(bearer);
   }
+  rotate(bearer, body) {
+    return this.object.rotate(bearer, body);
+  }
+  rotation(bearer) {
+    return this.object.rotation(bearer);
+  }
 }
 
 /** The router's backend over the two Durable Object namespaces. */

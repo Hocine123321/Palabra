@@ -38,7 +38,9 @@ A bearer is `Authorization: Bearer <deviceId>.<token>`; the server keeps only SH
 | `DELETE /api/m/<mirrorId>/devices/<deviceId>` | owner only, 200 `{}` |
 | `PUT /api/m/<mirrorId>/items` | owner only, `{items: [{id, sealed, deleted?}]}`, 200 `{seq}`; all or nothing |
 | `GET /api/m/<mirrorId>/items?since=&limit=` | `{items, seq, more}`; `seq` is the mirror's head, so continue a page from the last item's `seq`, never from `seq` |
-| `GET /api/m/<mirrorId>/state` | `{seq}` |
+| `GET /api/m/<mirrorId>/state` | `{seq, epoch}` |
+| `POST /api/m/<mirrorId>/rotate` | owner only, body at most 16,384 bytes: `{epoch, remove, blobs}` with `epoch` = current + 1 (else `409 stale_epoch`), `remove` a browser id or `null`, `blobs` `{deviceId: base64url ≤ 2,048 chars}`. One transaction: removes `remove` and every browser without a blob, deletes every item, stores the blobs, sets the epoch; `seq` never goes down. 200 `{epoch, removed}`; 6 per hour |
+| `GET /api/m/<mirrorId>/rotation` | any device: `{epoch, blob}` for the caller, `404` without one for the current epoch; not cacheable |
 
 Limits (all in `worker/src/limits.js`): body 1,048,576 bytes; one sealed item 262,144 characters; 200 items per PUT; a list page
 at most 200 items and about 900,000 sealed characters; 20,000 items and 50,000,000 sealed characters per mirror; 8 browsers per mirror; a pairing slot lives

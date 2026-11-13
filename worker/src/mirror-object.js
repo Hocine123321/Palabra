@@ -55,4 +55,10 @@ export class MirrorObject {
   async state(bearer) {
     return this.ready() ? this.store.state(bearer) : UNAUTHORIZED;
   }
+  async rotate(bearer, body) {
+    return this.ready() ? this.store.rotate(bearer, body) : UNAUTHORIZED;
+  }
+  async rotation(bearer) {
+    return this.ready() ? this.store.rotation(bearer) : UNAUTHORIZED;
+  }
 }

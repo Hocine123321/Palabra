@@ -8,6 +8,8 @@ export const LIMITS = {
   itemsTotal: 20_000,
   bytesTotal: 50_000_000, // sealed characters per mirror
   browserDevices: 8,
+  rotateBodyBytes: 16_384,
+  blobChars: 2048,
   pairTtlSec: 120,
   rates: {
     mirrorsCreate: [5, 3600],
@@ -17,5 +19,6 @@ export const LIMITS = {
     pairPoll: [300, 600],
     itemsPut: [120, 60],
     itemsGet: [240, 60],
+    rotate: [6, 3600],
   },
 };

@@ -42,7 +42,7 @@ test("mirror flow: create, add browser, put, read, revoke", async () => {
   assert.equal(list.status, 200);
   assert.deepEqual(list.json.items.map((i) => i.seq), [1, 2, 3]);
   assert.deepEqual([list.json.seq, list.json.more], [3, false]);
-  assert.deepEqual((await call(backend, "GET", `${m}/state`, { auth: browser })).json, { seq: 3 });
+  assert.deepEqual((await call(backend, "GET", `${m}/state`, { auth: browser })).json, { seq: 3, epoch: 0 });
   const devices = await call(backend, "GET", `${m}/devices`, { auth: owner });
   assert.deepEqual(devices.json.devices.map((d) => d.deviceId).sort(), ["b1", "phone"]);
   assert.equal((await call(backend, "DELETE", `${m}/devices/b1`, { auth: owner })).status, 200);
@@ -246,4 +246,34 @@ test("a global daily cap on new mirrors holds across addresses", async () => {
   }
   const r = await call(backend, "POST", "/api/mirrors", { ip: "10.0.0.99", body: { deviceId: "dx", ownerTokenHash: await sha256Hex("t") } });
   assert.equal(r.status, 429);
+});
+
+test("rotation routes: rotate, state with epoch, rotation, no-store, 413 and 401 before the body", async () => {
+  const backend = makeMemoryBackend();
+  const { mirrorId, owner } = await newMirror(backend);
+  const m = `/api/m/${mirrorId}`;
+  await call(backend, "POST", `${m}/devices`, { auth: owner, body: { deviceId: "b1", tokenHash: await sha256Hex("t1") } });
+  await call(backend, "POST", `${m}/devices`, { auth: owner, body: { deviceId: "b2", tokenHash: await sha256Hex("t2") } });
+  await call(backend, "PUT", `${m}/items`, { auth: owner, body: { items: [item(1)] } });
+
+  assert.equal((await call(backend, "POST", `${m}/rotate`, { body: { epoch: 1, remove: null, blobs: {} } })).status, 401, "no Authorization");
+  const wrong = await call(backend, "POST", `${m}/rotate`, { body: { epoch: 1, remove: "b2", blobs: {} }, auth: "Bearer nobody.nothing" });
+  assert.equal(wrong.status, 401, "a wrong token is refused and nothing happens");
+  assert.equal((await call(backend, "POST", `${m}/rotate`, { auth: "Bearer b1.t1", body: { epoch: 1, remove: "b2", blobs: {} } })).status, 403, "a browser may not rotate");
+  const huge = await call(backend, "POST", `${m}/rotate`, { auth: owner, raw: "x".repeat(16_385) });
+  assert.equal(huge.status, 413);
+  assert.equal((await call(backend, "POST", `${m}/rotate`, { auth: owner, raw: "not json" })).status, 400);
+
+  const done = await call(backend, "POST", `${m}/rotate`, { auth: owner, body: { epoch: 1, remove: "b2", blobs: { b1: "AAAA" } } });
+  assert.deepEqual([done.status, done.json], [200, { epoch: 1, removed: ["b2"] }]);
+  assert.equal(done.res.headers.get("cache-control"), "no-store");
+  assert.deepEqual((await call(backend, "GET", `${m}/state`, { auth: "Bearer b1.t1" })).json, { seq: 1, epoch: 1 });
+  const blob = await call(backend, "GET", `${m}/rotation`, { auth: "Bearer b1.t1" });
+  assert.deepEqual([blob.status, blob.json], [200, { epoch: 1, blob: "AAAA" }]);
+  assert.equal(blob.res.headers.get("cache-control"), "no-store");
+  assert.equal((await call(backend, "GET", `${m}/rotation`, { auth: owner })).status, 404);
+  assert.equal((await call(backend, "GET", `${m}/rotation`, { auth: "Bearer b2.t2" })).status, 401);
+  assert.equal((await call(backend, "GET", `${m}/rotation`)).status, 401);
+  assert.equal((await call(backend, "GET", `${m}/rotate`, { auth: owner })).status, 405);
+  assert.equal((await call(backend, "POST", `${m}/rotate`, { auth: owner, body: { epoch: 1, remove: null, blobs: {} } })).status, 409);
 });

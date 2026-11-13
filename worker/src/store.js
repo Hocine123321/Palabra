@@ -19,7 +19,13 @@ export class MirrorStore {
     sql.run("CREATE TABLE IF NOT EXISTS items (id TEXT PRIMARY KEY, seq INTEGER NOT NULL, sealed TEXT NOT NULL, deleted INTEGER NOT NULL)");
     sql.run("CREATE INDEX IF NOT EXISTS items_seq ON items (seq)");
     sql.run("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL)");
+    this.ensureRotation();
     ensureRatesTable(sql);
+  }
+
+  /** Also called before every rotation read or write: a mirror created before key rotation existed has no such table yet. */
+  ensureRotation() {
+    this.sql.run("CREATE TABLE IF NOT EXISTS rotation (deviceId TEXT PRIMARY KEY, epoch INTEGER NOT NULL, blob TEXT NOT NULL)");
   }
 
   /** Makes the owner device. Only once. */
@@ -163,7 +169,63 @@ export class MirrorStore {
   async state(bearer) {
     const auth = await this.authenticate(bearer);
     if (!auth.ok) return auth;
-    return { ok: true, seq: this.currentSeq() };
+    return { ok: true, seq: this.currentSeq(), epoch: this.meta("epoch") };
+  }
+
+  /**
+   * Replaces the data key's epoch in one step: removes the revoked browser and every browser that was given no blob (it
+   * cannot learn the new key), deletes every item (they are sealed under the old key), and stores one sealed key per
+   * remaining browser. The sequence number never goes down, so a page's replay check keeps working.
+   */
+  async rotate(bearer, body) {
+    const auth = await this.authenticate(bearer, "owner");
+    if (!auth.ok) return auth;
+    const [limit, windowSec] = this.limits.rates.rotate;
+    const rate = checkRate(this.sql, `rotate:${auth.device.deviceId}`, limit, windowSec, this.now());
+    if (!rate.ok) return rate;
+
+    const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+    if (!isObject(body) || !Number.isInteger(body.epoch) || body.epoch < 1) return fail(400, "bad_request");
+    const remove = body.remove ?? null;
+    if (remove !== null && !isB64url(remove, 1, 64)) return fail(400, "bad_request");
+    if (!isObject(body.blobs)) return fail(400, "bad_request");
+    const blobs = Object.entries(body.blobs);
+    if (blobs.length > this.limits.browserDevices) return fail(400, "bad_request");
+    for (const [deviceId, blob] of blobs) {
+      if (!isB64url(deviceId, 1, 64) || !isB64url(blob, 1, this.limits.blobChars)) return fail(400, "bad_request");
+    }
+
+    this.ensureRotation();
+    return this.sql.transaction(() => {
+      if (body.epoch !== this.meta("epoch") + 1) return fail(409, "stale_epoch");
+      const browsers = this.sql.all("SELECT deviceId FROM devices WHERE role = 'browser'").map((r) => r.deviceId);
+      for (const [deviceId] of blobs) {
+        if (deviceId === remove || !browsers.includes(deviceId)) return fail(400, "bad_request");
+      }
+      if (remove !== null) {
+        if (this.sql.all("SELECT role FROM devices WHERE deviceId = ?", remove)[0]?.role === "owner") return fail(400, "owner_device");
+        if (!browsers.includes(remove)) return fail(404, "not_found");
+      }
+      const kept = new Set(blobs.map(([deviceId]) => deviceId));
+      const removed = browsers.filter((id) => id === remove || !kept.has(id));
+      for (const id of removed) this.sql.run("DELETE FROM devices WHERE deviceId = ?", id);
+      this.sql.run("DELETE FROM items");
+      this.sql.run("INSERT OR REPLACE INTO meta (key, value) VALUES ('bytes', 0)");
+      this.sql.run("INSERT OR REPLACE INTO meta (key, value) VALUES ('epoch', ?)", body.epoch);
+      this.sql.run("DELETE FROM rotation");
+      for (const [deviceId, blob] of blobs) this.sql.run("INSERT INTO rotation (deviceId, epoch, blob) VALUES (?, ?, ?)", deviceId, body.epoch, blob);
+      return { ok: true, epoch: body.epoch, removed };
+    });
+  }
+
+  /** The caller's sealed key for the current epoch. */
+  async rotation(bearer) {
+    const auth = await this.authenticate(bearer);
+    if (!auth.ok) return auth;
+    this.ensureRotation();
+    const epoch = this.meta("epoch");
+    const row = this.sql.all("SELECT blob FROM rotation WHERE deviceId = ? AND epoch = ?", auth.device.deviceId, epoch)[0];
+    return row ? { ok: true, epoch, blob: row.blob } : fail(404, "not_found");
   }
 
   meta(key) {

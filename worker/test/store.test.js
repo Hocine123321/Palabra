@@ -173,3 +173,119 @@ test("a mirror has a total size cap; replacing with a smaller value frees room",
   await store.putItems(ownerBearer, [{ id: item(2).id, sealed: "", deleted: true }]);
   assert.equal((await store.putItems(ownerBearer, [item(3, "A".repeat(80))])).ok, true, "a tombstone frees its bytes");
 });
+
+// MARK: Rotation
+
+const BLOB = "QUJD".repeat(20); // base64url text; the Worker never opens it
+
+async function withBrowsers(n = 2, limits = {}) {
+  const ctx = await makeStore(limits);
+  const bearers = [];
+  for (let i = 1; i <= n; i++) bearers.push(await addBrowser(ctx.store, ctx.ownerBearer, i));
+  return { ...ctx, bearers };
+}
+
+test("rotate: removes the revoked browser, keeps the other, deletes every item, bumps the epoch and never lowers seq", async () => {
+  const { store, ownerBearer, bearers } = await withBrowsers(2);
+  await store.putItems(ownerBearer, [item(1), item(2), item(3, "BBBB")]);
+  const before = (await store.state(ownerBearer)).seq;
+  assert.equal((await store.state(ownerBearer)).epoch, 0);
+
+  const r = await store.rotate(ownerBearer, { epoch: 1, remove: "browser1", blobs: { browser2: BLOB } });
+  assert.deepEqual(r, { ok: true, epoch: 1, removed: ["browser1"] });
+  assert.equal((await store.authenticate(bearers[0])).status, 401, "the removed browser is locked out");
+  assert.equal((await store.authenticate(bearers[1])).ok, true);
+  const state = await store.state(ownerBearer);
+  assert.deepEqual([state.epoch, state.seq], [1, before]);
+  assert.deepEqual((await store.listItems(bearers[1], 0, 100)).items, [], "every old item is gone");
+  assert.equal(store.meta("bytes"), 0);
+  assert.equal((await store.putItems(ownerBearer, [item(9)])).seq, before + 1, "seq keeps climbing");
+});
+
+test("rotate: a browser with no blob that is not the removed one is removed too and reported", async () => {
+  const { store, ownerBearer, bearers } = await withBrowsers(3);
+  const r = await store.rotate(ownerBearer, { epoch: 1, remove: "browser1", blobs: { browser3: BLOB } });
+  assert.deepEqual(r, { ok: true, epoch: 1, removed: ["browser1", "browser2"] });
+  assert.equal((await store.authenticate(bearers[1])).status, 401);
+  assert.equal((await store.authenticate(bearers[2])).ok, true);
+});
+
+test("rotate with nobody remaining and no remove just moves to a new epoch", async () => {
+  const { store, ownerBearer } = await makeStore();
+  assert.deepEqual(await store.rotate(ownerBearer, { epoch: 1, remove: null, blobs: {} }), { ok: true, epoch: 1, removed: [] });
+  assert.equal((await store.state(ownerBearer)).epoch, 1);
+});
+
+test("rotate: a stale or skipped epoch is 409 and changes nothing", async () => {
+  const { store, ownerBearer, bearers } = await withBrowsers(2);
+  await store.putItems(ownerBearer, [item(1)]);
+  for (const epoch of [2, 5]) {
+    assert.deepEqual(await store.rotate(ownerBearer, { epoch, remove: "browser1", blobs: { browser2: BLOB } }), { ok: false, status: 409, error: "stale_epoch" }, String(epoch));
+  }
+  assert.equal((await store.authenticate(bearers[0])).ok, true);
+  assert.equal((await store.listItems(ownerBearer, 0, 10)).items.length, 1);
+  assert.equal((await store.state(ownerBearer)).epoch, 0);
+  assert.equal((await store.rotate(ownerBearer, { epoch: 1, remove: "browser1", blobs: { browser2: BLOB } })).ok, true);
+  assert.equal((await store.rotate(ownerBearer, { epoch: 1, remove: "browser2", blobs: {} })).status, 409, "the second of two racing rotations loses");
+  assert.equal((await store.authenticate(bearers[1])).ok, true, "and removes nobody");
+});
+
+test("rotate: blobs for the owner, an unknown device or the removed device are 400 and change nothing", async () => {
+  const { store, ownerBearer, bearers } = await withBrowsers(2);
+  await store.putItems(ownerBearer, [item(1)]);
+  for (const blobs of [{ ownerDev: BLOB }, { ghost: BLOB }, { browser1: BLOB }]) {
+    assert.equal((await store.rotate(ownerBearer, { epoch: 1, remove: "browser1", blobs })).status, 400, JSON.stringify(blobs));
+  }
+  assert.equal((await store.authenticate(bearers[0])).ok, true);
+  assert.equal((await store.listItems(ownerBearer, 0, 10)).items.length, 1);
+  assert.equal((await store.state(ownerBearer)).epoch, 0);
+});
+
+test("rotate: removing an unknown device is 404, the owner cannot be removed", async () => {
+  const { store, ownerBearer } = await withBrowsers(1);
+  assert.equal((await store.rotate(ownerBearer, { epoch: 1, remove: "ghost", blobs: {} })).status, 404);
+  assert.deepEqual(await store.rotate(ownerBearer, { epoch: 1, remove: "ownerDev", blobs: {} }), { ok: false, status: 400, error: "owner_device" });
+  assert.equal((await store.state(ownerBearer)).epoch, 0);
+});
+
+test("rotate: only the owner, and the body must be well formed", async () => {
+  const { store, ownerBearer, bearers } = await withBrowsers(1, { rates: { ...LIMITS.rates, rotate: [1000, 60] } });
+  assert.equal((await store.rotate(bearers[0], { epoch: 1, remove: null, blobs: {} })).status, 403);
+  assert.equal((await store.rotate("Bearer ownerDev.wrong", { epoch: 1, remove: null, blobs: {} })).status, 401);
+  for (const body of [null, [], "x", {}, { epoch: "1", blobs: {} }, { epoch: 1.5, blobs: {} }, { epoch: 0, blobs: {} }, { epoch: 1 }, { epoch: 1, blobs: [] }, { epoch: 1, remove: 5, blobs: {} }, { epoch: 1, remove: "bad id!", blobs: {} }]) {
+    assert.equal((await store.rotate(ownerBearer, body)).status, 400, JSON.stringify(body));
+  }
+  assert.equal((await store.rotate(ownerBearer, { epoch: 1, remove: null, blobs: { browser1: "A".repeat(2049) } })).status, 400, "blob too long");
+  assert.equal((await store.rotate(ownerBearer, { epoch: 1, remove: null, blobs: { browser1: "not base64url!" } })).status, 400);
+  assert.equal((await store.rotate(ownerBearer, { epoch: 1, remove: null, blobs: { browser1: "A".repeat(2048) } })).ok, true, "2,048 is allowed");
+});
+
+test("rotation: each device reads its own blob; none for the owner, a device without one, or after a later rotation that left it out", async () => {
+  const { store, ownerBearer, bearers } = await withBrowsers(3);
+  assert.equal((await store.rotation(bearers[0])).status, 404, "epoch 0: nothing yet");
+  await store.rotate(ownerBearer, { epoch: 1, remove: "browser3", blobs: { browser1: "AAAA", browser2: "BBBB" } });
+  assert.deepEqual(await store.rotation(bearers[0]), { ok: true, epoch: 1, blob: "AAAA" });
+  assert.deepEqual(await store.rotation(bearers[1]), { ok: true, epoch: 1, blob: "BBBB" });
+  assert.equal((await store.rotation(ownerBearer)).status, 404);
+  assert.equal((await store.rotation("Bearer browser1.wrong")).status, 401);
+  await store.rotate(ownerBearer, { epoch: 2, remove: "browser2", blobs: { browser1: "CCCC" } });
+  assert.deepEqual(await store.rotation(bearers[0]), { ok: true, epoch: 2, blob: "CCCC" });
+  const third = await addBrowser(store, ownerBearer, 4);
+  assert.equal((await store.rotation(third)).status, 404, "a browser added after the rotation has no blob");
+});
+
+test("rotate is rate limited per device", async () => {
+  const { store, ownerBearer } = await makeStore({ rates: { ...LIMITS.rates, rotate: [2, 60] } });
+  assert.equal((await store.rotate(ownerBearer, { epoch: 1, remove: null, blobs: {} })).ok, true);
+  assert.equal((await store.rotate(ownerBearer, { epoch: 2, remove: null, blobs: {} })).ok, true);
+  const third = await store.rotate(ownerBearer, { epoch: 3, remove: null, blobs: {} });
+  assert.deepEqual([third.status, third.error], [429, "rate_limited"]);
+});
+
+test("a mirror created before rotation existed (no rotation table) still rotates", async () => {
+  const { store, ownerBearer, bearers } = await withBrowsers(1);
+  store.sql.run("DROP TABLE rotation");
+  assert.equal((await store.rotation(bearers[0])).status, 404);
+  assert.equal((await store.rotate(ownerBearer, { epoch: 1, remove: null, blobs: { browser1: "AAAA" } })).ok, true);
+  assert.equal((await store.rotation(bearers[0])).blob, "AAAA");
+});

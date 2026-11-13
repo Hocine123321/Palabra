@@ -243,4 +243,26 @@ const ROUTES = [
       },
     },
   },
+  {
+    match: (p) => (p.length === 3 && p[0] === "m" && ID(p[1]) && p[2] === "rotate" ? [p[1]] : null),
+    methods: {
+      POST: async (ctx) => {
+        const m = mirrorOf(ctx);
+        if (m.response) return m.response;
+        const body = await readJson(ctx.request, ctx.limits.rotateBodyBytes);
+        if (body.response) return body.response;
+        return respond(await m.mirror.rotate(m.bearer, body.value));
+      },
+    },
+  },
+  {
+    match: (p) => (p.length === 3 && p[0] === "m" && ID(p[1]) && p[2] === "rotation" ? [p[1]] : null),
+    methods: {
+      GET: async (ctx) => {
+        const m = mirrorOf(ctx);
+        if (m.response) return m.response;
+        return respond(await m.mirror.rotation(m.bearer));
+      },
+    },
+  },
 ];
