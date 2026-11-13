@@ -44,6 +44,8 @@ export function createApi(origin, fetchImpl = (...args) => globalThis.fetch(...a
       await request("POST", `/api/pair/${pairId}/cancel`);
     },
     state: (mirrorId, bearer) => request("GET", `/api/m/${mirrorId}/state`, { bearer }),
+    /** The caller's sealed key for the current epoch (404 when there is none). */
+    rotation: (mirrorId, bearer) => request("GET", `/api/m/${mirrorId}/rotation`, { bearer }),
     items: (mirrorId, bearer, since, limit = 200) => request("GET", `/api/m/${mirrorId}/items?since=${since}&limit=${limit}`, { bearer }),
   };
 }

@@ -1,7 +1,7 @@
 // The browser side of pairing. The private key lives only in this object's memory.
 import { ApiError } from "./api.js";
 import { decode, encode } from "./b64url.js";
-import { CryptoFailure, deriveKPair, generatePairKeys, matchCode, openWrap } from "./crypto.js";
+import { CryptoFailure, deriveKPair, generatePairKeys, importDataKey, importDeviceKey, matchCode, openWrap } from "./crypto.js";
 
 /** The slot lives 120 s on the server; the local deadline avoids trusting the two clocks to agree. */
 const PAIR_TTL_MS = 120_000;
@@ -66,5 +66,20 @@ export function createPairing({ api, origin, now = Date.now }) {
         if (!(e instanceof ApiError)) throw e;
       }
     },
+  };
+}
+
+/**
+ * What the browser keeps from an opened wrap: the credentials, the data key and (if the phone sent one) the device key, both as
+ * non-extractable CryptoKeys. A computer paired by an older phone build has no device key and cannot follow a key rotation.
+ */
+export async function credentialsFromWrap(wrap) {
+  return {
+    mirrorId: wrap.mirrorId,
+    deviceId: wrap.deviceId,
+    deviceToken: wrap.deviceToken,
+    keys: await importDataKey(wrap.dataKey),
+    epoch: 0,
+    deviceKey: wrap.deviceKey ? await importDeviceKey(wrap.deviceKey) : null,
   };
 }

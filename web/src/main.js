@@ -1,9 +1,8 @@
 // The web app: pair once, then show the words from the local copy and keep it fresh. Not covered by the Node tests (it
 // needs a real DOM and IndexedDB); everything it calls is.
 import { OfflineError, createApi } from "./api.js";
-import { importDataKey } from "./crypto.js";
 import { openLocalDb } from "./localdb.js";
-import { createPairing } from "./pairing.js";
+import { createPairing, credentialsFromWrap } from "./pairing.js";
 import { dirFor, pickLang, t } from "./strings.js";
 import { refreshDelay } from "./schedule.js";
 import { AuthRevoked, RollbackDetected, describeCopy, pullOnce } from "./sync.js";
@@ -77,7 +76,7 @@ async function showPairing() {
     if (result.state === "replied" && confirmed) {
       try {
         const got = await pairing.accept();
-        await db.setCredentials({ mirrorId: got.mirrorId, deviceId: got.deviceId, deviceToken: got.deviceToken, keys: await importDataKey(got.dataKey) });
+        await db.setCredentials(await credentialsFromWrap(got));
         screenToken++;
         return showWords();
       } catch {

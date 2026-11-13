@@ -75,3 +75,24 @@ test("getMeta and setMeta round-trip, and clearAll empties meta", async () => {
   await db.clearAll();
   assert.equal(await db.getMeta("x"), undefined);
 });
+
+test("replaceEpoch swaps the credentials and drops every row and the sequence number together, keeping other meta", async () => {
+  const db = await fresh();
+  const oldKeys = await importDataKey(new Uint8Array(32).fill(3));
+  await db.setCredentials({ mirrorId: "M", deviceId: "D", deviceToken: "T", keys: oldKeys, epoch: 0 });
+  await db.applyPage([row(1), row(2)], [], 9);
+  await db.setMeta("lang", "ar");
+
+  const newKeys = await importDataKey(new Uint8Array(32).fill(4));
+  await db.replaceEpoch({ mirrorId: "M", deviceId: "D", deviceToken: "T", keys: newKeys, epoch: 1 });
+
+  assert.deepEqual(await db.allItems(), []);
+  assert.equal(await db.getLastSeq(), 0);
+  assert.equal(await db.getMeta("lang"), "ar");
+  const got = await db.getCredentials();
+  assert.equal(got.epoch, 1);
+  // the stored key is the new one: it opens what the new key sealed
+  const iv = new Uint8Array(12);
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, newKeys.aes, new Uint8Array([1]));
+  assert.deepEqual(new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, got.keys.aes, ct)), new Uint8Array([1]));
+});

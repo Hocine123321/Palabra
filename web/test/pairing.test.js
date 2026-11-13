@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { handleApi } from "../../worker/src/router.js";
 import { makeMemoryBackend } from "../../worker/test/support/memory-backend.js";
 import { ApiError, OfflineError, createApi } from "../src/api.js";
-import { createPairing } from "../src/pairing.js";
+import { createPairing, credentialsFromWrap } from "../src/pairing.js";
 import { qrTree } from "../src/qr.js";
 import { decode, encode } from "../src/b64url.js";
 import { CryptoFailure, deriveKPair, generatePairKeys, matchCode } from "../src/crypto.js";
@@ -28,12 +28,12 @@ function parseLink(link) {
 }
 
 /** A JavaScript stand-in for the phone: joins and replies the way plan 2's Swift phone does. */
-async function fakePhone(fetchImpl, link, { wrapKeyOverride } = {}) {
+async function fakePhone(fetchImpl, link, { wrapKeyOverride, deviceKey } = {}) {
   const { pairId, browserPub, nonce } = parseLink(link);
   const keys = await generatePairKeys();
   const join = await fetchImpl(`${ORIGIN}/api/pair/${pairId}/join`, { method: "POST", body: JSON.stringify({ phonePub: encode(keys.publicRaw) }) });
   const code = await matchCode(browserPub, keys.publicRaw, nonce);
-  const secrets = { mirrorId: "MIRRORID", deviceId: "DEVICEID", deviceToken: "TOKEN", dataKey: encode(new Uint8Array(32).fill(7)) };
+  const secrets = { mirrorId: "MIRRORID", deviceId: "DEVICEID", deviceToken: "TOKEN", dataKey: encode(new Uint8Array(32).fill(7)), ...(deviceKey ? { deviceKey: encode(deviceKey) } : {}) };
   async function reply() {
     const kPair = wrapKeyOverride ?? (await deriveKPair(keys.privateKey, browserPub, nonce));
     const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -154,4 +154,24 @@ test("qrTree is an svg with a path and no inline styles", () => {
   assert.ok(tags.includes("path"));
   const path = (function find(n) { return n.tag === "path" ? n : n.children.filter((c) => typeof c !== "string").map(find).find(Boolean); })(tree);
   assert.ok(path.attrs.d.length > 10);
+});
+
+test("the wrap's device key becomes a non-extractable decrypt-only key, and an older phone's wrap gives null", async () => {
+  for (const withKey of [true, false]) {
+    const { fetchImpl, pairing } = harness();
+    const { link } = await pairing.start();
+    const phone = await fakePhone(fetchImpl, link, { deviceKey: withKey ? new Uint8Array(32).fill(4) : undefined });
+    await pairing.poll();
+    await phone.reply();
+    await pairing.poll();
+    const creds = await credentialsFromWrap(await pairing.accept());
+    assert.deepEqual([creds.mirrorId, creds.deviceId, creds.deviceToken, creds.epoch], ["MIRRORID", "DEVICEID", "TOKEN", 0]);
+    assert.equal(creds.keys.aes.extractable, false);
+    if (withKey) {
+      assert.equal(creds.deviceKey.extractable, false);
+      assert.deepEqual(creds.deviceKey.usages, ["decrypt"]);
+    } else {
+      assert.equal(creds.deviceKey, null);
+    }
+  }
 });

@@ -1,7 +1,7 @@
 // Pulls the sealed items from the Worker, opens them and stores them in the local copy.
 import { ApiError } from "./api.js";
 import { decode } from "./b64url.js";
-import { deriveItemId, openItem } from "./crypto.js";
+import { CryptoFailure, deriveItemId, importDataKey, openItem, openRotation } from "./crypto.js";
 import { MANIFEST_KIND, checkCopy } from "./manifest.js";
 
 export class AuthRevoked extends Error {
@@ -42,11 +42,57 @@ export async function describeCopy(db) {
   return checkCopy(await db.allItems());
 }
 
+const revoked = (error) => error instanceof ApiError && (error.status === 401 || error.status === 403);
+
+/**
+ * The phone replaced the data key. Fetch this computer's sealed copy of the new one and open it with the device key from pairing.
+ * Anything short of that (no blob, a blob for someone else or another epoch, a computer paired before device keys existed)
+ * means this computer is no longer one of the phone's: it is told it was removed. Offline or a Worker error is not that.
+ */
+async function rekey(api, db, creds, bearer, workerEpoch) {
+  if (!creds.deviceKey) throw new AuthRevoked();
+  let answer;
+  try {
+    answer = await api.rotation(creds.mirrorId, bearer);
+  } catch (error) {
+    if (error instanceof ApiError && (error.status === 404 || revoked(error))) throw new AuthRevoked();
+    throw error;
+  }
+  const epoch = answer?.epoch;
+  if (!Number.isInteger(epoch) || epoch <= (creds.epoch ?? 0) || epoch < workerEpoch || typeof answer.blob !== "string") throw new AuthRevoked();
+  let sealedBlob;
+  try {
+    sealedBlob = decode(answer.blob);
+  } catch {
+    throw new AuthRevoked(); // not base64url: nothing this computer can open
+  }
+  let keys;
+  try {
+    const { dataKey } = await openRotation(creds.deviceKey, creds.mirrorId, creds.deviceId, epoch, sealedBlob);
+    keys = await importDataKey(dataKey);
+  } catch (error) {
+    if (error instanceof CryptoFailure) throw new AuthRevoked();
+    throw error;
+  }
+  const next = { ...creds, keys, epoch };
+  await db.replaceEpoch(next);
+  return next;
+}
+
 export async function pullOnce({ api, db }) {
-  const creds = await db.getCredentials();
+  let creds = await db.getCredentials();
   if (!creds) throw new Error("not paired");
   const bearer = `${creds.deviceId}.${creds.deviceToken}`;
+  let state;
+  try {
+    state = await api.state(creds.mirrorId, bearer);
+  } catch (error) {
+    if (revoked(error)) throw new AuthRevoked();
+    throw error;
+  }
+  if (Number.isInteger(state?.epoch) && state.epoch > (creds.epoch ?? 0)) creds = await rekey(api, db, creds, bearer, state.epoch);
   let since = await db.getLastSeq();
+  if (Number.isFinite(state?.seq) && state.seq < since) throw new RollbackDetected("seq");
   let applied = 0;
   let deleted = 0;
   let rejected = 0;
@@ -59,7 +105,7 @@ export async function pullOnce({ api, db }) {
     try {
       page = await api.items(creds.mirrorId, bearer, since, PAGE);
     } catch (error) {
-      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) throw new AuthRevoked();
+      if (revoked(error)) throw new AuthRevoked();
       throw error;
     }
     if (first && Number.isFinite(page.seq) && page.seq < since) throw new RollbackDetected("seq");

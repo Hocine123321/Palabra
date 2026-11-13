@@ -54,6 +54,15 @@ export async function openLocalDb(idb = globalThis.indexedDB) {
         await wrap(tx.objectStore("meta").put(creds, "creds"));
       });
     },
+    /** A key rotation: the new credentials, no rows (they were sealed under the old key) and no sequence number, all or nothing. */
+    replaceEpoch(creds) {
+      return run(db, ["meta", "items"], "readwrite", async (tx) => {
+        const meta = tx.objectStore("meta");
+        await wrap(meta.put(creds, "creds"));
+        await wrap(meta.delete("lastSeq"));
+        await wrap(tx.objectStore("items").clear());
+      });
+    },
     clearAll() {
       return run(db, ["meta", "items"], "readwrite", async (tx) => {
         await wrap(tx.objectStore("meta").clear());
