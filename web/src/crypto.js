@@ -138,7 +138,43 @@ export function openWrap(kPair, pairId, sealed) {
       if (body?.v !== 1 || !mirrorId || !deviceId || !deviceToken) throw new CryptoFailure("bad wrap");
       const dataKey = decode(body.dataKey);
       if (dataKey.length !== 32) throw new CryptoFailure("bad data key");
-      return { mirrorId, deviceId, deviceToken, dataKey };
+      // Computers paired before key rotation existed got no device key.
+      let deviceKey = null;
+      if (body.deviceKey !== undefined && body.deviceKey !== null) {
+        deviceKey = decode(body.deviceKey);
+        if (deviceKey.length !== 32) throw new CryptoFailure("bad device key");
+      }
+      return { mirrorId, deviceId, deviceToken, dataKey, deviceKey };
+    })(),
+  );
+}
+
+/** This computer's own key, used only to open the key the phone sends after a rotation. Non-extractable, decrypt only. */
+export function importDeviceKey(raw) {
+  return wrapErrors(
+    (async () => {
+      if (!(raw instanceof Uint8Array) || raw.length !== 32) throw new CryptoFailure("device key must be 32 bytes");
+      return subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["decrypt"]);
+    })(),
+  );
+}
+
+/** Opens the rotation blob for (mirrorId, deviceId, epoch). The epoch inside must be the one asked for. */
+export function openRotation(deviceKey, mirrorId, deviceId, epoch, sealed) {
+  return wrapErrors(
+    (async () => {
+      if (!(sealed instanceof Uint8Array) || sealed.length < IV_BYTES + TAG_BYTES) throw new CryptoFailure("rotation blob too short");
+      if (!Number.isInteger(epoch) || epoch < 1) throw new CryptoFailure("bad epoch");
+      const plain = await subtle.decrypt(
+        { name: "AES-GCM", iv: sealed.slice(0, IV_BYTES), additionalData: utf8(`palabra-mirror-rotate-v1|${mirrorId}|${deviceId}|${epoch}`), tagLength: 128 },
+        deviceKey,
+        sealed.slice(IV_BYTES),
+      );
+      const body = JSON.parse(new TextDecoder().decode(plain));
+      if (body?.v !== 1 || body.epoch !== epoch) throw new CryptoFailure("bad rotation");
+      const dataKey = decode(body.dataKey);
+      if (dataKey.length !== 32) throw new CryptoFailure("bad data key");
+      return { epoch, dataKey };
     })(),
   );
 }

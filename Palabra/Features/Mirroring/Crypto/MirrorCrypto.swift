@@ -92,6 +92,31 @@ enum MirrorCrypto {
         try open(key: key, aad: "palabra-mirror-wrap-v1|\(pairID)", sealed: sealed)
     }
 
+    // MARK: Key rotation
+
+    /// The new data key sealed to one computer under its device key: `iv | ciphertext | tag` over
+    /// `{"v":1,"epoch":<n>,"dataKey":"<base64url>"}`, bound to the mirror, the device and the epoch.
+    static func sealRotation(deviceKey: Data, mirrorID: String, deviceID: String, epoch: Int, dataKey: Data, iv: Data? = nil) throws -> Data {
+        guard deviceKey.count == 32, dataKey.count == 32, epoch >= 1 else { throw Failure.badKey }
+        // Written by hand so the bytes are the same as the protocol vectors', whatever the JSON encoder's key order.
+        let plaintext = Data(#"{"v":1,"epoch":\#(epoch),"dataKey":"\#(Base64URL.encode(dataKey))"}"#.utf8)
+        return try seal(key: SymmetricKey(data: deviceKey), aad: rotationAAD(mirrorID: mirrorID, deviceID: deviceID, epoch: epoch), plaintext: plaintext, iv: iv)
+    }
+
+    /// The reverse of `sealRotation`; the epoch inside must be the one asked for. Used by the tests (the page does this in JavaScript).
+    static func openRotation(deviceKey: Data, mirrorID: String, deviceID: String, epoch: Int, sealed: Data) throws -> Data {
+        guard deviceKey.count == 32 else { throw Failure.badKey }
+        let plain = try open(key: SymmetricKey(data: deviceKey), aad: rotationAAD(mirrorID: mirrorID, deviceID: deviceID, epoch: epoch), sealed: sealed)
+        guard let object = try? JSONSerialization.jsonObject(with: plain) as? [String: Any],
+              object["v"] as? Int == 1, object["epoch"] as? Int == epoch,
+              let text = object["dataKey"] as? String, let key = Base64URL.decode(text), key.count == 32 else { throw Failure.malformed }
+        return key
+    }
+
+    private static func rotationAAD(mirrorID: String, deviceID: String, epoch: Int) -> String {
+        "palabra-mirror-rotate-v1|\(mirrorID)|\(deviceID)|\(epoch)"
+    }
+
     // MARK: AES-GCM as iv | ciphertext | tag
 
     private static func seal(key: SymmetricKey, aad: String, plaintext: Data, iv: Data?) throws -> Data {

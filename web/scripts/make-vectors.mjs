@@ -50,6 +50,13 @@ const sha256Hex = (text) => createHash("sha256").update(Buffer.from(text, "utf8"
 const manifestVector = { ids: manifestIds, idsHashHex: sha256Hex([...manifestIds].sort().join("\n")) };
 const emptyVector = { idsHashHex: sha256Hex("") };
 
+// Rotation blob: the new data key sealed to one browser under its deviceKey (see docs/features/mirroring.md).
+const deviceKey = fill(32, 0x66);
+const newDataKey = Buffer.from(Array.from({ length: 32 }, (_, i) => 32 + i));
+const rotation = { mirrorId: "MIRRORID", deviceId: "DEVICEID", epoch: 3 };
+const rotationPlain = JSON.stringify({ v: 1, epoch: rotation.epoch, dataKey: b64u(newDataKey) });
+const rotationSealed = seal(deviceKey, fill(12, 0x77), `palabra-mirror-rotate-v1|${rotation.mirrorId}|${rotation.deviceId}|${rotation.epoch}`, Buffer.from(rotationPlain, "utf8"));
+
 writeFileSync(
   OUT,
   JSON.stringify(
@@ -68,6 +75,7 @@ writeFileSync(
         matchCode,
       },
       wrap: { plaintextUtf8: wrapPlain, ivHex: hex(fill(12, 0x55)), expectedSealed: b64u(wrapSealed) },
+      rotation: { deviceKeyHex: hex(deviceKey), ...rotation, ivHex: hex(fill(12, 0x77)), newDataKeyHex: hex(newDataKey), plaintextUtf8: rotationPlain, expectedSealed: b64u(rotationSealed) },
       manifest: manifestVector,
       empty: emptyVector,
     },

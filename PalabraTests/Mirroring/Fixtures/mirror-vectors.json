@@ -25,6 +25,16 @@
     "ivHex": "555555555555555555555555",
     "expectedSealed": "VVVVVVVVVVVVVVVVJi7RAUklUBwr_6ij4XaH_7XgskBKS5EUO98l7aln5UIKu0OSorRAhoc79LEPgLYI78F7gwETOkqd0zS5e41K-KmcsnbdTzrJsyAK3ZfuQ1X2ddN3cT76fnKg6HiDUFI-JOFGz3gT7bfa85TZTaFFthfDjF7vxcvRdpyvhRELVJagTnkVVDOPbMasll80-6bQmA"
   },
+  "rotation": {
+    "deviceKeyHex": "6666666666666666666666666666666666666666666666666666666666666666",
+    "mirrorId": "MIRRORID",
+    "deviceId": "DEVICEID",
+    "epoch": 3,
+    "ivHex": "777777777777777777777777",
+    "newDataKeyHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "plaintextUtf8": "{\"v\":1,\"epoch\":3,\"dataKey\":\"ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8\"}",
+    "expectedSealed": "d3d3d3d3d3d3d3d3pijdaf2Wuze9lqqu932iMSVcDnBMYVHzMoDQF2xc9kp41rtxgGNaY26khIscg6sT8zQ36YThKY2qcTE0mjhlCDPvwtFF-6RL7Ji9ZwQQZRIl3A7aL85u3Ek"
+  },
   "manifest": {
     "ids": [
       "bQ_x9AbCdEfGhIjKlMnOp",

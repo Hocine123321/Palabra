@@ -48,6 +48,13 @@ wiv = bytes.fromhex(w["ivHex"])
 wsealed = wiv + AESGCM(k_pair).encrypt(wiv, w["plaintextUtf8"].encode(), f'palabra-mirror-wrap-v1|{p["pairId"]}'.encode())
 check("sealed wrap", b64u(wsealed), w["expectedSealed"])
 
+r = v["rotation"]
+rplain = json.dumps({"v": 1, "epoch": r["epoch"], "dataKey": b64u(bytes.fromhex(r["newDataKeyHex"]))}, separators=(",", ":"))
+check("rotation plaintext", rplain, r["plaintextUtf8"])
+riv = bytes.fromhex(r["ivHex"])
+raad = f'palabra-mirror-rotate-v1|{r["mirrorId"]}|{r["deviceId"]}|{r["epoch"]}'.encode()
+check("sealed rotation", b64u(riv + AESGCM(bytes.fromhex(r["deviceKeyHex"])).encrypt(riv, rplain.encode(), raad)), r["expectedSealed"])
+
 ids = sorted(v["manifest"]["ids"])
 check("manifest idsHash", hashlib.sha256("\n".join(ids).encode()).hexdigest(), v["manifest"]["idsHashHex"])
 check("manifest ids are out of order in the file", v["manifest"]["ids"] != ids, True)

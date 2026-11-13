@@ -20,8 +20,13 @@ struct MirrorVectors: Decodable {
     let wrap: Wrap
     struct Manifest: Decodable { let ids: [String], idsHashHex: String }
     struct Empty: Decodable { let idsHashHex: String }
+    struct Rotation: Decodable {
+        let deviceKeyHex: String, mirrorId: String, deviceId: String, epoch: Int
+        let ivHex: String, newDataKeyHex: String, plaintextUtf8: String, expectedSealed: String
+    }
     let manifest: Manifest
     let empty: Empty
+    let rotation: Rotation
 
     static func load() throws -> MirrorVectors {
         let bundle = Bundle(for: MirrorVectorsToken.self)
@@ -127,6 +132,32 @@ final class MirrorCryptoTests: XCTestCase {
         XCTAssertEqual(Base64URL.encode(sealed), v.wrap.expectedSealed)
         XCTAssertEqual(String(decoding: try MirrorCrypto.openWrap(key: key, pairID: v.pair.pairId, sealed: sealed), as: UTF8.self), v.wrap.plaintextUtf8)
         XCTAssertThrowsError(try MirrorCrypto.openWrap(key: key, pairID: "otherPair", sealed: sealed))
+    }
+
+    func testRotationBlobReproducesTheVectorAndOpens() throws {
+        let r = try MirrorVectors.load().rotation
+        let sealed = try MirrorCrypto.sealRotation(deviceKey: Data(hex: r.deviceKeyHex), mirrorID: r.mirrorId, deviceID: r.deviceId, epoch: r.epoch, dataKey: Data(hex: r.newDataKeyHex), iv: Data(hex: r.ivHex))
+        XCTAssertEqual(Base64URL.encode(sealed), r.expectedSealed)
+        let opened = try MirrorCrypto.openRotation(deviceKey: Data(hex: r.deviceKeyHex), mirrorID: r.mirrorId, deviceID: r.deviceId, epoch: r.epoch, sealed: sealed)
+        XCTAssertEqual(opened, Data(hex: r.newDataKeyHex))
+        XCTAssertEqual(r.plaintextUtf8, #"{"v":1,"epoch":3,"dataKey":"\#(Base64URL.encode(Data(hex: r.newDataKeyHex)))"}"#)
+    }
+
+    func testRotationBlobFailsForAnythingElse() throws {
+        let r = try MirrorVectors.load().rotation
+        let key = Data(hex: r.deviceKeyHex)
+        let sealed = try XCTUnwrap(Base64URL.decode(r.expectedSealed))
+        XCTAssertThrowsError(try MirrorCrypto.openRotation(deviceKey: key, mirrorID: "OTHER", deviceID: r.deviceId, epoch: r.epoch, sealed: sealed))
+        XCTAssertThrowsError(try MirrorCrypto.openRotation(deviceKey: key, mirrorID: r.mirrorId, deviceID: "OTHER", epoch: r.epoch, sealed: sealed))
+        XCTAssertThrowsError(try MirrorCrypto.openRotation(deviceKey: key, mirrorID: r.mirrorId, deviceID: r.deviceId, epoch: r.epoch + 1, sealed: sealed))
+        XCTAssertThrowsError(try MirrorCrypto.openRotation(deviceKey: Data(repeating: 1, count: 32), mirrorID: r.mirrorId, deviceID: r.deviceId, epoch: r.epoch, sealed: sealed))
+        var flipped = sealed
+        flipped[20] ^= 1
+        XCTAssertThrowsError(try MirrorCrypto.openRotation(deviceKey: key, mirrorID: r.mirrorId, deviceID: r.deviceId, epoch: r.epoch, sealed: flipped))
+        XCTAssertThrowsError(try MirrorCrypto.openRotation(deviceKey: key, mirrorID: r.mirrorId, deviceID: r.deviceId, epoch: r.epoch, sealed: Data(count: 27)))
+        // inputs the protocol forbids are refused before anything is sealed
+        XCTAssertThrowsError(try MirrorCrypto.sealRotation(deviceKey: Data(count: 31), mirrorID: "m", deviceID: "d", epoch: 1, dataKey: Data(count: 32)))
+        XCTAssertThrowsError(try MirrorCrypto.sealRotation(deviceKey: key, mirrorID: "m", deviceID: "d", epoch: 0, dataKey: Data(count: 32)))
     }
 
     func testBase64URLIsStrictAndRoundTrips() {

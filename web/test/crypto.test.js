@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { encode, decode } from "../src/b64url.js";
 import {
-  CryptoFailure, deriveItemId, deriveKPair, generatePairKeys, importDataKey, matchCode, openItem, openWrap, sealItem,
+  CryptoFailure, deriveItemId, deriveKPair, generatePairKeys, importDataKey, matchCode, importDeviceKey, openItem, openRotation, openWrap, sealItem,
 } from "../src/crypto.js";
 
 const vectors = JSON.parse(readFileSync(new URL("../../PalabraTests/Mirroring/Fixtures/mirror-vectors.json", import.meta.url), "utf8"));
@@ -116,4 +116,59 @@ test("b64url is strict and round-trips", () => {
     assert.ok(!/[=+/]/.test(text));
     assert.deepEqual(decode(text), bytes);
   }
+});
+
+// MARK: Device keys and rotation
+
+const R = vectors.rotation;
+const rotationKey = () => importDeviceKey(fromHex(R.deviceKeyHex));
+
+test("the rotation blob from the shared vector opens to the new data key", async () => {
+  const out = await openRotation(await rotationKey(), R.mirrorId, R.deviceId, R.epoch, decode(R.expectedSealed));
+  assert.deepEqual(out, { epoch: R.epoch, dataKey: fromHex(R.newDataKeyHex) });
+});
+
+test("a rotation blob fails for another mirror, device, epoch, device key, a flipped byte, a short input", async () => {
+  const key = await rotationKey();
+  const sealed = decode(R.expectedSealed);
+  await assert.rejects(openRotation(key, "OTHER", R.deviceId, R.epoch, sealed), CryptoFailure);
+  await assert.rejects(openRotation(key, R.mirrorId, "OTHER", R.epoch, sealed), CryptoFailure);
+  await assert.rejects(openRotation(key, R.mirrorId, R.deviceId, R.epoch + 1, sealed), CryptoFailure);
+  await assert.rejects(openRotation(key, R.mirrorId, R.deviceId, 0, sealed), CryptoFailure);
+  await assert.rejects(openRotation(await importDeviceKey(new Uint8Array(32).fill(1)), R.mirrorId, R.deviceId, R.epoch, sealed), CryptoFailure);
+  const flipped = sealed.slice();
+  flipped[20] ^= 1;
+  await assert.rejects(openRotation(key, R.mirrorId, R.deviceId, R.epoch, flipped), CryptoFailure);
+  await assert.rejects(openRotation(key, R.mirrorId, R.deviceId, R.epoch, new Uint8Array(27)), CryptoFailure);
+});
+
+test("a blob whose inner epoch differs from the epoch it was sealed for is refused", async () => {
+  const raw = fromHex(R.deviceKeyHex);
+  const aesKey = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
+  const iv = new Uint8Array(12).fill(9);
+  const inner = new TextEncoder().encode(JSON.stringify({ v: 1, epoch: 99, dataKey: encode(fromHex(R.newDataKeyHex)) }));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(`palabra-mirror-rotate-v1|${R.mirrorId}|${R.deviceId}|${R.epoch}`), tagLength: 128 }, aesKey, inner));
+  const blob = new Uint8Array([...iv, ...ct]);
+  await assert.rejects(openRotation(await rotationKey(), R.mirrorId, R.deviceId, R.epoch, blob), CryptoFailure);
+});
+
+test("the device key is not extractable", async () => {
+  const key = await rotationKey();
+  assert.equal(key.extractable, false);
+  await assert.rejects(crypto.subtle.exportKey("raw", key));
+});
+
+test("a wrap with a deviceKey returns it, one without returns null, a wrong-sized one fails", async () => {
+  const kPair = await deriveKPair(await browserPrivateKey(), fromHex(P.phonePubHex), fromHex(P.nonceHex));
+  assert.equal((await openWrap(kPair, P.pairId, decode(vectors.wrap.expectedSealed))).deviceKey, null);
+  const seal = async (body) => {
+    const iv = new Uint8Array(12).fill(5);
+    const key = await deriveKPair(await browserPrivateKey(), fromHex(P.phonePubHex), fromHex(P.nonceHex));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(`palabra-mirror-wrap-v1|${P.pairId}`), tagLength: 128 }, key, new TextEncoder().encode(JSON.stringify(body))));
+    return new Uint8Array([...iv, ...ct]);
+  };
+  const good = { v: 1, mirrorId: "M", deviceId: "D", deviceToken: "T", dataKey: encode(new Uint8Array(32)) };
+  const withKey = await openWrap(kPair, P.pairId, await seal({ ...good, deviceKey: encode(new Uint8Array(32).fill(7)) }));
+  assert.deepEqual(withKey.deviceKey, new Uint8Array(32).fill(7));
+  await assert.rejects(openWrap(kPair, P.pairId, await seal({ ...good, deviceKey: encode(new Uint8Array(5)) })), CryptoFailure);
 });
