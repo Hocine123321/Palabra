@@ -31,6 +31,28 @@ final class MirrorStorageTests: XCTestCase {
         XCTAssertNil(store.load())
     }
 
+    func testRotationFieldsRoundTrip() {
+        let store = MirrorSecretsStore(keychain: KeychainStore(account: account))
+        var secrets = sample()
+        secrets.epoch = 4
+        secrets.computers[0].deviceKey = "DEVICEKEY"
+        secrets.pending = MirrorSecrets.Pending(dataKey: "NEWKEY", epoch: 5, removedIDs: ["b1", "b9"])
+        XCTAssertTrue(store.save(secrets))
+        XCTAssertEqual(store.load(), secrets)
+    }
+
+    func testSecretsSavedBeforeRotationExistedStillLoad() throws {
+        // Written by an older build: no epoch, no pending, no deviceKey on the computer.
+        let old = #"{"origin":"https://x.test","mirrorID":"MIR","ownerDeviceID":"own","ownerToken":"tok","dataKey":"KEY","computers":[{"id":"b1","name":"Home PC","pairedAt":"2023-11-14T22:13:20Z"}]}"#
+        let keychain = KeychainStore(account: account)
+        XCTAssertTrue(keychain.save(old))
+        let loaded = try XCTUnwrap(MirrorSecretsStore(keychain: keychain).load())
+        XCTAssertEqual(loaded.epoch, 0)
+        XCTAssertNil(loaded.pending)
+        XCTAssertNil(loaded.computers.first?.deviceKey)
+        XCTAssertEqual(loaded.computers.first?.id, "b1")
+    }
+
     func testGarbageInTheKeychainLoadsAsNil() {
         let keychain = KeychainStore(account: account)
         XCTAssertTrue(keychain.save("this is not json"))

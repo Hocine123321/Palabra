@@ -35,9 +35,9 @@ final class MirrorServiceTests: XCTestCase {
         )
     }
 
-    private func makeService(paired: Bool = true, enabled: Bool = true) -> MirrorService {
+    private func makeService(paired: Bool = true, enabled: Bool = true, secrets: MirrorSecrets? = nil) -> MirrorService {
         let store = MirrorSecretsStore(keychain: KeychainStore(account: account))
-        if paired { XCTAssertTrue(store.save(pairedSecrets())) }
+        if paired { XCTAssertTrue(store.save(secrets ?? pairedSecrets())) }
         let settings = MirrorSettingsStore(defaults: UserDefaults(suiteName: suite)!)
         settings.value = MirrorSettings(enabled: enabled)
         return MirrorService(secrets: store, settings: settings, index: MirrorIndex(fileURL: indexFile), session: MockURLProtocol.session(), now: { self.clock })
@@ -131,15 +131,208 @@ final class MirrorServiceTests: XCTestCase {
         XCTAssertEqual(service.lastError, .rateLimited)
     }
 
-    func testRemovingAComputerRevokesItFirst() async throws {
-        let seen = respond()
-        let service = makeService()
-        await service.remove(computerID: "b1")
-        let request = try XCTUnwrap(seen.value.first)
-        XCTAssertEqual(request.httpMethod, "DELETE")
-        XCTAssertEqual(request.url?.path, "/api/m/MIR/devices/b1")
+    // MARK: Removing a computer rotates the key
+
+    private let oldKey = Base64URL.encode(Data(repeating: 9, count: 32))
+
+    private func deviceKey(_ n: UInt8) -> String { Base64URL.encode(Data(repeating: n, count: 32)) }
+
+    private func computer(_ id: String, key: UInt8?) -> MirrorComputer {
+        MirrorComputer(id: id, name: "Computer \(id)", pairedAt: Date(timeIntervalSince1970: 0), deviceKey: key.map(deviceKey))
+    }
+
+    private func secrets(computers: [MirrorComputer]) -> MirrorSecrets {
+        MirrorSecrets(origin: "https://x.test", mirrorID: "MIR", ownerDeviceID: "own", ownerToken: "tok", dataKey: oldKey, computers: computers)
+    }
+
+    private func savedSecrets() -> MirrorSecrets? {
+        MirrorSecretsStore(keychain: KeychainStore(account: account)).load()
+    }
+
+    /// The rotate request's JSON body.
+    private func rotateBody(_ seen: Box<[URLRequest]>) throws -> [String: Any] {
+        let request = try XCTUnwrap(seen.value.first { $0.url?.path == "/api/m/MIR/rotate" })
+        XCTAssertEqual(request.httpMethod, "POST")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer own.tok")
-        XCTAssertTrue(service.computers.isEmpty)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+    }
+
+    func testRemovingAComputerSealsTheNewKeyToEachRemainingComputerAndSendsEverythingAgain() async throws {
+        let seen = Box<[URLRequest]>([])
+        let pendingDuringRequest = Box<MirrorSecrets.Pending?>(nil)
+        let account = account
+        MockURLProtocol.handler = { request in
+            seen.value.append(request)
+            if request.url?.path.hasSuffix("/rotate") == true {
+                // The new key must already be in the Keychain when the Worker is asked to switch.
+                pendingDuringRequest.value = MirrorSecretsStore(keychain: KeychainStore(account: account)).load()?.pending
+            }
+            return (200, Data(#"{"ok":true,"epoch":1,"seq":1}"#.utf8))
+        }
+        let service = makeService(secrets: secrets(computers: [computer("b1", key: 1), computer("b2", key: 2)]))
+        await sync(service, [record(1)])
+        XCTAssertFalse(MirrorIndex(fileURL: indexFile).itemIDs(ofKind: "word").isEmpty)
+
+        await service.remove(computerID: "b1")
+
+        let sent = try rotateBody(seen)
+        XCTAssertEqual(sent["epoch"] as? Int, 1)
+        XCTAssertEqual(sent["remove"] as? String, "b1")
+        let blobs = try XCTUnwrap(sent["blobs"] as? [String: String])
+        XCTAssertEqual(Set(blobs.keys), ["b2"])
+
+        let saved = try XCTUnwrap(savedSecrets())
+        XCTAssertEqual(saved.epoch, 1)
+        XCTAssertNil(saved.pending)
+        XCTAssertNotEqual(saved.dataKey, oldKey)
+        XCTAssertEqual(saved.computers.map(\.id), ["b2"])
+        XCTAssertEqual(service.computers.map(\.id), ["b2"])
+        XCTAssertEqual(pendingDuringRequest.value, MirrorSecrets.Pending(dataKey: saved.dataKey, epoch: 1, removedIDs: ["b1"]))
+
+        // What the remaining computer receives opens to exactly the key the phone now uses.
+        let sealed = try XCTUnwrap(Base64URL.decode(try XCTUnwrap(blobs["b2"])))
+        let opened = try MirrorCrypto.openRotation(deviceKey: Data(repeating: 2, count: 32), mirrorID: "MIR", deviceID: "b2", epoch: 1, sealed: sealed)
+        XCTAssertEqual(Base64URL.encode(opened), saved.dataKey)
+        XCTAssertThrowsError(try MirrorCrypto.openRotation(deviceKey: Data(repeating: 1, count: 32), mirrorID: "MIR", deviceID: "b2", epoch: 1, sealed: sealed), "the removed computer's key opens nothing")
+
+        // The Worker's copy was deleted, so the phone forgets what it pushed and sends it all again.
+        XCTAssertTrue(MirrorIndex(fileURL: indexFile).itemIDs(ofKind: "word").isEmpty)
+        let before = seen.value.count
+        await sync(service, [record(1)], force: true)
+        let puts = seen.value.dropFirst(before).filter { $0.httpMethod == "PUT" }
+        XCTAssertFalse(puts.isEmpty)
+    }
+
+    func testRemovingTheLastComputerStillReplacesTheKeyWithNoBlobs() async throws {
+        let seen = respond(json: #"{"ok":true,"epoch":1}"#)
+        let service = makeService(secrets: secrets(computers: [computer("b1", key: 1)]))
+        await service.remove(computerID: "b1")
+        XCTAssertEqual(try XCTUnwrap(rotateBody(seen)["blobs"] as? [String: String]), [:])
+        XCTAssertEqual(seen.value.count, 1, "one call revokes the token and replaces the key")
+        let saved = try XCTUnwrap(savedSecrets())
+        XCTAssertEqual(saved.epoch, 1)
+        XCTAssertNotEqual(saved.dataKey, oldKey)
+        XCTAssertTrue(saved.computers.isEmpty)
+    }
+
+    func testAComputerPairedBeforeRotationIsDroppedWithTheRemovedOne() async throws {
+        let seen = respond(json: #"{"ok":true,"epoch":1}"#)
+        let service = makeService(secrets: secrets(computers: [computer("b1", key: 1), computer("b3", key: nil), computer("b2", key: 2)]))
+        XCTAssertEqual(service.computersNeedingRepair.map(\.id), ["b3"])
+        await service.remove(computerID: "b1")
+        XCTAssertEqual(Set(try XCTUnwrap(rotateBody(seen)["blobs"] as? [String: String]).keys), ["b2"])
+        XCTAssertEqual(service.computers.map(\.id), ["b2"])
+        XCTAssertEqual(service.lastDroppedNames, ["Computer b3"])
+        XCTAssertTrue(service.computersNeedingRepair.isEmpty)
+    }
+
+    func testAnOfflineRemovalKeepsTheOldKeyAndTheComputerAndIsSettledOnTheNextSync() async throws {
+        MockURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        let service = makeService(secrets: secrets(computers: [computer("b1", key: 1), computer("b2", key: 2)]))
+        await service.remove(computerID: "b1")
+        XCTAssertEqual(service.lastError, .offline)
+        XCTAssertEqual(service.computers.map(\.id), ["b1", "b2"])
+        let waiting = try XCTUnwrap(savedSecrets())
+        XCTAssertEqual(waiting.dataKey, oldKey, "the old key is still the live one")
+        let pending = try XCTUnwrap(waiting.pending, "the new key is kept in case the Worker did take it")
+
+        // The Worker did take the rotation (the reply was lost): the pending key becomes the key.
+        let later = Box<[URLRequest]>([])
+        MockURLProtocol.handler = { request in
+            later.value.append(request)
+            return (200, Data(#"{"seq":0,"epoch":1}"#.utf8))
+        }
+        let service2 = MirrorService(
+            secrets: MirrorSecretsStore(keychain: KeychainStore(account: account)),
+            settings: MirrorSettingsStore(defaults: UserDefaults(suiteName: suite)!),
+            index: MirrorIndex(fileURL: indexFile), session: MockURLProtocol.session(), now: { self.clock }
+        )
+        service2.enabled = true
+        await sync(service2, [record(1)], force: true)
+        XCTAssertEqual(later.value.first?.httpMethod, "GET")
+        XCTAssertEqual(later.value.first?.url?.path, "/api/m/MIR/state")
+        let saved = try XCTUnwrap(savedSecrets())
+        XCTAssertEqual(saved.dataKey, pending.dataKey)
+        XCTAssertEqual(saved.epoch, 1)
+        XCTAssertNil(saved.pending)
+        XCTAssertEqual(saved.computers.map(\.id), ["b2"])
+        XCTAssertTrue(later.value.contains { $0.httpMethod == "PUT" }, "the library goes out under the new key")
+    }
+
+    func testAPendingKeyTheWorkerNeverTookIsDropped() async throws {
+        MockURLProtocol.handler = { _ in throw URLError(.timedOut) }
+        let service = makeService(secrets: secrets(computers: [computer("b1", key: 1)]))
+        await service.remove(computerID: "b1")
+        XCTAssertNotNil(savedSecrets()?.pending)
+
+        let seen = Box<[URLRequest]>([])
+        MockURLProtocol.handler = { request in
+            seen.value.append(request)
+            return (200, Data(#"{"seq":0,"epoch":0}"#.utf8))
+        }
+        await sync(service, [record(1)], force: true)
+        let saved = try XCTUnwrap(savedSecrets())
+        XCTAssertNil(saved.pending)
+        XCTAssertEqual(saved.dataKey, oldKey)
+        XCTAssertEqual(saved.epoch, 0)
+        XCTAssertEqual(saved.computers.map(\.id), ["b1"])
+        XCTAssertEqual(seen.value.first?.url?.path, "/api/m/MIR/state")
+    }
+
+    func testAnUnsettledRotationBlocksPushingUntilTheWorkerCanBeAsked() async throws {
+        MockURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        let service = makeService(secrets: secrets(computers: [computer("b1", key: 1)]))
+        await service.remove(computerID: "b1")
+        let seen = Box<[URLRequest]>([])
+        MockURLProtocol.handler = { request in seen.value.append(request); throw URLError(.notConnectedToInternet) }
+        await sync(service, [record(1)], force: true)
+        XCTAssertEqual(service.lastError, .offline)
+        XCTAssertTrue(seen.value.allSatisfy { $0.httpMethod == "GET" }, "only the state was asked; no item was sent under a key of unknown status")
+        XCTAssertNotNil(savedSecrets()?.pending)
+    }
+
+    func testAStaleEpochChangesNothingAndLooksOnlyOnce() async throws {
+        let seen = Box<[URLRequest]>([])
+        MockURLProtocol.handler = { request in
+            seen.value.append(request)
+            if request.url?.path.hasSuffix("/rotate") == true { return (409, Data(#"{"error":"stale_epoch"}"#.utf8)) }
+            return (200, Data(#"{"seq":1,"epoch":5}"#.utf8))
+        }
+        let service = makeService(secrets: secrets(computers: [computer("b1", key: 1), computer("b2", key: 2)]))
+        await service.remove(computerID: "b1")
+        XCTAssertEqual(seen.value.map { "\($0.httpMethod ?? "") \($0.url?.path ?? "")" }, ["POST /api/m/MIR/rotate", "GET /api/m/MIR/state"])
+        XCTAssertEqual(service.lastError, .other)
+        let saved = try XCTUnwrap(savedSecrets())
+        XCTAssertEqual(saved, secrets(computers: [computer("b1", key: 1), computer("b2", key: 2)]), "nothing changed, not even a leftover pending key")
+    }
+
+    func testAStaleEpochThatTurnsOutToBeOurOwnRotationIsAdopted() async throws {
+        MockURLProtocol.handler = { request in
+            if request.url?.path.hasSuffix("/rotate") == true { return (409, Data(#"{"error":"stale_epoch"}"#.utf8)) }
+            return (200, Data(#"{"seq":1,"epoch":1}"#.utf8))
+        }
+        let service = makeService(secrets: secrets(computers: [computer("b1", key: 1), computer("b2", key: 2)]))
+        await service.remove(computerID: "b1")
+        let saved = try XCTUnwrap(savedSecrets())
+        XCTAssertEqual(saved.epoch, 1)
+        XCTAssertNil(saved.pending)
+        XCTAssertEqual(saved.computers.map(\.id), ["b2"])
+    }
+
+    func testRemovingAComputerThatIsAlreadyGoneDoesNotRotate() async throws {
+        let seen = Box<[URLRequest]>([])
+        MockURLProtocol.handler = { request in
+            seen.value.append(request)
+            return (404, Data(#"{"error":"not_found"}"#.utf8))
+        }
+        let service = makeService(secrets: secrets(computers: [computer("b1", key: 1), computer("b2", key: 2)]))
+        await service.remove(computerID: "b1")
+        XCTAssertEqual(seen.value.map { "\($0.httpMethod ?? "") \($0.url?.path ?? "")" }, ["POST /api/m/MIR/rotate", "DELETE /api/m/MIR/devices/b1"])
+        let saved = try XCTUnwrap(savedSecrets())
+        XCTAssertEqual(saved.dataKey, oldKey)
+        XCTAssertEqual(saved.epoch, 0)
+        XCTAssertNil(saved.pending)
+        XCTAssertEqual(saved.computers.map(\.id), ["b2"])
     }
 
     func testAFailedRevokeKeepsTheComputerListed() async {

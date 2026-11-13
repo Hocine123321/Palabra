@@ -85,11 +85,42 @@ final class MirrorClientTests: XCTestCase {
         XCTAssertEqual(items[1]["sealed"] as? String, "", "a tombstone sends no ciphertext")
     }
 
-    func testStateReturnsSeq() async throws {
-        let seen = capture(json: #"{"seq":7}"#)
-        let seq = try await client().state(mirrorID: "MIR", bearer: "a.b")
-        XCTAssertEqual(seq, 7)
+    func testStateReturnsSeqAndEpoch() async throws {
+        let seen = capture(json: #"{"seq":7,"epoch":2}"#)
+        let state = try await client().state(mirrorID: "MIR", bearer: "a.b")
+        XCTAssertEqual(state, MirrorState(seq: 7, epoch: 2))
         XCTAssertEqual(seen.value.first?.httpMethod, "GET")
+    }
+
+    func testStateWithoutEpochIsEpochZero() async throws {
+        _ = capture(json: #"{"seq":7}"#)
+        let state = try await client().state(mirrorID: "MIR", bearer: "a.b")
+        XCTAssertEqual(state, MirrorState(seq: 7, epoch: 0))
+    }
+
+    func testRotateSendsTheEpochTheRemovedDeviceAndTheBlobs() async throws {
+        let seen = capture(json: #"{"ok":true,"epoch":3}"#)
+        let confirmed = try await client().rotate(mirrorID: "MIR", bearer: "a.b", epoch: 3, remove: "DEV1", blobs: ["DEV2": "blob2"])
+        XCTAssertEqual(confirmed, 3)
+        let request = try XCTUnwrap(seen.value.first)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/api/m/MIR/rotate")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer a.b")
+        let sent = try body(request)
+        XCTAssertEqual(Set(sent.keys), ["epoch", "remove", "blobs"])
+        XCTAssertEqual(sent["epoch"] as? Int, 3)
+        XCTAssertEqual(sent["remove"] as? String, "DEV1")
+        XCTAssertEqual(sent["blobs"] as? [String: String], ["DEV2": "blob2"])
+    }
+
+    func testRotateFailureKeepsStatusAndCode() async {
+        _ = capture(status: 409, json: #"{"error":"stale_epoch"}"#)
+        do {
+            _ = try await client().rotate(mirrorID: "MIR", bearer: "a.b", epoch: 1, remove: nil, blobs: [:])
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? MirrorClientError, .http(status: 409, code: "stale_epoch"))
+        }
     }
 
     func testHTTPErrorsKeepStatusAndCode() async {

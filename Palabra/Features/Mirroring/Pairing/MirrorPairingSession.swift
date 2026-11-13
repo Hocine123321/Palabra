@@ -88,11 +88,12 @@ final class MirrorPairingSession {
             try await client.addDevice(mirrorID: stored.mirrorID, bearer: stored.bearer, deviceID: deviceID, tokenHash: MirrorCrypto.sha256Hex(deviceToken))
             addedDevice = (stored.mirrorID, stored.bearer, deviceID)
 
-            let wrap: [String: Any] = ["v": 1, "mirrorId": stored.mirrorID, "deviceId": deviceID, "deviceToken": deviceToken, "dataKey": stored.dataKey]
+            let deviceKey = Base64URL.encode(randomBytes(32))
+            let wrap: [String: Any] = ["v": 1, "mirrorId": stored.mirrorID, "deviceId": deviceID, "deviceToken": deviceToken, "dataKey": stored.dataKey, "deviceKey": deviceKey]
             let sealed = try MirrorCrypto.sealWrap(key: kPair, pairID: link.pairID, plaintext: try JSONSerialization.data(withJSONObject: wrap))
             try await client.pairReply(pairID: link.pairID, sealed: sealed)
 
-            stored.computers.append(MirrorComputer(id: deviceID, name: "Computer \(stored.computers.count + 1)", pairedAt: now()))
+            stored.computers.append(MirrorComputer(id: deviceID, name: "Computer \(stored.computers.count + 1)", pairedAt: now(), deviceKey: deviceKey))
             guard secrets.save(stored) else { throw MirrorPairingError.couldNotSave }
             phase = .done
         } catch {

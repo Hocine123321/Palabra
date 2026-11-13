@@ -35,9 +35,17 @@ struct MirroringSettingsView: View {
             }
         }
         .confirmationDialog("Remove this computer?", isPresented: removeBinding, titleVisibility: .visible, presenting: computerToRemove) { computer in
-            Button("Remove", role: .destructive) { Task { await mirror.remove(computerID: computer.id) } }
+            Button("Remove", role: .destructive) {
+                Task {
+                    await mirror.remove(computerID: computer.id)
+                    // After a rotation the library is sent again under the new key.
+                    await environment.mirrorSyncIfEnabled(force: true)
+                }
+            }
         } message: { _ in
             Text("It stops getting new words at once. Its saved copy stays on that computer until you clear the browser data.")
+            + Text(verbatim: " ")
+            + Text("Removing this computer replaces the encryption key. The other computers keep working.")
         }
         .confirmationDialog("Turn off Mirroring and forget everything?", isPresented: $confirmForget, titleVisibility: .visible) {
             Button("Turn Off and Forget", role: .destructive) { mirror.turnOffAndForget() }
@@ -88,13 +96,25 @@ struct MirroringSettingsView: View {
                 Text("No computer is paired yet.").foregroundStyle(Theme.inkSecondary)
             }
             ForEach(mirror.computers) { computer in
-                HStack {
-                    Image(systemName: "desktopcomputer").foregroundStyle(Theme.inkSecondary)
-                    Text(verbatim: computer.name)
-                    Spacer()
-                    Button("Remove", role: .destructive) { computerToRemove = computer }
-                        .buttonStyle(.borderless)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                    HStack {
+                        Image(systemName: "desktopcomputer").foregroundStyle(Theme.inkSecondary)
+                        Text(verbatim: computer.name)
+                        Spacer()
+                        Button("Remove", role: .destructive) { computerToRemove = computer }
+                            .buttonStyle(.borderless)
+                    }
+                    if computer.deviceKey == nil {
+                        Text("Paired before key rotation existed; pair it again.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
                 }
+            }
+            if !mirror.lastDroppedNames.isEmpty {
+                Text("Computers paired before key rotation existed could not get the new key and were removed. Pair them again.")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.inkSecondary)
             }
         }
         .themedSection()

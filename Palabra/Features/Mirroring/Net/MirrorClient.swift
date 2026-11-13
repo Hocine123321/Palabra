@@ -6,6 +6,12 @@ enum MirrorClientError: Error, Equatable {
     case badResponse
 }
 
+/// The Worker's head sequence number and key epoch (0 for a Worker that predates rotation).
+struct MirrorState: Equatable {
+    let seq: Int
+    let epoch: Int
+}
+
 struct PutItem: Equatable {
     let id: String
     let sealed: String
@@ -60,10 +66,19 @@ struct MirrorClient {
         return seq
     }
 
-    func state(mirrorID: String, bearer: String) async throws -> Int {
+    func state(mirrorID: String, bearer: String) async throws -> MirrorState {
         let json = try await send("GET", "/api/m/\(seg(mirrorID))/state", bearer: bearer)
         guard let seq = json["seq"] as? Int else { throw MirrorClientError.badResponse }
-        return seq
+        return MirrorState(seq: seq, epoch: json["epoch"] as? Int ?? 0)
+    }
+
+    /// Removes `remove` (and every computer without a blob), deletes every stored item and moves the mirror to `epoch`, in one
+    /// step on the Worker. `blobs` maps a device id to its sealed new key. Returns the new epoch.
+    func rotate(mirrorID: String, bearer: String, epoch: Int, remove: String?, blobs: [String: String]) async throws -> Int {
+        let body: [String: Any] = ["epoch": epoch, "remove": remove ?? NSNull(), "blobs": blobs]
+        let json = try await send("POST", "/api/m/\(seg(mirrorID))/rotate", bearer: bearer, body: body)
+        guard let confirmed = json["epoch"] as? Int else { throw MirrorClientError.badResponse }
+        return confirmed
     }
 
     // MARK: Transport

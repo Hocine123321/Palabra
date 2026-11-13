@@ -120,6 +120,28 @@ final class MirrorPairingSessionTests: XCTestCase {
         XCTAssertEqual(wrap["dataKey"] as? String, saved.dataKey)
         XCTAssertEqual(MirrorCrypto.sha256Hex(try XCTUnwrap(wrap["deviceToken"] as? String)), tokenHash)
         XCTAssertEqual(wrap["deviceId"] as? String, saved.computers.first?.id)
+
+        // The device key rides in the same sealed wrap and is kept on the phone, so a later rotation can be sealed to this computer.
+        let deviceKey = try XCTUnwrap(wrap["deviceKey"] as? String)
+        XCTAssertEqual(Base64URL.decode(deviceKey)?.count, 32)
+        XCTAssertEqual(saved.computers.first?.deviceKey, deviceKey)
+        XCTAssertNotEqual(deviceKey, saved.dataKey)
+        XCTAssertNotEqual(deviceKey, wrap["deviceToken"] as? String)
+        XCTAssertEqual(saved.epoch, 0)
+        XCTAssertNil(saved.pending)
+    }
+
+    func testTheDeviceKeyNeverTravelsOutsideTheSealedWrap() async throws {
+        let server = Server()
+        let (session, store) = try makeSession(server)
+        await session.start()
+        await session.confirm()
+        let deviceKey = try XCTUnwrap(store.load()?.computers.first?.deviceKey)
+        for request in server.requests.value {
+            XCTAssertFalse(request.url?.absoluteString.contains(deviceKey) ?? false)
+            let sent = request.httpBody.map { String(decoding: $0, as: UTF8.self) } ?? ""
+            XCTAssertFalse(sent.contains(deviceKey), "\(request.url?.path ?? "")")
+        }
     }
 
     func testNoSecretAppearsInAnyURLOrBodyInTheClear() async throws {

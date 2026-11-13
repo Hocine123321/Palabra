@@ -948,6 +948,9 @@
 "Allow the camera to scan the pairing code, or paste the pairing link instead." = "اسمح للكاميرا بمسح رمز الاقتران، أو الصق رابط الاقتران بدلًا من ذلك.";
 "Remove this computer?" = "إزالة هذا الحاسوب؟";
 "It stops getting new words at once. Its saved copy stays on that computer until you clear the browser data." = "يتوقف عن تلقي الكلمات الجديدة فورًا. تبقى نسخته المحفوظة على ذلك الحاسوب حتى تمسح بيانات المتصفح.";
+"Removing this computer replaces the encryption key. The other computers keep working." = "إزالة هذا الحاسوب تستبدل مفتاح التشفير. تبقى الحواسيب الأخرى تعمل.";
+"Paired before key rotation existed; pair it again." = "اقترن قبل وجود تغيير المفاتيح؛ اقرنه من جديد.";
+"Computers paired before key rotation existed could not get the new key and were removed. Pair them again." = "الحواسيب التي اقترنت قبل وجود تغيير المفاتيح لم تستطع الحصول على المفتاح الجديد فأُزيلت. اقرنها من جديد.";
 "Turn off Mirroring and forget everything?" = "إيقاف المرآة ونسيان كل شيء؟";
 "Turn Off and Forget" = "إيقاف ونسيان";
 "This phone forgets its keys and the paired computers. The encrypted copy stays on your Worker, unreadable without the keys." = "ينسى هذا الهاتف مفاتيحه والحواسيب المقترنة. تبقى النسخة المشفّرة على الـ Worker الخاص بك ولا يمكن قراءتها دون المفاتيح.";
