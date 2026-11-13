@@ -54,7 +54,7 @@ at most 200 items and about 900,000 sealed characters; 20,000 items and 50,000,0
 3. Both screens show a 4-digit code. Check they match, then tap Confirm on the phone and Yes on the computer.
 4. The phone sends the library at once; after that it sends changes when Palabra opens and on Sync Now (at most every 30 seconds).
 
-Remove a computer in the same screen: its token is revoked on the Worker first. "Turn Off and Forget" wipes the keys, the computer list and the push index from the phone; the encrypted copy stays on the Worker.
+Remove a computer in the same screen: the phone makes a new data key, seals it to every remaining computer, and asks the Worker (one `rotate` call) to revoke the removed computer, delete everything sealed under the old key and switch to the new epoch. The phone then sends the whole library again under the new key. If the call fails the old key stays in use and the computer stays listed; if its answer is lost the phone settles it from the Worker's epoch on the next sync. A computer paired before this existed has no device key and cannot be given the new key, so it is removed with the one you chose and the Settings screen says so; pair it again. "Turn Off and Forget" wipes the keys, the computer list and the push index from the phone; the encrypted copy stays on the Worker.
 
 ## What is mirrored
 
@@ -94,7 +94,8 @@ Hash routes: `#/words`, `#/words/<id>` (word details), `#/study`, `#/review`, `#
   It cannot see their contents or even what kind of record each is.
 - Whoever controls the person's Cloudflare account or GitHub repo can ship different JavaScript to the web app. That is the person.
   The web app ships no third-party scripts and a strict Content-Security-Policy (`web/public/_headers`).
-- A stolen unlocked PC or browser profile exposes the local copy. Revoking a browser cuts it off from future data; it keeps what it already downloaded.
+- A stolen unlocked PC or browser profile exposes the local copy. Removing a computer revokes its token **and** replaces the data key: the Worker deletes every item sealed under the old key, the remaining computers receive the new key sealed to their own device key (the Worker stores only those sealed blobs), and the removed computer's old key opens nothing that is stored now. It keeps what it already downloaded. A page that was offline during a rotation sees the higher epoch when it comes back, opens its blob, drops its old copy and pulls again; a page with no blob is shown "This computer was removed".
+- Not covered: data the removed computer already downloaded. A rotation needs the phone to be reachable, so removing a computer while offline does nothing until the phone is online.
 
 ## Protocol v1
 
@@ -120,7 +121,7 @@ Normative. The vectors in `PalabraTests/Mirroring/Fixtures/mirror-vectors.json` 
 CI runs the Worker's logic on Node and bundles it with `wrangler deploy --dry-run`. The Cloudflare runtime itself (Durable Objects,
 static assets, headers) is only exercised by the smoke test that runs after a real deploy (`worker/scripts/smoke.mjs`); with no
 secrets that test does not run. Real browsers and the phone's camera are not exercised by CI. `web/scripts/e2e-local.mjs` drives real Chromium
-by hand (pairing, the manifest states, a replayed server, the service worker offline); it needs Playwright and is not part of CI. Not yet tried
+by hand (pairing, the manifest states, a replayed server, every screen, the service worker offline, a two-computer key rotation); it needs Playwright and is not part of CI. Not yet tried
 on real hardware: installing the app on a PC, Safari and Firefox service workers, scanning the QR code with the phone camera, a real Cloudflare Worker.
 
-Known gaps (deferred): only words are mirrored so far (plan 3b adds the other collections); revoking a computer does not yet rotate the data key (plan 3c); there is no mailbox or live channel; a mirror is never deleted when idle; tombstones are never purged; unauthenticated probes of random mirror ids are not rate limited per address.
+Known gaps (deferred): computers paired before key rotation existed must pair again to survive a rotation; there is no mailbox or live channel; a mirror is never deleted when idle; tombstones are never purged; unauthenticated probes of random mirror ids are not rate limited per address.

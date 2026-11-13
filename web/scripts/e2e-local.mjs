@@ -3,6 +3,7 @@
 // web/node_modules). Run after `npm run build`:   node web/scripts/e2e-local.mjs [screenshot-dir]
 // Checks: pairing with the match code, pull + decrypt + render, the manifest states (verified / incomplete / replay),
 // every collection (study, review, artifacts, chat, books) on its screen with every nav link and detail route,
+// a key rotation with two paired computers (one removed, one rekeys and shows the re-pushed words, nothing old is kept),
 // markup stays text, no console error or CSP violation, the service worker serves the page offline, the web manifest.
 import http from "node:http";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -10,7 +11,7 @@ import { chromium } from "playwright";
 import { makeFetch } from "../../worker/src/entry.js";
 import { makeMemoryBackend } from "../../worker/test/support/memory-backend.js";
 import { decode, encode } from "../src/b64url.js";
-import { deriveItemId, deriveKPair, generatePairKeys, importDataKey, matchCode, sealItem } from "../src/crypto.js";
+import { deriveItemId, deriveKPair, generatePairKeys, importDataKey, matchCode, openItem, sealItem } from "../src/crypto.js";
 import { idsHash } from "../src/manifest.js";
 
 const dist = new URL("../dist/", import.meta.url).pathname;
@@ -69,13 +70,15 @@ const page = await context.newPage();
 const problems = [];
 page.on("console", (m) => { if (["error", "warning"].includes(m.type())) problems.push(`${m.type()}: ${m.text()}`); });
 page.on("pageerror", (e) => problems.push("pageerror: " + e.message));
-await page.addInitScript(() => {
+// Lets the script (playing the phone) read the page's public key and nonce, which the real phone gets from the QR code.
+const capture = () => {
   const sub = crypto.subtle;
   const exp = sub.exportKey.bind(sub);
   sub.exportKey = async (...a) => { const r = await exp(...a); if (a[0] === "raw" && r.byteLength === 65) window.__pub = Array.from(new Uint8Array(r)); return r; };
   const grv = crypto.getRandomValues.bind(crypto);
   crypto.getRandomValues = (arr) => { const r = grv(arr); if (arr instanceof Uint8Array && arr.length === 16) window.__nonce = Array.from(arr); return r; };
-});
+};
+await page.addInitScript(capture);
 
 // MARK: Pair a JS phone
 
@@ -296,6 +299,123 @@ await page.waitForSelector("li.row", { timeout: 10000 });
 check("offline reload still shows the saved words", (await page.locator("li.row").count()) === 4);
 await page.screenshot({ path: `${shots}/8-offline.png` });
 await context.setOffline(false);
+
+// MARK: 6. Key rotation: two paired computers (with device keys), the phone removes one
+
+const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
+const seenSlots = new Set([slotId]);
+const rotationProblems = [];
+async function pairComputer() {
+  const ctx = await browser.newContext({ viewport: { width: 1100, height: 720 } });
+  const p = await ctx.newPage();
+  p.on("console", (m) => { if (["error", "warning"].includes(m.type()) && !m.text().startsWith("Failed to load resource")) rotationProblems.push(`${m.type()}: ${m.text()}`); });
+  p.on("pageerror", (e) => rotationProblems.push("pageerror: " + e.message));
+  await p.addInitScript(capture);
+  await p.goto(origin + "/");
+  await p.waitForSelector("svg.qr");
+  const pub = Uint8Array.from(await p.evaluate(() => window.__pub));
+  const n = Uint8Array.from(await p.evaluate(() => window.__nonce));
+  const slot = backend.gate.sql.all("SELECT pairId FROM slots").map((r) => r.pairId).find((id) => !seenSlots.has(id));
+  seenSlots.add(slot);
+  const pk = await generatePairKeys();
+  await api("POST", `/api/pair/${slot}/join`, { phonePub: encode(pk.publicRaw) });
+  await p.waitForSelector("#codes-match", { timeout: 6000 });
+  await p.click("#codes-match");
+  const deviceId = encode(rand(16));
+  const deviceToken = encode(rand(32));
+  const deviceKey = rand(32);
+  await api("POST", `/api/m/${mirrorId}/devices`, { deviceId, tokenHash: await sha(deviceToken) }, owner);
+  const k = await deriveKPair(pk.privateKey, pub, n);
+  const wrapIv = rand(12);
+  const sealedWrap = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: wrapIv, additionalData: new TextEncoder().encode(`palabra-mirror-wrap-v1|${slot}`), tagLength: 128 }, k, new TextEncoder().encode(JSON.stringify({ v: 1, mirrorId, deviceId, deviceToken, dataKey: encode(dataKey), deviceKey: encode(deviceKey) }))));
+  await api("POST", `/api/pair/${slot}/reply`, { sealed: encode(new Uint8Array([...wrapIv, ...sealedWrap])) });
+  await p.waitForSelector("#refresh", { timeout: 15000 });
+  return { ctx, page: p, deviceId, deviceKey };
+}
+const pull = async (p) => {
+  await p.click("#refresh");
+  await p.waitForTimeout(300);
+  await p.waitForFunction(() => !document.body.innerText.includes("Updating…"), null, { timeout: 15000 });
+  await p.waitForTimeout(250);
+};
+// What a page's IndexedDB holds: the rows (no secrets) and the epoch it believes it is at.
+const stored = (p) =>
+  p.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const open = indexedDB.open("palabra-mirror");
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction(["items", "meta"]);
+          const rows = tx.objectStore("items").getAll();
+          const creds = tx.objectStore("meta").get("creds");
+          tx.oncomplete = () => { db.close(); resolve({ rows: rows.result.map((r) => ({ id: r.id, kind: r.kind, recordId: r.recordId })), epoch: creds.result?.epoch ?? null, paired: Boolean(creds.result) }); };
+        };
+      }),
+  );
+
+const A = await pairComputer();
+const B = await pairComputer();
+await pull(B.page);
+check("before the rotation both new computers show the library", (await B.page.locator("li.row").count()) === 4);
+await pull(A.page);
+check("computer A shows the library too", (await A.page.locator("li.row").count()) === 4);
+const oldIds = new Set(live.keys());
+
+// The phone removes A: a new key sealed to B's device key only. The first computer (no blob) is dropped with A.
+const newKey = rand(32);
+const epoch = 1;
+const blobKey = await crypto.subtle.importKey("raw", B.deviceKey, { name: "AES-GCM" }, false, ["encrypt"]);
+const blobIv = rand(12);
+const blob = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: blobIv, additionalData: new TextEncoder().encode(`palabra-mirror-rotate-v1|${mirrorId}|${B.deviceId}|${epoch}`), tagLength: 128 }, blobKey, new TextEncoder().encode(JSON.stringify({ v: 1, epoch, dataKey: encode(newKey) }))));
+const rotated = await api("POST", `/api/m/${mirrorId}/rotate`, { epoch, remove: A.deviceId, blobs: { [B.deviceId]: encode(new Uint8Array([...blobIv, ...blob])) } }, owner);
+check("the Worker takes the rotation and drops A and the computer that got no blob", rotated.status === 200 && rotated.json.removed.includes(A.deviceId) && rotated.json.removed.includes(devId) && !rotated.json.removed.includes(B.deviceId), JSON.stringify(rotated));
+
+// The phone sends everything again under the new key.
+const keys2 = await importDataKey(newKey);
+generation += 1;
+const fresh = [];
+for (const [spanish, translation] of [["nuevo", "new"], ["otro", "other"]]) {
+  const id = await deriveItemId(keys2, "word", `w-${spanish}`);
+  const plain = new TextEncoder().encode(JSON.stringify({ v: 1, k: "word", r: `w-${spanish}`, h: "h", g: generation, d: { spanish, translation, category: "Test", tags: [], createdAt: "2026-11-10T00:00:00Z" } }));
+  fresh.push({ id, sealed: encode(await sealItem(keys2, id, plain)) });
+}
+const mid = await deriveItemId(keys2, "manifest", "manifest");
+const mplain = new TextEncoder().encode(JSON.stringify({ v: 1, k: "manifest", r: "manifest", h: "h", g: generation + 1, d: { counts: { word: 2 }, idsHash: await idsHash(fresh.map((f) => f.id)), pushedAt: new Date().toISOString().replace(/\.\d+Z$/, "Z") } }));
+fresh.push({ id: mid, sealed: encode(await sealItem(keys2, mid, mplain)) });
+check("the re-push under the new key is accepted", (await api("PUT", `/api/m/${mirrorId}/items`, { items: fresh }, owner)).status === 200);
+
+// A: removed. Its copy is gone.
+await pull(A.page);
+check("the removed computer is told so", (await A.page.evaluate(() => document.body.innerText)).includes("This computer was removed"));
+const aStored = await stored(A.page);
+check("the removed computer keeps nothing", aStored.rows.length === 0 && !aStored.paired);
+await A.page.screenshot({ path: `${shots}/17-removed.png` });
+// The first computer (paired before any device key) is removed as well.
+await pull(page);
+check("a computer with no blob is removed too", (await bodyText()).includes("This computer was removed"));
+
+// B: follows the rotation.
+await pull(B.page);
+const bText = await B.page.evaluate(() => document.body.innerText);
+check("the computer that got the key rekeys and shows the re-pushed words", (await B.page.locator("li.row").count()) === 2 && bText.includes("nuevo") && bText.includes("otro"), bText.slice(0, 120));
+check("it does not say removed, and the copy is verified", !bText.includes("This computer was removed") && !bText.includes("Still receiving") && !bText.includes("Not verified yet"));
+const bStored = await stored(B.page);
+let allNewKey = bStored.rows.length === 3;
+for (const row of bStored.rows) allNewKey &&= row.id === (await deriveItemId(keys2, row.kind, row.recordId)) && !oldIds.has(row.id);
+check("every row it holds is named by the new key, none by the old", allNewKey);
+check("it is now at epoch 1", bStored.epoch === 1);
+await B.page.screenshot({ path: `${shots}/18-rekeyed.png` });
+
+// The Worker holds nothing sealed under the old key.
+const onWorker = (await api("GET", `/api/m/${mirrorId}/items?since=0&limit=200`, undefined, owner)).json.items;
+let noneOpenWithOld = true;
+for (const it of onWorker) noneOpenWithOld &&= await openItem(keys, it.id, decode(it.sealed)).then(() => false, () => true);
+check("the Worker holds only the new items, and the old key opens none of them", onWorker.length === 3 && onWorker.every((it) => !oldIds.has(it.id)) && noneOpenWithOld);
+check("no console error or CSP violation on the rotation pages", rotationProblems.length === 0, rotationProblems.join(" | "));
+await A.ctx.close();
+await B.ctx.close();
 
 await browser.close();
 server.close();

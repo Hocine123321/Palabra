@@ -266,5 +266,6 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 
 - `Features/Mirroring` never imports Word/Deck/Card/ReviewNeed. `Palabra/App/AppEnvironment+Mirror.swift` is the only boundary: it turns words into `MirrorRecord`s.
 - Frozen names (changing one orphans existing installs): Keychain account `mirror-secrets`, UserDefaults key `mirrorSettings`, file `Application Support/Mirror/index.json`.
+- Key rotation names (also frozen once installs exist): the wrap field `deviceKey`, the rotation AAD prefix `palabra-mirror-rotate-v1|<mirrorId>|<deviceId>|<epoch>`, the secrets fields `epoch` / `pending` and `MirrorComputer.deviceKey`, the Worker's `epoch` meta, `rotation` table and `/rotate` + `/rotation` routes. The phone saves `pending` to the Keychain before it calls `rotate`.
 - Protocol v1 constants (HKDF infos, AAD prefixes, envelope shape) are in docs/features/mirroring.md and pinned by `PalabraTests/Mirroring/Fixtures/mirror-vectors.json`; Swift and JS must both reproduce it.
 - New API-calling code gets a MockURLProtocol test that inspects the real request body and Authorization header.
