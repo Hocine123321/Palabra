@@ -109,6 +109,17 @@ final class ArtifactsUITests: XCTestCase {
         XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 10))
         // The grant was stored with the artifact, so it does not ask again.
         XCTAssertFalse(app.buttons["allowArtifactButton"].exists)
+
+        // Full screen: the bars go, the exit button appears, and the page stays loaded. Back to normal again.
+        app.buttons["artifactFullscreenButton"].tap()
+        let exit = app.buttons["artifactExitFullscreenButton"]
+        XCTAssertTrue(exit.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.navigationBars.firstMatch.exists)
+        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        XCTAssertTrue(app.webViews.firstMatch.exists)
+        exit.tap()
+        XCTAssertTrue(app.buttons["artifactFullscreenButton"].waitForExistence(timeout: 5))
+        XCTAssertFalse(exit.exists)
     }
 
     func testFailurePathShowsRetry() {

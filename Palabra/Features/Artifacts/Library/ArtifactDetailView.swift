@@ -17,6 +17,8 @@ struct ArtifactDetailView: View {
     @State private var notNow = false
     @State private var webID = UUID()
     @State private var updateRequest = ""
+    /// An app artifact filling the whole screen: no bars, and the swipe back is off so swipes belong to the app.
+    @State private var fullscreen = false
 
     init(artifactID: UUID) {
         self.artifactID = artifactID
@@ -39,7 +41,22 @@ struct ArtifactDetailView: View {
         .background(ScreenBackdrop())
         .navigationTitle(Text(verbatim: snapshot?.title ?? ""))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(fullscreen ? .hidden : .visible, for: .navigationBar)
+        .toolbar(fullscreen ? .hidden : .visible, for: .tabBar)
+        .navigationBarBackButtonHidden(fullscreen)
+        .statusBarHidden(fullscreen)
+        .persistentSystemOverlays(fullscreen ? .hidden : .automatic)
+        .background(SwipeBackLock(locked: fullscreen))
         .toolbar {
+            if isRunningApp {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { setFullscreen(true) } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    }
+                    .accessibilityLabel("Full Screen")
+                    .accessibilityIdentifier("artifactFullscreenButton")
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button("Update", systemImage: "wand.and.stars") {
@@ -68,6 +85,18 @@ struct ArtifactDetailView: View {
             }
         }
         .onAppear(perform: reload)
+        .onDisappear { fullscreen = false }
+    }
+
+    /// An app artifact whose page is on screen (not waiting for its permissions card).
+    private var isRunningApp: Bool {
+        guard let snapshot, snapshot.kind == .app else { return false }
+        let pending = ArtifactApproval.pending(kind: .app, requested: snapshot.requests, granted: snapshot.granted, registry: environment.capabilities)
+        return pending.isEmpty || notNow
+    }
+
+    private func setFullscreen(_ on: Bool) {
+        Motion.animate { fullscreen = on }
     }
 
     @ViewBuilder
@@ -109,6 +138,7 @@ struct ArtifactDetailView: View {
                 .padding(Theme.Spacing.md)
             }
         } else {
+            // The same views in both modes (only their values change), so the page is never reloaded and keeps its state.
             VStack(spacing: Theme.Spacing.sm) {
                 AppRendererView(
                     html: snapshot.html,
@@ -121,10 +151,25 @@ struct ArtifactDetailView: View {
                 )
                 .id(webID)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-                .padding(.horizontal, Theme.Spacing.md)
-                if !log.entries.isEmpty { errorsSection }
+                .background(Theme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: fullscreen ? 0 : Theme.Radius.card, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: fullscreen ? 0 : Theme.Radius.card, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    if fullscreen {
+                        Button { setFullscreen(false) } label: {
+                            Image(systemName: "arrow.down.right.and.arrow.up.left")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                                .frame(width: 40, height: 40)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .padding(Theme.Spacing.sm)
+                        .opacity(0.8)
+                        .accessibilityLabel("Exit Full Screen")
+                        .accessibilityIdentifier("artifactExitFullscreenButton")
+                    }
+                }
+                .padding(.horizontal, fullscreen ? 0 : Theme.Spacing.md)
+                if !log.entries.isEmpty && !fullscreen { errorsSection }
             }
         }
     }

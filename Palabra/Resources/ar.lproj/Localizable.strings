@@ -493,6 +493,8 @@
 
 /* Accessibility */
 "More" = "المزيد";
+"Full Screen" = "ملء الشاشة";
+"Exit Full Screen" = "الخروج من ملء الشاشة";
 "Add word" = "إضافة كلمة";
 "Collapsed" = "مطويّ";
 "Expanded" = "موسَّع";

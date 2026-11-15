@@ -79,6 +79,7 @@ final class LocalizationTests: XCTestCase {
         let keys = [
             "Copy artifact prompt rules", "Upload/paste artifact", "Prompt copied", "Paste the HTML page here",
             "Paste from clipboard", "Choose file", "Use this page", "That file couldn't be read as text.", "More",
+            "Full Screen", "Exit Full Screen",
         ]
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }
     }
