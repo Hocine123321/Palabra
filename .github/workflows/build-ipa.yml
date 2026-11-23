@@ -48,12 +48,20 @@ jobs:
             | sed -nE 's#refs/tags/v([0-9]+)$#\1#p' | sort -n | tail -n 1)
           next=$(( ${latest:-0} + 1 ))
           tag="v${next}"
-          printf 'Unsigned IPA generated from commit `%s`.\n\n[View build run](%s)\n' "$COMMIT" "$RUN_URL" > release-notes.md
+          commit_message=$(gh api "repos/${REPO}/commits/${COMMIT}" --jq '.commit.message')
+          printf '## Build commit\n\n%s\n\n[View commit](%s/commit/%s) · [View build run](%s)\n\n' \
+            "$commit_message" "${{ github.server_url }}" "$COMMIT" "$RUN_URL" > release-notes-prefix.md
+          notes_args=(--generate-notes)
+          if [[ -n "$latest" ]]; then
+            notes_args+=(--notes-start-tag "v${latest}")
+          fi
+          prefix_notes=$(cat release-notes-prefix.md)
           gh release create "$tag" dist/Palabra-unsigned.ipa \
             --repo "$REPO" \
             --target "$COMMIT" \
             --title "Palabra $tag" \
-            --notes-file release-notes.md
+            --notes "$prefix_notes" \
+            "${notes_args[@]}"
 
   # The IPA job is independent of the test job, so a failing test never blocks the deliverable; the run itself still
   # turns red when any unit or UI test fails.
