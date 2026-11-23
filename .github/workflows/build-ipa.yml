@@ -20,6 +20,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Publish every successful main-branch IPA as the next numbered GitHub release.
+  release:
+    name: Publish IPA release
+    if: github.ref == 'refs/heads/main' && inputs.scope != 'review'
+    needs: ipa
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Palabra-unsigned-ipa
+          path: dist
+      - name: Create next numbered release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          latest=$(gh api --paginate "repos/${REPO}/git/matching-refs/tags/v" --jq '.[].ref' \
+            | sed -nE 's#refs/tags/v([0-9]+)$#\1#p' | sort -n | tail -n 1)
+          next=$(( ${latest:-0} + 1 ))
+          tag="v${next}"
+          printf 'Unsigned IPA generated from commit `%s`.\n\n[View build run](%s)\n' "$COMMIT" "$RUN_URL" > release-notes.md
+          gh release create "$tag" dist/Palabra-unsigned.ipa \
+            --repo "$REPO" \
+            --target "$COMMIT" \
+            --title "Palabra $tag" \
+            --notes-file release-notes.md
+
   # The IPA job is independent of the test job, so a failing test never blocks the deliverable; the run itself still
   # turns red when any unit or UI test fails.
   ipa:
