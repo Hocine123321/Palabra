@@ -66,6 +66,14 @@ struct PronunciationButton: View {
             player.toggle(data: audio)
             return
         }
+        // No clip, and Gemini speech is not set up or just failed: use the phone's own voice
+        // (free, offline) instead of a dead end. The failure notice stays visible.
+        var failed = false
+        if case .failed = status { failed = true }
+        if failed || !environment.hasAPIKey || environment.selectedTTSModel == nil {
+            WordQuickSpeaker.shared.hearWithPhoneVoice(word.spanish)
+            return
+        }
         Task { await environment.pronunciation.generate(for: word, using: environment) }
     }
 }

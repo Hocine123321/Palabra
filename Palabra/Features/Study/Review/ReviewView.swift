@@ -6,6 +6,8 @@ import SwiftUI
 struct ReviewView: View {
     let deckID: UUID?
     var cardAccessory: (UUID) -> AnyView = { _ in AnyView(EmptyView()) }
+    /// A tint for a card's front, or nil to use the deck's tint (supplied by the app, like `cardAccessory`).
+    var cardTint: (String) -> Color? = { _ in nil }
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
@@ -47,7 +49,7 @@ struct ReviewView: View {
             .glassCapsule()
             .padding(.horizontal, Theme.Spacing.md)
 
-            CutoutCard(tint: DeckTint.color(for: card.deckID)) {
+            CutoutCard(tint: cardTint(card.front) ?? DeckTint.color(for: card.deckID)) {
                 VStack(spacing: Theme.Spacing.md) {
                     HStack {
                         Spacer()

@@ -19,10 +19,7 @@ struct HoneycombGrid: View {
                     ForEach(row, id: \.id) { word in
                         WordTile(word: word, size: tileSize)
                             .onTapGesture { onSelect(word) }
-                            .contextMenu {
-                                Button("Open") { onSelect(word) }
-                                Button("Delete", role: .destructive) { onDeleteRequest(word) }
-                            }
+                            .wordQuickActions(word, onOpen: { onSelect(word) }, onDeleteRequest: { onDeleteRequest(word) })
                     }
                     if row.count == columns - 1 {
                         Spacer(minLength: tileSize / 2 + Theme.Spacing.md / 2)
@@ -37,6 +34,8 @@ struct HoneycombGrid: View {
 private struct WordTile: View {
     let word: Word
     let size: CGFloat
+    /// Not private: a private property would make the memberwise init private too.
+    var tints = WordTintSettings()
 
     /// A paper cutout: most tiles are circles, some rounded squares, picked from the word's key.
     private var kind: CutoutKind {
@@ -45,7 +44,7 @@ private struct WordTile: View {
 
     var body: some View {
         ZStack {
-            CutoutShape(kind: kind).fill(Theme.tint(for: word.key))
+            CutoutShape(kind: kind).fill(tints.color(key: word.key, partOfSpeech: word.partOfSpeech))
             Text(word.spanish)
                 .font(Theme.Font.tile)
                 .foregroundStyle(Theme.onTint)

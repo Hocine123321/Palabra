@@ -13,6 +13,8 @@ private enum DataMessage {
 
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
+    @AppStorage(WordTintKeys.mode) private var tintModeRaw = WordTintMode.mixed.rawValue
+    @AppStorage(WordTintKeys.colorWords) private var colorWordTints = true
     @State private var keyInput = ""
     @State private var isEditingKey = false
     @State private var isVerifying = false
@@ -138,6 +140,14 @@ struct SettingsView: View {
                     Text("Readability").tag(SettingsStore.LibraryLayout.list)
                 }
                 .pickerStyle(.segmented)
+                Picker("Tile Colours", selection: $tintModeRaw) {
+                    ForEach(WordTintMode.allCases) { mode in
+                        Text(LocalizedStringKey(mode.title)).tag(mode.rawValue)
+                    }
+                }
+                .accessibilityIdentifier("tileColoursPicker")
+                Toggle("Colour Words Match Their Colour", isOn: $colorWordTints)
+                    .accessibilityIdentifier("colorWordTintsToggle")
                 NavigationLink {
                     OrganizationSettingsView()
                 } label: {

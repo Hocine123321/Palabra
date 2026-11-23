@@ -19,6 +19,8 @@ struct VocabularyLibraryView: View {
     @State private var selectedTag: String?
     @State private var showOrganizeSheet = false
     @State private var showOrganizeSettings = false
+    @State private var lastRandomID: UUID?
+    @State private var randomCount = 0
 
     var body: some View {
         ZStack {
@@ -82,6 +84,12 @@ struct VocabularyLibraryView: View {
                 .accessibilityLabel(environment.libraryLayout == .grid ? "Switch to readability layout" : "Switch to grid layout")
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(action: openRandom) {
+                    Image(systemName: "shuffle")
+                }
+                .disabled(filteredWords.isEmpty)
+                .accessibilityLabel("Random Word")
+                .accessibilityIdentifier("randomWordButton")
                 Menu {
                     Picker("Sort", selection: $sortRaw) {
                         ForEach(LibrarySort.allCases) { option in
@@ -115,6 +123,7 @@ struct VocabularyLibraryView: View {
         // A tag from the other tab would leave this one empty with no visible reason.
         .onChange(of: kindRaw) { _, _ in selectedTag = nil }
         .sensoryFeedback(.success, trigger: savedCount)
+        .sensoryFeedback(.selection, trigger: randomCount)
         .sheet(item: $activeFlow) { flow in
             WordPreviewSheet(flow: flow) { saved in
                 savedCount += 1
@@ -188,6 +197,14 @@ struct VocabularyLibraryView: View {
 
     private func open(_ word: Word) {
         environment.router.openWord(word.id)
+    }
+
+    /// Opens a random word from what the library is showing now (respects the filter, search and tag).
+    private func openRandom() {
+        guard let id = RandomWord.pick(from: filteredWords.map(\.id), excluding: lastRandomID) else { return }
+        lastRandomID = id
+        randomCount += 1
+        environment.router.openWord(id)
     }
 
     private func submit() {

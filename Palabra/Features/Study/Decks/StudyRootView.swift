@@ -4,6 +4,8 @@ import SwiftUI
 struct StudyRootView: View {
     /// Passed in by the app so cards mirrored from library words can show pronunciation.
     var cardAccessory: (UUID) -> AnyView = { _ in AnyView(EmptyView()) }
+    /// Passed in by the app: a tint for a card's front (a colour word gets its colour), nil for the deck's own tint.
+    var cardTint: (String) -> Color? = { _ in nil }
     @State private var path: [StudyRoute] = []
 
     var body: some View {
@@ -12,7 +14,7 @@ struct StudyRootView: View {
                 .navigationDestination(for: StudyRoute.self) { route in
                     switch route {
                     case .review(let deckID):
-                        ReviewView(deckID: deckID, cardAccessory: cardAccessory)
+                        ReviewView(deckID: deckID, cardAccessory: cardAccessory, cardTint: cardTint)
                     case .deck(let id):
                         DeckDetailView(deckID: id, path: $path)
                     case .examSetup:

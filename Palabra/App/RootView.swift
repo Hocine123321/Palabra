@@ -32,7 +32,10 @@ struct RootView: View {
             .tabItem { Label("Spanish", systemImage: "text.book.closed") }
             .tag(AppTab.spanish)
 
-            StudyRootView(cardAccessory: { AnyView(VocabularyCardPronunciation(wordID: $0)) })
+            StudyRootView(
+                cardAccessory: { AnyView(VocabularyCardPronunciation(wordID: $0)) },
+                cardTint: { WordTint.cardTint(front: $0) }
+            )
                 .tabItem { Label("Study", systemImage: "rectangle.stack") }
                 .badge(dueCount)
                 .tag(AppTab.study)

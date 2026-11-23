@@ -6,6 +6,8 @@ struct WordListView: View {
     var showTags: Bool = false
     var onSelect: (Word) -> Void
     var onDeleteRequest: (Word) -> Void
+    /// Not private: a private property would make the memberwise init private too.
+    var tints = WordTintSettings()
 
     var body: some View {
         LazyVStack(spacing: Theme.Spacing.sm) {
@@ -14,7 +16,7 @@ struct WordListView: View {
                     GlassSurface(cornerRadius: Theme.Radius.medium) {
                         HStack(alignment: .top, spacing: Theme.Spacing.md) {
                             Circle()
-                                .fill(Theme.tint(for: word.key))
+                                .fill(tints.color(key: word.key, partOfSpeech: word.partOfSpeech))
                                 .frame(width: 10, height: 10)
                                 .padding(.top, 6)
                             VStack(alignment: .leading, spacing: 2) {
@@ -40,6 +42,7 @@ struct WordListView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .wordQuickActions(word, onOpen: { onSelect(word) }, onDeleteRequest: { onDeleteRequest(word) })
                 .swipeActions(edge: .trailing) {
                     Button("Delete", role: .destructive) { onDeleteRequest(word) }
                 }

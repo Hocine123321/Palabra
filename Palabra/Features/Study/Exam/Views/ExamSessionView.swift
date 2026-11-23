@@ -64,6 +64,12 @@ struct ExamSessionView: View {
         .onChange(of: session?.phase) { _, phase in
             if phase == .finished { saveOnce() }
         }
+        // A tap for every answer: success, partly right, or wrong.
+        .sensoryFeedback(trigger: session?.answeredCount) { _, _ in
+            guard let record = session?.lastRecord else { return nil }
+            let feedback: SensoryFeedback = record.isCorrect ? .success : (record.isPartial ? .warning : .error)
+            return feedback
+        }
         .onDisappear {
             speaker.stop()
             environment.speech.stop()

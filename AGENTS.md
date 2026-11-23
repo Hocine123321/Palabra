@@ -111,8 +111,17 @@ Changing any of these silently loses the user's saved words, settings or API key
 - The SwiftData entity `ExamResult` and its stored property names (`configData`, `questionCount`, `scoreSum`, `durationSeconds`, `recordsData`), the JSON inside `configData` / `recordsData` (`ExamConfig`, `ExamAnswerRecord`: new fields optional, decoding tolerant), the `ExamSkill` / `ExamQuestionKind` raw values (stored in records, append-only), and `ExamBackup` (inside `LibraryArchive.exams`, a property-list header: new fields optional).
 - The textbook files: the UserDefaults key `textbookState` (tolerant JSON: add fields, never rename), the catalogue and lesson JSON format (`docs/features/books.md`: add optional fields and new block types, never rename or repurpose one), the ids of shipped books, lessons and pages (reading progress is saved as `<lesson id>/<page id>`), and the recall tags `e` / `k` / `i`.
 - The SwiftData entity `WordQueueItem` and its stored property names (`inputWord`, `existingWordID`, `existingCreatedAt`, `languageRaw`, `createdAt`, `statusRaw`, `attempts`, `lastErrorMessage`) — same reasoning as `Word`: a rename changes the on-device schema and loses whatever's mid-flight in someone's offline queue.
+- The UserDefaults keys `wordTintMode` and `colorWordTints` (`WordTintKeys`; the raw values of `WordTintMode` are append-only).
 
 It is fine — and encouraged — to rename Swift *types* and files that are not persisted (that is how `Prompts` became `VocabularyPrompts`).
+
+## Word tints (library tiles, rows, headword card, flashcards)
+
+- **Colour words are recognised on the device, never by AI.** `Features/Vocabulary/Domain/ColorWords.swift` is a lookup table (accent- and case-folded, gender and number handled, plus shade words like "azul claro" / "azul marino"). A new colour word is one entry in `table`; a new colour needs a `ColorFamily` case and a hex in `Theme.baseHex` (the only place hex values may live).
+- `ColorFamily` / `ColorShade` are pure names in `Core/DesignSystem`; `Theme.tint(for:shade:)` paints them. Every tint must stay light enough for `Theme.onTint` ink (black is a mid graphite on purpose).
+- `WordTint.source` (pure, tested) decides the tint: colour word (if `colorWordTints` is on) → else by `WordTintMode` (mixed hash / part of speech / neutral). `WordTintSettings` reads the two settings live for views; do not call `Theme.tint(for: key)` directly for a word.
+- Study never imports vocabulary: `ReviewView.cardTint` is a closure injected from `RootView` (`WordTint.cardTint`), like `cardAccessory`.
+- The long-press menu on tiles and rows is `wordQuickActions` (hear, copy, flag for review, open, delete). Flagging goes through `AppEnvironment.flagForReview` (App layer) so Vocabulary never imports Review. `WordQuickSpeaker` plays the saved Gemini clip, else the phone's own voice (free).
 
 ## Books
 

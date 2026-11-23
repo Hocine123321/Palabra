@@ -27,6 +27,7 @@ struct WordContentView<Accessory: View>: View {
     @ViewBuilder var accessory: () -> Accessory
     @State private var revealedExamples: Set<Int> = []
     @State private var speaker = SentenceSpeaker()
+    var tints = WordTintSettings()
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
@@ -126,7 +127,7 @@ struct WordContentView<Accessory: View>: View {
     /// pronunciation accessory) and its translations as flat chips.
     private var hero: some View {
         let paper = Color.white.opacity(0.45)
-        return CutoutCard(tint: Theme.tint(for: WordKey.identity(content.word))) {
+        return CutoutCard(tint: tints.color(key: WordKey.identity(content.word), partOfSpeech: content.forms.partOfSpeech)) {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                 if !content.forms.partOfSpeech.isEmpty {
                     Chip(text: content.forms.partOfSpeech, tint: paper)

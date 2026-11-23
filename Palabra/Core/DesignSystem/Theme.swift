@@ -51,6 +51,60 @@ enum Theme {
         tileTints[WordKey.tintIndex(key, count: tileTints.count)]
     }
 
+    /// Muted cutout tint for a colour family. Every family stays light enough for `onTint` ink
+    /// (black is a mid graphite, not true black, for that reason).
+    static func tint(for family: ColorFamily, shade: ColorShade = .normal) -> Color {
+        Color(hex: shaded(baseHex(family), shade, family: family))
+    }
+
+    private static func baseHex(_ family: ColorFamily) -> UInt32 {
+        switch family {
+        case .red: return 0xE08A80
+        case .orange: return 0xEFA66B
+        case .yellow: return 0xF1D97A
+        case .lime: return 0xC8DB84
+        case .green: return 0x9CC794
+        case .teal: return 0x84CFC4
+        case .lightBlue: return 0xA9D6EE
+        case .blue: return 0x82A8DE
+        case .navy: return 0x7C93BF
+        case .purple: return 0xB69AD9
+        case .lavender: return 0xCDBBE6
+        case .pink: return 0xF2B1C6
+        case .maroon: return 0xB5687A
+        case .brown: return 0xB08968
+        case .beige: return 0xE8D9BF
+        case .gray: return 0xB4B2AC
+        case .black: return 0x8C8983
+        case .white: return 0xFBF8F1
+        case .gold: return 0xE2C165
+        case .silver: return 0xCFD3D6
+        }
+    }
+
+    /// Light mixes 45% white in; deep mixes 18% black in (small, so ink stays readable).
+    /// Black ignores the shade: any deeper and the dark ink would lose its contrast.
+    private static func shaded(_ hex: UInt32, _ shade: ColorShade, family: ColorFamily) -> UInt32 {
+        let target: Double
+        let amount: Double
+        switch shade {
+        case .normal:
+            return hex
+        case .light:
+            target = 255
+            amount = 0.45
+        case .deep:
+            if family == .black { return hex }
+            target = 0
+            amount = 0.18
+        }
+        func channel(_ shift: UInt32) -> UInt32 {
+            let value = Double((hex >> shift) & 0xFF)
+            return UInt32((value + (target - value) * amount).rounded())
+        }
+        return (channel(16) << 16) | (channel(8) << 8) | channel(0)
+    }
+
     // MARK: Type
 
     enum Font {
