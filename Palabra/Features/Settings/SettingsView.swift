@@ -15,6 +15,9 @@ struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
     @AppStorage(WordTintKeys.mode) private var tintModeRaw = WordTintMode.mixed.rawValue
     @AppStorage(WordTintKeys.colorWords) private var colorWordTints = true
+    @AppStorage(ReminderKeys.enabled) private var reminderEnabled = false
+    @AppStorage(ReminderKeys.minutes) private var reminderMinutes = ReminderKeys.defaultMinutes
+    @State private var remindersDenied = false
     @State private var keyInput = ""
     @State private var isEditingKey = false
     @State private var isVerifying = false
@@ -155,6 +158,23 @@ struct SettingsView: View {
                         IconTile(systemImage: "square.grid.2x2", tint: Theme.tileTints[1], size: 30)
                         Text("Organization")
                     }
+                }
+            }
+            .themedSection()
+
+            Section {
+                Toggle("Daily Review Reminder", isOn: reminderToggle)
+                    .accessibilityIdentifier("reminderToggle")
+                if reminderEnabled {
+                    DatePicker("Time", selection: reminderTime, displayedComponents: .hourAndMinute)
+                }
+            } header: {
+                Text("Reminders")
+            } footer: {
+                if remindersDenied {
+                    Text("Notifications are turned off for Palabra in iOS Settings.")
+                } else {
+                    Text("One notification at that time, only when cards are waiting.")
                 }
             }
             .themedSection()
@@ -348,6 +368,40 @@ struct SettingsView: View {
 
     private var aiLanguageBinding: Binding<SupportedLanguage> {
         Binding(get: { environment.aiLanguage }, set: { environment.aiLanguage = $0 })
+    }
+
+    /// Turning it on asks iOS for permission first; if refused it switches itself back off and says why.
+    private var reminderToggle: Binding<Bool> {
+        Binding(
+            get: { reminderEnabled },
+            set: { on in
+                Task {
+                    if on {
+                        let granted = await ReminderScheduler.requestAuthorization()
+                        reminderEnabled = granted
+                        remindersDenied = !granted
+                    } else {
+                        reminderEnabled = false
+                        remindersDenied = false
+                    }
+                    await ReminderScheduler.reschedule(environment: environment)
+                }
+            }
+        )
+    }
+
+    private var reminderTime: Binding<Date> {
+        Binding(
+            get: {
+                let minutes = ReminderPlanner.clampedMinutes(reminderMinutes)
+                return Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+            },
+            set: { date in
+                let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+                reminderMinutes = ReminderPlanner.clampedMinutes((parts.hour ?? 19) * 60 + (parts.minute ?? 0))
+                Task { await ReminderScheduler.reschedule(environment: environment) }
+            }
+        )
     }
 
     private var appearanceBinding: Binding<SettingsStore.AppearanceMode> {

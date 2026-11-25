@@ -17,9 +17,11 @@ struct HoneycombGrid: View {
                         Spacer(minLength: tileSize / 2 + Theme.Spacing.md / 2)
                     }
                     ForEach(row, id: \.id) { word in
-                        WordTile(word: word, size: tileSize)
-                            .onTapGesture { onSelect(word) }
-                            .wordQuickActions(word, onOpen: { onSelect(word) }, onDeleteRequest: { onDeleteRequest(word) })
+                        Button { onSelect(word) } label: {
+                            WordTile(word: word, size: tileSize)
+                        }
+                        .buttonStyle(PressScaleStyle())
+                        .wordQuickActions(word, onOpen: { onSelect(word) }, onDeleteRequest: { onDeleteRequest(word) })
                     }
                     if row.count == columns - 1 {
                         Spacer(minLength: tileSize / 2 + Theme.Spacing.md / 2)
@@ -36,6 +38,8 @@ private struct WordTile: View {
     let size: CGFloat
     /// Not private: a private property would make the memberwise init private too.
     var tints = WordTintSettings()
+    @Environment(\.wordMastery) private var mastery
+    @Environment(\.pinnedWordIDs) private var pinned
 
     /// A paper cutout: most tiles are circles, some rounded squares, picked from the word's key.
     private var kind: CutoutKind {
@@ -45,6 +49,9 @@ private struct WordTile: View {
     var body: some View {
         ZStack {
             CutoutShape(kind: kind).fill(tints.color(key: word.key, partOfSpeech: word.partOfSpeech))
+            if let progress = mastery[word.id] {
+                MasteryRing(kind: kind, fraction: progress).padding(5)
+            }
             Text(word.spanish)
                 .font(Theme.Font.tile)
                 .foregroundStyle(Theme.onTint)
@@ -54,6 +61,16 @@ private struct WordTile: View {
                 .padding(10)
         }
         .frame(width: size, height: size)
+        .overlay(alignment: .topTrailing) {
+            if pinned.contains(word.id) {
+                Image(systemName: "pin.fill")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.onTint)
+                    .frame(width: 22, height: 22)
+                    .background(Theme.surface, in: Circle())
+                    .accessibilityHidden(true)
+            }
+        }
         .scrollTransition { content, phase in
             content
                 .scaleEffect(phase.isIdentity ? 1 : 0.85)

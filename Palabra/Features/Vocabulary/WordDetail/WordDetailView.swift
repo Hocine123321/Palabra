@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Full-screen word detail: the four sections, a section jump bar, a
 /// Regenerate/Delete menu, and the "Ask about this word" chat entry point.
@@ -8,8 +9,12 @@ struct WordDetailView: View {
     var onAsk: ((UUID, String) -> Void)?
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var showRegenerate = false
     @State private var showDeleteConfirm = false
+    @State private var shareImage: Image?
+    @State private var swipes = 0
+    var tints = WordTintSettings()
 
     var body: some View {
         // Decoded once per render (it is JSON behind a computed property), then used by the page and the share text.
@@ -23,11 +28,18 @@ struct WordDetailView: View {
                     WordContentView(content: content) {
                         PronunciationButton(word: word)
                     }
+                    // Below the jump bar (a horizontal scroller of its own), so swiping chips never turns the page.
+                    .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded(handleSwipe))
                 }
                 .padding(Theme.Spacing.md)
             }
         }
         .background { ScreenBackdrop() }
+        .sensoryFeedback(.selection, trigger: swipes)
+        // Drawn once per version of the word, so the share sheet never waits on it.
+        .task(id: word.updatedAt) {
+            shareImage = WordShareCard.render(content: word.content, tint: tints.color(key: word.key, partOfSpeech: word.partOfSpeech))
+        }
         .navigationTitle(word.spanish)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { askBar }
@@ -36,6 +48,11 @@ struct WordDetailView: View {
                 Menu {
                     ShareLink(item: WordShareText.make(content)) {
                         Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    if let shareImage {
+                        ShareLink(item: shareImage, preview: SharePreview(word.spanish, image: shareImage)) {
+                            Label("Share as Image", systemImage: "photo")
+                        }
                     }
                     Button("Regenerate", systemImage: "arrow.clockwise") { showRegenerate = true }
                     Button("Delete", systemImage: "trash", role: .destructive) { showDeleteConfirm = true }
@@ -55,6 +72,22 @@ struct WordDetailView: View {
             Button("Delete", role: .destructive, action: requestDelete)
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    /// A clear sideways swipe moves to the next or previous word in the order the library showed.
+    private func handleSwipe(_ value: DragGesture.Value) {
+        let dx = value.translation.width
+        let dy = value.translation.height
+        guard abs(dx) > 90, abs(dx) > abs(dy) * 2,
+              value.startLocation.x > 12, value.startLocation.x < UIScreen.main.bounds.width - 44 else { return }
+        let order = environment.router.wordOrder
+        guard let index = order.firstIndex(of: word.id) else { return }
+        // Swiping toward the leading edge goes forward, so right-to-left languages flip.
+        let forward = (dx < 0) == (layoutDirection == .leftToRight)
+        let target = forward ? index + 1 : index - 1
+        guard order.indices.contains(target) else { return }
+        swipes += 1
+        Motion.animate(Motion.standard) { environment.router.openWord(order[target]) }
     }
 
     private func jumpBar(proxy: ScrollViewProxy) -> some View {

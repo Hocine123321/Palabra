@@ -8,6 +8,8 @@ import Observation
 final class SentenceSpeaker: NSObject, AVSpeechSynthesizerDelegate {
     /// The sentence being spoken, so its button can show "stop".
     private(set) var speaking: String?
+    /// The characters being spoken right now (UTF-16 range in `speaking`), so the sentence can light up word by word.
+    private(set) var spokenRange: NSRange?
 
     @ObservationIgnored private let synthesizer = AVSpeechSynthesizer()
     /// A stopped utterance reports "cancelled" late; only the current one may clear `speaking`.
@@ -18,7 +20,8 @@ final class SentenceSpeaker: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.delegate = self
     }
 
-    func toggle(_ text: String) {
+    /// `slow` reads at a learner's pace instead of the normal one.
+    func toggle(_ text: String, slow: Bool = false) {
         if speaking == text {
             stop()
             return
@@ -26,12 +29,13 @@ final class SentenceSpeaker: NSObject, AVSpeechSynthesizerDelegate {
         stop()
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "es-ES")
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * (slow ? 0.6 : 0.9)
         // Same courtesy as the pronunciation player: never cut off the person's music.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
         currentID = ObjectIdentifier(utterance)
         speaking = text
+        spokenRange = nil
         synthesizer.speak(utterance)
     }
 
@@ -39,6 +43,7 @@ final class SentenceSpeaker: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.stopSpeaking(at: .immediate)
         currentID = nil
         speaking = nil
+        spokenRange = nil
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
@@ -49,11 +54,24 @@ final class SentenceSpeaker: NSObject, AVSpeechSynthesizerDelegate {
         finished(ObjectIdentifier(utterance))
     }
 
+    nonisolated func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        willSpeakRangeOfSpeechString characterRange: NSRange,
+        utterance: AVSpeechUtterance
+    ) {
+        let id = ObjectIdentifier(utterance)
+        Task { @MainActor [weak self] in
+            guard let self, self.currentID == id else { return }
+            self.spokenRange = characterRange
+        }
+    }
+
     private nonisolated func finished(_ id: ObjectIdentifier) {
         Task { @MainActor [weak self] in
             guard let self, self.currentID == id else { return }
             self.currentID = nil
             self.speaking = nil
+            self.spokenRange = nil
         }
     }
 }

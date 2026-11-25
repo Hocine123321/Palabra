@@ -11,7 +11,12 @@ struct ReviewView: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var model: ReviewViewModel?
+    /// How far the card is dragged sideways: right grades Good, left grades Again (once the answer is showing).
+    @State private var dragX: CGFloat = 0
+    @State private var celebrations = 0
+    private let swipeThreshold: CGFloat = 110
 
     var body: some View {
         ZStack {
@@ -21,9 +26,14 @@ struct ReviewView: View {
                     session(model: model, card: card)
                 } else {
                     finished(model: model)
+                        .overlay(alignment: .top) {
+                            if model.answered > 0 { ConfettiBurst().padding(.top, 120) }
+                        }
+                        .onAppear { if model.answered > 0 { celebrations += 1 } }
                 }
             }
         }
+        .sensoryFeedback(.success, trigger: celebrations)
         .navigationTitle("Review")
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.selection, trigger: model?.isFlipped)
@@ -79,6 +89,11 @@ struct ReviewView: View {
             .shadow(color: .black.opacity(0.10), radius: 18, y: 8)
             .contentShape(Rectangle())
             .onTapGesture { Motion.animate(Motion.quick) { model.flip() } }
+            .offset(x: dragX)
+            .rotationEffect(.degrees(reduceMotion ? 0 : Double(dragX) / 20))
+            .overlay { swipeHint }
+            .gesture(swipeGesture(model: model))
+            .sensoryFeedback(trigger: abs(dragX) > swipeThreshold) { _, past in past ? .impact(weight: .medium) : nil }
             .padding(.horizontal, Theme.Spacing.md)
 
             if model.isFlipped {
@@ -122,6 +137,55 @@ struct ReviewView: View {
         }
         .padding(.top, Theme.Spacing.sm)
         .padding(.bottom, Theme.Spacing.md)
+    }
+
+    /// Drag the card right for Good, left for Again. It tilts, washes green or red and taps when it is far enough.
+    private func swipeGesture(model: ReviewViewModel) -> some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onChanged { value in
+                guard model.isFlipped else { return }
+                dragX = value.translation.width
+            }
+            .onEnded { value in
+                guard model.isFlipped else { return }
+                let dx = value.translation.width
+                if dx > swipeThreshold {
+                    finishSwipe(.good, direction: 1, model: model)
+                } else if dx < -swipeThreshold {
+                    finishSwipe(.again, direction: -1, model: model)
+                } else {
+                    Motion.animate(Motion.quick) { dragX = 0 }
+                }
+            }
+    }
+
+    /// Slides the card off, then records the grade (the next card appears already in place).
+    private func finishSwipe(_ grade: SRSGrade, direction: CGFloat, model: ReviewViewModel) {
+        Motion.animate(Motion.quick) { dragX = direction * 600 }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 160_000_000)
+            model.grade(grade)
+            dragX = 0
+        }
+    }
+
+    @ViewBuilder
+    private var swipeHint: some View {
+        if dragX != 0 {
+            let good = dragX > 0
+            let progress = min(abs(dragX) / swipeThreshold, 1)
+            RoundedRectangle(cornerRadius: Theme.Radius.sheet, style: .continuous)
+                .fill((good ? Theme.success : Theme.error).opacity(0.28 * progress))
+                .overlay(alignment: good ? .topLeading : .topTrailing) {
+                    Text(good ? SRSGrade.good.title : SRSGrade.again.title)
+                        .font(Theme.Font.heading)
+                        .foregroundStyle(Theme.onTint)
+                        .opacity(progress)
+                        .padding(Theme.Spacing.lg)
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     /// Again is apricot, Hard a quiet fill, Good Claude Orange, Easy sage.

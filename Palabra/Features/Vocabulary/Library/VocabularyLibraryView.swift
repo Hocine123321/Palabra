@@ -14,8 +14,15 @@ struct VocabularyLibraryView: View {
     @State private var savedCount = 0
     @AppStorage("librarySort") private var sortRaw = LibrarySort.newest.rawValue
     @AppStorage("libraryKind") private var kindRaw = LibraryKind.all.rawValue
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(PinnedWords.key) private var pinnedRaw = ""
     @State private var duplicateCandidate: Word?
-    @State private var pendingDelete: Word?
+    /// Deleted words stay hidden (and restorable) for a few seconds before they are removed for good.
+    @State private var hiddenIDs: Set<UUID> = []
+    @State private var undoTarget: UndoTarget?
+    @State private var deleteTasks: [UUID: Task<Void, Never>] = [:]
+    @State private var spellPrompt: SpellPrompt?
+    @State private var mastery: [UUID: Double] = [:]
     @State private var selectedTag: String?
     @State private var showOrganizeSheet = false
     @State private var showOrganizeSettings = false
@@ -57,17 +64,19 @@ struct VocabularyLibraryView: View {
                         layout: environment.libraryLayout,
                         showTags: environment.organizerSettings.showTagsInList,
                         onSelect: open,
-                        onDeleteRequest: { pendingDelete = $0 }
+                        onDeleteRequest: softDelete
                     )
                     .padding(.top, Theme.Spacing.md)
                 } else if environment.libraryLayout == .grid {
-                    HoneycombGrid(words: filteredWords, onSelect: open, onDeleteRequest: { pendingDelete = $0 })
+                    HoneycombGrid(words: filteredWords, onSelect: open, onDeleteRequest: softDelete)
                         .padding(.top, Theme.Spacing.md)
                 } else {
-                    WordListView(words: filteredWords, showTags: environment.organizerSettings.showTagsInList, onSelect: open, onDeleteRequest: { pendingDelete = $0 })
+                    WordListView(words: filteredWords, showTags: environment.organizerSettings.showTagsInList, onSelect: open, onDeleteRequest: softDelete)
                         .padding(.top, Theme.Spacing.md)
                 }
             }
+            .environment(\.wordMastery, mastery)
+            .environment(\.pinnedWordIDs, pinnedIDs)
             .safeAreaInset(edge: .bottom) { bottomBar }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search words or #tags")
@@ -124,6 +133,18 @@ struct VocabularyLibraryView: View {
         .onChange(of: kindRaw) { _, _ in selectedTag = nil }
         .sensoryFeedback(.success, trigger: savedCount)
         .sensoryFeedback(.selection, trigger: randomCount)
+        .sensoryFeedback(.impact(weight: .light), trigger: undoTarget?.id)
+        .task { mastery = environment.wordMastery() }
+        .onChange(of: words.count) { _, _ in mastery = environment.wordMastery() }
+        // Reviewing happens on the Study tab: coming back shows the new progress.
+        .onChange(of: environment.router.tab) { _, tab in
+            if tab == .spanish { mastery = environment.wordMastery() }
+        }
+        // Leaving the screen or the app makes pending deletes final: nothing is left half-done.
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { commitPendingDeletes() }
+        }
+        .onDisappear { commitPendingDeletes() }
         .sheet(item: $activeFlow) { flow in
             WordPreviewSheet(flow: flow) { saved in
                 savedCount += 1
@@ -143,14 +164,29 @@ struct VocabularyLibraryView: View {
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog(
-            "Delete \"\(pendingDelete?.spanish ?? "")\"?",
-            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-            presenting: pendingDelete
-        ) { word in
-            Button("Delete", role: .destructive) { environment.repository.delete(id: word.id) }
+            "Did you mean \"\(spellPrompt?.suggestion ?? "")\"?",
+            isPresented: Binding(get: { spellPrompt != nil }, set: { if !$0 { spellPrompt = nil } }),
+            presenting: spellPrompt
+        ) { prompt in
+            Button("Use \"\(prompt.suggestion)\"") { proceed(with: prompt.suggestion) }
+            Button("Keep \"\(prompt.original)\"") { startFlow(prompt.original) }
             Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("The spelling looks off. Checking now saves a request.")
         }
     }
+
+    private struct SpellPrompt {
+        let original: String
+        let suggestion: String
+    }
+
+    private struct UndoTarget: Equatable {
+        let id: UUID
+        let title: String
+    }
+
+    private var pinnedIDs: Set<UUID> { PinnedWords.decode(pinnedRaw) }
 
     /// Sections only make sense once at least one word has been organized.
     private var showSections: Bool {
@@ -162,11 +198,13 @@ struct VocabularyLibraryView: View {
     private var kind: LibraryKind { LibraryKind(rawValue: kindRaw) ?? .all }
 
     private var filteredWords: [Word] {
-        sort.apply(words.filter { word in
-            kind.includes(word)
+        let shown = sort.apply(words.filter { word in
+            !hiddenIDs.contains(word.id)
+                && kind.includes(word)
                 && LibrarySections.matches(word, query: searchText)
                 && (selectedTag.map { tag in word.tags.contains(tag) } ?? true)
         })
+        return PinnedWords.floated(shown, pinned: pinnedIDs, id: \.id)
     }
 
     @ViewBuilder
@@ -182,20 +220,54 @@ struct VocabularyLibraryView: View {
         }
     }
 
+    /// The word being typed, when it is already saved: shown as a chip above the bar instead of after submitting.
+    private var typedDuplicate: Word? {
+        let key = WordKey.identity(inputText)
+        guard !key.isEmpty, activeFlow == nil else { return nil }
+        return words.first { $0.key == key && !hiddenIDs.contains($0.id) }
+    }
+
     @ViewBuilder
     private var bottomBar: some View {
-        Group {
-            if !environment.hasAPIKey {
-                MissingAPIKeyPrompt(onOpenSettings: { environment.router.openSettings() })
-            } else if environment.selectedModel == nil {
-                MissingModelPrompt(onOpenSettings: { environment.router.openSettings() })
-            } else {
-                AddWordBar(text: $inputText, isEnabled: activeFlow == nil, onSubmit: submit)
+        VStack(spacing: Theme.Spacing.sm) {
+            if let undoTarget {
+                UndoToast(title: undoTarget.title, onUndo: undo)
+            }
+            if let existing = typedDuplicate {
+                Button { open(existing) } label: {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
+                        Text("Already in your Library").foregroundStyle(Theme.ink)
+                        Spacer(minLength: 0)
+                        Text("Open").foregroundStyle(Theme.accentDeep).fontWeight(.bold)
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.vertical, Theme.Spacing.sm + 2)
+                    .glassCapsule()
+                    .padding(.horizontal, Theme.Spacing.md)
+                }
+                .buttonStyle(.plain)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .accessibilityIdentifier("duplicateChip")
+            }
+            Group {
+                if !environment.hasAPIKey {
+                    MissingAPIKeyPrompt(onOpenSettings: { environment.router.openSettings() })
+                } else if environment.selectedModel == nil {
+                    MissingModelPrompt(onOpenSettings: { environment.router.openSettings() })
+                } else {
+                    AddWordBar(text: $inputText, isEnabled: activeFlow == nil, onSubmit: submit)
+                }
             }
         }
+        .animation(Motion.reduced(Motion.quick), value: undoTarget)
+        .animation(Motion.reduced(Motion.quick), value: typedDuplicate?.id)
     }
 
     private func open(_ word: Word) {
+        // The word screen swipes between neighbours in the order the library shows right now.
+        environment.router.wordOrder = filteredWords.map(\.id)
         environment.router.openWord(word.id)
     }
 
@@ -204,6 +276,7 @@ struct VocabularyLibraryView: View {
         guard let id = RandomWord.pick(from: filteredWords.map(\.id), excluding: lastRandomID) else { return }
         lastRandomID = id
         randomCount += 1
+        environment.router.wordOrder = filteredWords.map(\.id)
         environment.router.openWord(id)
     }
 
@@ -215,7 +288,70 @@ struct VocabularyLibraryView: View {
             duplicateCandidate = existing
             return
         }
-        activeFlow = AddWordFlow(inputWord: trimmed, mode: .new, environment: environment)
+        // A typo would cost a request: ask first. (UI tests skip this so their stub words are never questioned.)
+        if !ProcessInfo.processInfo.arguments.contains("-UITestStub"),
+           let suggestion = SpellSuggestion.suggestion(for: trimmed) {
+            spellPrompt = SpellPrompt(original: trimmed, suggestion: suggestion)
+            return
+        }
+        startFlow(trimmed)
+    }
+
+    /// The person accepted a correction: it may already be saved.
+    private func proceed(with word: String) {
+        if let existing = environment.repository.find(key: WordKey.identity(word)) {
+            inputText = ""
+            duplicateCandidate = existing
+            return
+        }
+        startFlow(word)
+    }
+
+    private func startFlow(_ word: String) {
+        guard activeFlow == nil else { return }
+        activeFlow = AddWordFlow(inputWord: word, mode: .new, environment: environment)
         inputText = ""
+    }
+
+    // MARK: Delete with undo
+
+    private func softDelete(_ word: Word) {
+        let id = word.id
+        Motion.animate(Motion.quick) {
+            hiddenIDs.insert(id)
+            undoTarget = UndoTarget(id: id, title: word.spanish)
+        }
+        let env = environment
+        deleteTasks[id] = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            env.repository.delete(id: id)
+            finishDelete(id)
+        }
+    }
+
+    private func undo() {
+        guard let target = undoTarget else { return }
+        deleteTasks[target.id]?.cancel()
+        deleteTasks[target.id] = nil
+        Motion.animate(Motion.quick) {
+            hiddenIDs.remove(target.id)
+            undoTarget = nil
+        }
+    }
+
+    private func finishDelete(_ id: UUID) {
+        deleteTasks[id] = nil
+        hiddenIDs.remove(id)
+        if undoTarget?.id == id { undoTarget = nil }
+    }
+
+    /// Removes every hidden word for good right now (the screen is closing, or the app left the foreground).
+    private func commitPendingDeletes() {
+        for id in hiddenIDs {
+            deleteTasks[id]?.cancel()
+            environment.repository.delete(id: id)
+            finishDelete(id)
+        }
     }
 }

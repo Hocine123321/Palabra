@@ -8,6 +8,8 @@ struct WordListView: View {
     var onDeleteRequest: (Word) -> Void
     /// Not private: a private property would make the memberwise init private too.
     var tints = WordTintSettings()
+    @Environment(\.wordMastery) private var mastery
+    @Environment(\.pinnedWordIDs) private var pinned
 
     var body: some View {
         LazyVStack(spacing: Theme.Spacing.sm) {
@@ -15,10 +17,17 @@ struct WordListView: View {
                 Button { onSelect(word) } label: {
                     GlassSurface(cornerRadius: Theme.Radius.medium) {
                         HStack(alignment: .top, spacing: Theme.Spacing.md) {
-                            Circle()
-                                .fill(tints.color(key: word.key, partOfSpeech: word.partOfSpeech))
-                                .frame(width: 10, height: 10)
-                                .padding(.top, 6)
+                            ZStack {
+                                Circle()
+                                    .fill(tints.color(key: word.key, partOfSpeech: word.partOfSpeech))
+                                    .frame(width: 10, height: 10)
+                                if let progress = mastery[word.id] {
+                                    MasteryRing(kind: .circle, fraction: progress, lineWidth: 2)
+                                        .frame(width: 18, height: 18)
+                                }
+                            }
+                            .frame(width: 18, height: 18)
+                            .padding(.top, 2)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(word.spanish)
                                     .font(Theme.Font.rowTitle)
@@ -36,12 +45,18 @@ struct WordListView: View {
                                 }
                             }
                             Spacer()
+                            if pinned.contains(word.id) {
+                                Image(systemName: "pin.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.accentDeep)
+                                    .accessibilityHidden(true)
+                            }
                             if !word.partOfSpeech.isEmpty { Chip(text: word.partOfSpeech) }
                         }
                         .padding(Theme.Spacing.md)
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressScaleStyle(scale: 0.97))
                 .wordQuickActions(word, onOpen: { onSelect(word) }, onDeleteRequest: { onDeleteRequest(word) })
                 .swipeActions(edge: .trailing) {
                     Button("Delete", role: .destructive) { onDeleteRequest(word) }

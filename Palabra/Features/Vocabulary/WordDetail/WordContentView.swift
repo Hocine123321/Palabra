@@ -27,9 +27,47 @@ struct WordContentView<Accessory: View>: View {
     @ViewBuilder var accessory: () -> Accessory
     @State private var revealedExamples: Set<Int> = []
     @State private var speaker = SentenceSpeaker()
+    @State private var knownKeys: Set<String> = []
+    /// The word tapped inside an example sentence (asks: open it, or add it).
+    @State private var lookup: String?
+    @State private var addFlow: AddWordFlow?
+    @AppStorage("speechSlow") private var slowSpeech = false
+    @Environment(AppEnvironment.self) private var environment
     var tints = WordTintSettings()
 
     var body: some View {
+        sections
+            .task { knownKeys = Set(environment.repository.wordSummaries().map { WordKey.search($0.spanish) }) }
+            .confirmationDialog(
+                Text(verbatim: lookup ?? ""),
+                isPresented: Binding(get: { lookup != nil }, set: { if !$0 { lookup = nil } }),
+                titleVisibility: .visible,
+                presenting: lookup
+            ) { token in
+                if let existing = environment.repository.find(key: WordKey.identity(token)) {
+                    Button("Open \"\(existing.spanish)\"") { environment.router.openWord(existing.id) }
+                } else {
+                    Button("Add \"\(token)\" to Library") {
+                        addFlow = AddWordFlow(inputWord: WordKey.identity(token), mode: .new, environment: environment)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { token in
+                if let existing = environment.repository.find(key: WordKey.identity(token)), !existing.translation.isEmpty {
+                    Text(verbatim: existing.translation)
+                } else {
+                    Text("Not in your Library yet")
+                }
+            }
+            .sheet(item: $addFlow) { flow in
+                WordPreviewSheet(flow: flow) { saved in
+                    knownKeys.insert(WordKey.search(saved.spanish))
+                    environment.router.openWord(saved.id)
+                }
+            }
+    }
+
+    private var sections: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
             hero
 
@@ -40,7 +78,16 @@ struct WordContentView<Accessory: View>: View {
                             HStack {
                                 Chip(text: example.context)
                                 Spacer()
-                                Button { speaker.toggle(example.spanish) } label: {
+                                Button { slowSpeech.toggle() } label: {
+                                    Image(systemName: slowSpeech ? "tortoise.fill" : "tortoise")
+                                        .font(.body)
+                                        .foregroundStyle(slowSpeech ? Theme.accentDeep : Theme.inkSecondary)
+                                        .frame(width: 44, height: 32)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(slowSpeech ? "Normal Speed" : "Slow Speed")
+                                .accessibilityIdentifier("slowSpeechButton")
+                                Button { speaker.toggle(example.spanish, slow: slowSpeech) } label: {
                                     Image(systemName: speaker.speaking == example.spanish ? "stop.circle.fill" : "speaker.wave.2.fill")
                                         .font(.body)
                                         .foregroundStyle(Theme.accentDeep)
@@ -50,8 +97,12 @@ struct WordContentView<Accessory: View>: View {
                                 .accessibilityLabel(speaker.speaking == example.spanish ? "Stop" : "Listen")
                                 .accessibilityIdentifier("speakExampleButton")
                             }
-                            Text(example.spanish)
-                                .foregroundStyle(Theme.ink)
+                            SpokenSentenceView(
+                                sentence: example.spanish,
+                                spokenRange: speaker.speaking == example.spanish ? speaker.spokenRange : nil,
+                                knownKeys: knownKeys,
+                                onTapWord: { lookup = $0 }
+                            )
                             if revealedExamples.contains(index) {
                                 Text(example.english)
                                     .font(.subheadline)

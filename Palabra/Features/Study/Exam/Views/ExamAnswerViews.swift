@@ -100,19 +100,7 @@ struct ExamTypedView: View {
     }
 
     private var accentBar: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            ForEach(["á", "é", "í", "ó", "ú", "ñ", "ü", "¿", "¡"], id: \.self) { letter in
-                Button { text.append(letter) } label: {
-                    Text(verbatim: letter)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Theme.ink)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .background(Theme.fill.opacity(0.7), in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .environment(\.layoutDirection, .leftToRight)
+        AccentKeyRow { text.append($0) }
     }
 
     private func submit() {

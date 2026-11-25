@@ -25,6 +25,9 @@ final class Router {
 
     var path: [Destination] = []
     var tab: AppTab = .spanish
+    /// The words in the order the library showed them when one was opened: the word screen swipes between
+    /// neighbours in this order. Empty (or not containing the word) means no swiping.
+    var wordOrder: [UUID] = []
 
     /// Settings is its own tab, so this works the same from every tab.
     func openSettings() { tab = .settings }

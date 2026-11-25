@@ -1,3 +1,4 @@
+import CoreSpotlight
 import SwiftUI
 
 struct RootView: View {
@@ -74,12 +75,40 @@ struct RootView: View {
         .task { environment.queueProcessor.drain(environment: environment) }
         .task { await environment.migrateLegacyPronunciation() }
         .task { await environment.mirrorSyncIfEnabled() }
+        .task { SpotlightIndexer.reindex(environment.repository.wordSummaries()) }
+        .task { await ReminderScheduler.reschedule(environment: environment) }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 environment.queueProcessor.drain(environment: environment)
                 refreshDueBadge()
+                consumeIntent()
                 Task { await environment.mirrorSyncIfEnabled() }
+            } else if newPhase == .background {
+                // Fresh numbers for the reminder, and a current index for iOS search.
+                SpotlightIndexer.reindex(environment.repository.wordSummaries())
+                Task { await ReminderScheduler.reschedule(environment: environment) }
             }
+        }
+        // A word tapped in iOS search.
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            if let id = SpotlightIndexer.wordID(from: activity) { environment.router.openWord(id) }
+        }
+        // A Shortcut or the Action button (Random Word, Open Study).
+        .onChange(of: IntentBridge.shared.pending) { _, _ in consumeIntent() }
+        .onAppear { consumeIntent() }
+    }
+
+    private func consumeIntent() {
+        guard let action = IntentBridge.shared.pending else { return }
+        IntentBridge.shared.pending = nil
+        switch action {
+        case .randomWord:
+            let ids = environment.repository.wordSummaries().map(\.id)
+            guard let id = RandomWord.pick(from: ids, excluding: nil) else { return }
+            environment.router.wordOrder = ids
+            environment.router.openWord(id)
+        case .openStudy:
+            environment.router.tab = .study
         }
     }
 

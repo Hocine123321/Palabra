@@ -17,6 +17,11 @@ struct AddWordBar: View {
                 .autocorrectionDisabled()
                 .submitLabel(.done)
                 .onSubmit(onSubmit)
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        AccentKeyRow { text.append($0) }
+                    }
+                }
             Button(action: onSubmit) {
                 Image(systemName: "plus.circle.fill")
                     .font(.title2)
