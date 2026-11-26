@@ -345,11 +345,11 @@ struct SolveHomeView: View {
 
     private func usageFooter(_ tool: SolveTool) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text("Solves on your device first. Gemini writes the steps and handles harder problems.")
+            Text("Solves on your device first. The AI writes the steps and handles harder problems.")
             Text("Answers are saved, so opening one again costs nothing.")
             switch tool.settings.photoMode {
-            case .sendToGemini: Text("Photos go to Gemini, which reads and solves them in one step.")
-            case .readText: Text("Photos are read by Gemini when a key is set, otherwise on your device.")
+            case .sendToGemini: Text("Photos go to the AI, which reads and solves them in one step.")
+            case .readText: Text("Photos are read by the AI when a key is set, otherwise on your device.")
             case .readOnDevice: Text("Photos are read on your device and never leave it.")
             }
             // Wolfram|Alpha is an optional extra: its usage and credit only show once an App ID is saved.

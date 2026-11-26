@@ -5,7 +5,7 @@ extension SolvePhotoMode: Identifiable {
 
     var title: LocalizedStringKey {
         switch self {
-        case .sendToGemini: return "Send photo to Gemini"
+        case .sendToGemini: return "Send photo to the AI"
         case .readText: return "Read text, then solve"
         case .readOnDevice: return "Read text on this device"
         }
@@ -14,9 +14,9 @@ extension SolvePhotoMode: Identifiable {
     var detail: LocalizedStringKey {
         switch self {
         case .sendToGemini:
-            return "Gemini looks at the photo itself, copies the whole problem and solves it in one step. Best for handwriting, several parts and diagrams. Needs your API key."
+            return "The AI looks at the photo itself, copies the whole problem and solves it in one step. Best for handwriting, several parts and diagrams. Needs your API key."
         case .readText:
-            return "Gemini copies the problem as text first (this device does it if Gemini can't). You check the text, then tap Solve."
+            return "The AI copies the problem as text first (this device does it if the AI can't). You check the text, then tap Solve."
         case .readOnDevice:
             return "The photo never leaves this device. Reading is weaker on handwriting and maths notation, so check the text before you solve."
         }
@@ -50,7 +50,7 @@ struct SolveSettingsView: View {
 
             if !environment.hasAPIKey, tool.settings.photoMode != .readOnDevice {
                 Section {
-                    Label("Add your API key in Settings so Gemini can read and solve photos.", systemImage: "key.slash")
+                    Label("Add your API key in Settings so the AI can read and solve photos.", systemImage: "key.slash")
                         .foregroundStyle(Theme.error)
                 }
                 .themedSection()
@@ -63,7 +63,7 @@ struct SolveSettingsView: View {
                     showModelPicker = true
                 } label: {
                     HStack {
-                        Text("Gemini Model").foregroundStyle(Theme.ink)
+                        Text("Solve AI Model").foregroundStyle(Theme.ink)
                         Spacer()
                         ModelValueLabel(id: tool.settings.modelID, placeholder: "Same as your main model")
                     }
@@ -72,7 +72,7 @@ struct SolveSettingsView: View {
             } header: {
                 Text("Solving")
             } footer: {
-                Text("The on-device engine is instant and works offline for standard algebra and calculus. Turn it off to send every typed problem to Gemini. The model is used for photos, harder problems and steps.")
+                Text("The on-device engine is instant and works offline for standard algebra and calculus. Turn it off to send every typed problem to the AI. The model is used for photos, harder problems and steps.")
             }
             .themedSection()
 

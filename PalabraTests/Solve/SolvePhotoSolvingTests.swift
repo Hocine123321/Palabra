@@ -203,7 +203,7 @@ final class SolveModelPhotoTests: XCTestCase {
             let id = await model.solvePhoto(imageData: Data([1]))
             XCTAssertNil(id)
             XCTAssertEqual(model.input, "gemini text", "\(failure): the photo isn't wasted")
-            XCTAssertEqual(model.photoNotice, "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve.")
+            XCTAssertEqual(model.photoNotice, "The AI couldn't be reached, so the text was read on this device. Check it, then tap Solve.")
             XCTAssertNil(model.photoMessage, "a hint, not an error")
             XCTAssertNil(model.error)
         }
@@ -225,7 +225,7 @@ final class SolveModelPhotoTests: XCTestCase {
         XCTAssertNil(id)
         XCTAssertEqual(solver.photoCalls, 0)
         XCTAssertEqual(model.input, "device text")
-        XCTAssertEqual(model.photoNotice, "No Gemini key or model is set, so the text was read on this device. Check it, then tap Solve.")
+        XCTAssertEqual(model.photoNotice, "No AI key or model is set, so the text was read on this device. Check it, then tap Solve.")
     }
 
     func testAPhotoWithNoProblemSaysSo() async {
@@ -242,7 +242,7 @@ final class SolveModelPhotoTests: XCTestCase {
         let id = await model.solvePhoto(imageData: Data([1]))
         XCTAssertNil(id)
         XCTAssertEqual(model.input, "gemini text")
-        XCTAssertEqual(model.photoNotice, "Gemini couldn't solve the photo, so the text was read on this device. Check it, then tap Solve.")
+        XCTAssertEqual(model.photoNotice, "The AI couldn't solve the photo, so the text was read on this device. Check it, then tap Solve.")
         XCTAssertNil(model.error)
     }
 

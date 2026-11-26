@@ -273,10 +273,10 @@ final class LocalizationTests: XCTestCase {
             "About %lld of %lld free solves used this month", "Answers are saved, so opening one again costs nothing.",
             "Powered by Wolfram|Alpha", "Show steps", "Loading steps…", "Uses one more free call.", "Open in Wolfram|Alpha",
             "Copy", "Copied", "Share",
-            "Written by Gemini from the checked answer.", "Solved on your device.",
-            "Solved by Gemini. Double-check it before you rely on it.",
-            "Solves on your device first. Gemini writes the steps and handles harder problems.",
-            "Photos are read by Gemini when a key is set, otherwise on your device.",
+            "Written by the AI from the checked answer.", "Solved on your device.",
+            "Solved by the AI. Double-check it before you rely on it.",
+            "Solves on your device first. The AI writes the steps and handles harder problems.",
+            "Photos are read by the AI when a key is set, otherwise on your device.",
             "Listen", "Stop", "Sort", "Newest first", "Oldest first", "A to Z",
             "Edit Problem", "Cancel", "Clear", "Share",
             "More", "Add word", "Collapsed", "Expanded",
@@ -322,20 +322,20 @@ final class LocalizationTests: XCTestCase {
     func testArabicStringsHaveSolveSettingsKeys() throws {
         let table = try arabicTable()
         var keys = [
-            "Solve Settings", "Photos", "Solve on this device first", "Gemini Model", "Solving", "Wolfram|Alpha (optional)",
+            "Solve Settings", "Photos", "Solve on this device first", "Solve AI Model", "Solving", "Wolfram|Alpha (optional)",
             "Choose a Solve Model", "Same as your main model", "Solving your photo…",
-            "Add your API key in Settings so Gemini can read and solve photos.",
-            "Photos go to Gemini, which reads and solves them in one step.", "Photos are read on your device and never leave it.",
-            "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve.",
-            "No Gemini key or model is set, so the text was read on this device. Check it, then tap Solve.",
+            "Add your API key in Settings so the AI can read and solve photos.",
+            "Photos go to the AI, which reads and solves them in one step.", "Photos are read on your device and never leave it.",
+            "The AI couldn't be reached, so the text was read on this device. Check it, then tap Solve.",
+            "No AI key or model is set, so the text was read on this device. Check it, then tap Solve.",
             "Optional. A Wolfram|Alpha App ID adds Wolfram's answers for typed problems your device can't solve.",
-            "The on-device engine is instant and works offline for standard algebra and calculus. Turn it off to send every typed problem to Gemini. The model is used for photos, harder problems and steps.",
+            "The on-device engine is instant and works offline for standard algebra and calculus. Turn it off to send every typed problem to the AI. The model is used for photos, harder problems and steps.",
         ]
         // Strings built from the photo modes are looked up by their English text too.
         keys += [
-            "Send photo to Gemini", "Read text, then solve", "Read text on this device",
-            "Gemini looks at the photo itself, copies the whole problem and solves it in one step. Best for handwriting, several parts and diagrams. Needs your API key.",
-            "Gemini copies the problem as text first (this device does it if Gemini can't). You check the text, then tap Solve.",
+            "Send photo to the AI", "Read text, then solve", "Read text on this device",
+            "The AI looks at the photo itself, copies the whole problem and solves it in one step. Best for handwriting, several parts and diagrams. Needs your API key.",
+            "The AI copies the problem as text first (this device does it if the AI can't). You check the text, then tap Solve.",
             "The photo never leaves this device. Reading is weaker on handwriting and maths notation, so check the text before you solve.",
         ]
         for key in keys { XCTAssertFalse((table[key] ?? "").isEmpty, "missing Arabic string: \(key)") }

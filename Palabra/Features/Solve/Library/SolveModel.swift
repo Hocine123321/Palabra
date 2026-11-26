@@ -67,7 +67,7 @@ final class SolveModel {
         // Without a key or model there is nothing to send the photo to: say so and read the text here.
         guard await tool.geminiReady() else {
             phase = .idle
-            await readTextInstead(imageData, reason: "No Gemini key or model is set, so the text was read on this device. Check it, then tap Solve.")
+            await readTextInstead(imageData, reason: "No AI key or model is set, so the text was read on this device. Check it, then tap Solve.")
             return nil
         }
         let outcome = await tool.solver.solvePhoto(imageData: imageData)
@@ -80,7 +80,7 @@ final class SolveModel {
             let stored = PhotoPreparer.prepare(imageData, maxPixelSize: Self.storedPhotoPixelSize)?.data
             return tool.history.save(query: result.query, key: key, result: result, image: stored, now: now()).id
         case .failure(.missingKey), .failure(.network), .failure(.rateLimited):
-            await readTextInstead(imageData, reason: "Gemini couldn't be reached, so the text was read on this device. Check it, then tap Solve.")
+            await readTextInstead(imageData, reason: "The AI couldn't be reached, so the text was read on this device. Check it, then tap Solve.")
             return nil
         case .failure(.unreadablePhoto):
             photoMessage = RecognitionError.nothingFound.userMessage
@@ -88,7 +88,7 @@ final class SolveModel {
         case .failure(.unsolvedPhoto):
             // Gemini looked but gave no answer: put the text where it can be checked, and let the normal chain
             // (the on-device engine, then Gemini on the typed text) have a go from there.
-            await readTextInstead(imageData, reason: "Gemini couldn't solve the photo, so the text was read on this device. Check it, then tap Solve.")
+            await readTextInstead(imageData, reason: "The AI couldn't solve the photo, so the text was read on this device. Check it, then tap Solve.")
             return nil
         case .failure(let failure):
             error = failure

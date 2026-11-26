@@ -73,7 +73,7 @@ final class SolveUITests: XCTestCase {
         app.launch()
 
         app.tabBars.buttons["Solve"].tap()
-        XCTAssertTrue(app.staticTexts["Photos go to Gemini, which reads and solves them in one step."].waitForExistence(timeout: 5), "photos go to Gemini by default")
+        XCTAssertTrue(app.staticTexts["Photos go to the AI, which reads and solves them in one step."].waitForExistence(timeout: 5), "photos go to Gemini by default")
         let gear = app.buttons["solveSettingsButton"]
         XCTAssertTrue(gear.waitForExistence(timeout: 5))
         gear.tap()

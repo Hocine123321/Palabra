@@ -267,7 +267,8 @@ final class ChatSession {
                     hasPhotoText: turns.contains { $0.photoText != nil }
                 )
                 let light = ChatPrompts.transcript(turns: turns, budget: ChatLimits.lightTranscriptBudget)
-                outcome = await timed { await plain(light, lightSystem) }
+                // The lighter attempt gets half the time: the person has already waited once.
+                outcome = await timed(deadline: max(1, replyDeadline / 2)) { await plain(light, lightSystem) }
                 statusNote = nil
             }
             switch outcome {
@@ -376,18 +377,18 @@ final class ChatSession {
 
     /// One model call with a watchdog: it ends with whatever comes first, the answer, the deadline, or Stop. The call
     /// itself is cancelled, but the wait never depends on the call being polite about it.
-    private func timed(_ operation: @escaping @MainActor () async -> Result<String, AIError>) async -> Result<String, AIError> {
+    private func timed(deadline: Int? = nil, _ operation: @escaping @MainActor () async -> Result<String, AIError>) async -> Result<String, AIError> {
         let race = CallRace()
         let work = Task { @MainActor in race.resolve(await operation()) }
         activeRace = race
         activeWork = work
         isSlow = false
-        let limit = replyDeadline
-        let tick = tick
+        let limit = deadline ?? replyDeadline
+        let clock = tick
         let watchdog = Task { @MainActor [weak self] in
             var waited = 0
             while !Task.isCancelled {
-                await tick()
+                await clock()
                 guard let self, !Task.isCancelled else { return }
                 if self.isWaitingOnPerson() { continue }
                 waited += 1

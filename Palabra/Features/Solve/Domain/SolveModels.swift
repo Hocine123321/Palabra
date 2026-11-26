@@ -152,7 +152,7 @@ enum SolveError: Error, Equatable {
     var userMessage: String {
         switch self {
         case .emptyInput: return "Type or scan a problem first."
-        case .missingKey: return "Solving this needs Gemini. Check your API key and model in Settings."
+        case .missingKey: return "Solving this needs the AI. Check your API key and model in Settings."
         case .invalidKey: return "Wolfram|Alpha refused the App ID. Check it, or the free calls for this month may be used up."
         case .rateLimited: return "The solver is busy. Try again in a moment."
         case .noResult: return "Couldn't understand this. Check the problem and try again."
@@ -160,7 +160,7 @@ enum SolveError: Error, Equatable {
         case .network: return "Couldn't reach the solver. Check your connection."
         case .malformed: return "The solver sent an answer the app couldn't read."
         case .unreadablePhoto: return "No problem found in the photo. Get closer or add light."
-        case .unsolvedPhoto: return "Gemini couldn't solve this photo. Try a clearer one, or type the problem."
+        case .unsolvedPhoto: return "The AI couldn't solve this photo. Try a clearer one, or type the problem."
         }
     }
 }

@@ -209,7 +209,7 @@ struct SolveResultView: View {
             .buttonStyle(.plain)
             .disabled(model.loadingStepsPodID != nil)
             .accessibilityIdentifier("showStepsButton")
-            Text(pod.stepsAreAIWritten ? LocalizedStringKey("Written by Gemini from the checked answer.") : LocalizedStringKey("Uses one more free call."))
+            Text(pod.stepsAreAIWritten ? LocalizedStringKey("Written by the AI from the checked answer.") : LocalizedStringKey("Uses one more free call."))
                 .font(.caption)
                 .foregroundStyle(hero ? Theme.onTint.opacity(0.7) : Theme.inkSecondary)
         }
@@ -245,7 +245,7 @@ struct SolveResultView: View {
     private func sourceNote(_ source: SolveSource?) -> LocalizedStringKey {
         switch source {
         case .onDevice: return "Solved on your device."
-        case .gemini: return "Solved by Gemini. Double-check it before you rely on it."
+        case .gemini: return "Solved by the AI. Double-check it before you rely on it."
         case .wolfram, nil: return "Powered by Wolfram|Alpha"
         }
     }
