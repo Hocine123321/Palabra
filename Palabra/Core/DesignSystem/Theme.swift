@@ -142,6 +142,8 @@ enum Theme {
 
     /// Concentric: an inner radius is its container's radius minus the inset between them.
     enum Radius {
+        /// Full-bleed surfaces whose container (a context-menu preview, say) does the rounding.
+        static let none: CGFloat = 0
         /// Skeleton blocks, small inline shapes.
         static let small: CGFloat = 10
         /// Inner controls: text fields, inner cards, bubbles, list rows.

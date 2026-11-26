@@ -45,7 +45,9 @@ final class LibraryImportCoordinator {
         }
         let staged: URL
         do {
-            staged = try Self.stage(url, into: stagingDirectory)
+            // Off the main thread: the coordinated read waits for iCloud to download the file, and that wait must never
+            // freeze the screen.
+            staged = try await Task.detached(priority: .userInitiated) { try Self.stage(url, into: stagingDirectory) }.value
         } catch {
             outcome = .unreadable
             return

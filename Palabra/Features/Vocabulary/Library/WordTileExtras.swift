@@ -55,7 +55,9 @@ struct WordPreviewCard: View {
     var tints = WordTintSettings()
 
     var body: some View {
-        CutoutCard(tint: tints.color(key: word.key, partOfSpeech: word.partOfSpeech)) {
+        // Square corners on purpose: the context menu clips its preview with its own radius, and a different radius of ours
+        // showed as a second, mismatched corner.
+        CutoutCard(tint: tints.color(key: word.key, partOfSpeech: word.partOfSpeech), cornerRadius: Theme.Radius.none) {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 if !word.partOfSpeech.isEmpty {
                     Chip(text: word.partOfSpeech, tint: Color.white.opacity(0.45))

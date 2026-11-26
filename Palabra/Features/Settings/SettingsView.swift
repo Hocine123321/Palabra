@@ -29,7 +29,6 @@ struct SettingsView: View {
     @State private var exported: LibraryBackupService.ExportSummary?
     @State private var isExporting = false
     @State private var seenImport = 0
-    @State private var showImporter = false
     @State private var dataMessage: DataMessage?
 
     var body: some View {
@@ -296,7 +295,7 @@ struct SettingsView: View {
                     Label("Export Library", systemImage: "square.and.arrow.up.on.square")
                 }
                 .disabled(isExporting || importing)
-                Button { showImporter = true } label: {
+                Button { LibraryFilePicker.present { url in handleImport(.success(url)) } } label: {
                     Label("Import Library", systemImage: "square.and.arrow.down")
                 }
                 .disabled(isExporting || importing)
@@ -336,7 +335,6 @@ struct SettingsView: View {
                 selection: Binding(get: { environment.selectedTTSModelID }, set: { environment.selectedTTSModelID = $0 })
             )
         }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.palabraLibrary, .data, .json], onCompletion: handleImport)
         .onChange(of: environment.libraryImport.generation) { _, _ in showImportOutcome() }
         .onAppear { showImportOutcome() }
         .confirmationDialog("Remove your API key?", isPresented: $showRemoveKeyConfirm) {
