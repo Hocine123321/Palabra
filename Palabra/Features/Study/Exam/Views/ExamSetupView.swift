@@ -179,8 +179,8 @@ struct ExamSetupView: View {
             .disabled(!aiAvailable)
             .accessibilityIdentifier("examAIToggle")
             Text(aiAvailable
-                 ? LocalizedStringKey("Fresh example sentences, written answers checked for you, and tips on your mistakes at the end. Uses your Gemini key. Everything else works without it.")
-                 : LocalizedStringKey("Add a Gemini key in Settings to turn this on. The exam works fully without it."))
+                 ? LocalizedStringKey("Fresh example sentences, written answers checked for you, and tips on your mistakes at the end. Uses your AI key. Everything else works without it.")
+                 : LocalizedStringKey("Add an AI key in Settings to turn this on. The exam works fully without it."))
                 .font(.caption)
                 .foregroundStyle(Theme.inkSecondary)
         }

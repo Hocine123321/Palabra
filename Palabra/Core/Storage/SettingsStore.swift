@@ -18,6 +18,7 @@ final class SettingsStore {
     private enum Keys {
         static let selectedModelID = "selectedModelID"
         static let selectedTTSModelID = "selectedTTSModelID"
+        static let aiProvider = "aiProvider"
         static let libraryLayout = "libraryLayout"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let appearanceMode = "appearanceMode"
@@ -37,6 +38,21 @@ final class SettingsStore {
     var selectedModelID: String? {
         get { defaults.string(forKey: Keys.selectedModelID) }
         set { defaults.set(newValue, forKey: Keys.selectedModelID) }
+    }
+
+    /// Who answers the AI requests. Gemini unless the person chose another (an install from before providers has no value).
+    var aiProvider: AIProvider {
+        get { AIProvider(rawValue: defaults.string(forKey: Keys.aiProvider) ?? "") ?? .gemini }
+        set { defaults.set(newValue.rawValue, forKey: Keys.aiProvider) }
+    }
+
+    /// The model chosen for one provider. Gemini's is the original key, so an existing choice survives the update.
+    func selectedModelID(for provider: AIProvider) -> String? {
+        defaults.string(forKey: provider.selectedModelKey)
+    }
+
+    func setSelectedModelID(_ id: String?, for provider: AIProvider) {
+        defaults.set(id, forKey: provider.selectedModelKey)
     }
 
     var selectedTTSModelID: String? {

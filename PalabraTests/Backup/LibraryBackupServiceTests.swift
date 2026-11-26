@@ -270,3 +270,83 @@ final class LibraryBackupServiceTests: XCTestCase {
         }
     }
 }
+
+/// The import path shared by the Settings picker and "open in Palabra" from Files / the share sheet.
+@MainActor
+final class LibraryImportCoordinatorTests: XCTestCase {
+    private var folder: URL!
+    private var libraries: [Library] = []
+
+    override func setUp() {
+        super.setUp()
+        folder = FileManager.default.temporaryDirectory.appendingPathComponent("import-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: folder)
+        libraries.forEach { $0.cleanUp() }
+        super.tearDown()
+    }
+
+    private func library() -> Library {
+        let library = Library()
+        libraries.append(library)
+        return library
+    }
+
+    func testEveryAttemptEndsInAnOutcomeEvenForTheSameFile() async throws {
+        let source = library()
+        _ = source.add("hablar")
+        source.syncCards()
+        let file = try await source.service(directory: folder).export().url
+        let target = library()
+        let coordinator = LibraryImportCoordinator()
+
+        await coordinator.run(url: file, makeService: { target.service(directory: self.folder) }, stagingDirectory: folder)
+        guard case .imported(let first)? = coordinator.outcome else { return XCTFail("first import should report") }
+        XCTAssertEqual(first.words.imported, 1)
+        XCTAssertEqual(coordinator.generation, 1)
+
+        // Selecting the same file again is not ignored: it runs and says what it found.
+        await coordinator.run(url: file, makeService: { target.service(directory: self.folder) }, stagingDirectory: folder)
+        guard case .imported(let second)? = coordinator.outcome else { return XCTFail("second import should report") }
+        XCTAssertEqual(second.words.imported, 0)
+        XCTAssertEqual(second.words.skipped, 1)
+        XCTAssertEqual(coordinator.generation, 2)
+        XCTAssertFalse(coordinator.isImporting)
+    }
+
+    func testAMissingFileIsReportedAsUnreadable() async {
+        let coordinator = LibraryImportCoordinator()
+        let target = library()
+        await coordinator.run(
+            url: folder.appendingPathComponent("nope.palabra"),
+            makeService: { target.service(directory: self.folder) }, stagingDirectory: folder
+        )
+        XCTAssertEqual(coordinator.outcome, .unreadable)
+        XCTAssertEqual(coordinator.generation, 1)
+    }
+
+    func testTheStagedCopyIsRemovedAfterwards() async throws {
+        let source = library()
+        _ = source.add("comer")
+        source.syncCards()
+        let file = try await source.service(directory: folder).export().url
+        let target = library()
+        let staging = folder.appendingPathComponent("staging")
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        let coordinator = LibraryImportCoordinator()
+        await coordinator.run(url: file, makeService: { target.service(directory: self.folder) }, stagingDirectory: staging)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: staging.path), [])
+    }
+
+    func testStageMakesALocalCopyWithTheLibraryExtension() throws {
+        let original = folder.appendingPathComponent("a.palabra")
+        try Data("x".utf8).write(to: original)
+        let copy = try LibraryImportCoordinator.stage(original, into: folder)
+        XCTAssertEqual(copy.pathExtension, LibraryBackupService.fileExtension)
+        XCTAssertNotEqual(copy, original)
+        XCTAssertEqual(try Data(contentsOf: copy), Data("x".utf8))
+    }
+}

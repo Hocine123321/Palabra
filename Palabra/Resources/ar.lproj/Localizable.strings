@@ -42,9 +42,9 @@
 "Save and Continue" = "حفظ ومتابعة";
 "Set Up Later" = "الإعداد لاحقًا";
 "Continue" = "متابعة";
-"Add your Google API key" = "أضف مفتاح Google API الخاص بك";
-"Add your Google API key in Settings to add words" = "أضف مفتاح Google API في الإعدادات لإضافة كلمات";
-"Add your Google API key in Settings to use AI features." = "أضف مفتاح Google API في الإعدادات لاستخدام ميزات الذكاء الاصطناعي.";
+"Add your API key" = "أضف مفتاح API الخاص بك";
+"Add your API key in Settings to add words" = "أضف مفتاح API في الإعدادات لإضافة كلمات";
+"Add your API key in Settings to use AI features." = "أضف مفتاح API الخاص بك في الإعدادات لاستخدام ميزات الذكاء الاصطناعي.";
 "Choose a Model" = "اختر نموذجًا";
 "Loading models…" = "جارٍ تحميل النماذج…";
 "No models yet." = "لا توجد نماذج بعد.";
@@ -75,13 +75,13 @@
 "You're offline. Check your connection and try again." = "أنت غير متصل بالإنترنت. تحقق من الاتصال وحاول مرة أخرى.";
 
 /* Previously missing static strings (onboarding, settings, model picker). */
-"Palabra uses your own Google AI API key to generate explanations. Get one free at aistudio.google.com." = "يستخدم Palabra مفتاح Google AI API الخاص بك لإنشاء الشروحات. احصل على واحد مجانًا من aistudio.google.com.";
+"Palabra uses your own AI API key to generate explanations. Google Gemini gives one free at aistudio.google.com; OpenRouter and Groq work too." = "يستخدم Palabra مفتاح API الخاص بك للذكاء الاصطناعي لإنشاء الشروحات. يقدّم Google Gemini مفتاحاً مجانياً على aistudio.google.com، كما يعمل OpenRouter وGroq.";
 "Meet a Spanish word, get an AI explanation with examples, forms and similar words, and keep it in your library for good." = "تعرّف على كلمة إسبانية، واحصل على شرح بالذكاء الاصطناعي مع أمثلة وتصريفات وكلمات مشابهة، واحتفظ بها في مكتبتك للأبد.";
 "Remove Key" = "إزالة المفتاح";
 "Delete All" = "حذف الكل";
 "Open Existing" = "فتح الموجودة";
 "Your selected model is no longer available." = "النموذج الذي اخترته لم يعد متاحًا.";
-"Choose a Google AI model in Settings" = "اختر نموذج Google AI من الإعدادات";
+"Choose an AI model in Settings" = "اختر نموذج ذكاء اصطناعي من الإعدادات";
 "Edit word" = "تعديل الكلمة";
 "Not selected" = "لم يتم التحديد";
 
@@ -107,16 +107,16 @@
    intentionally left in English: by the time they reach the UI they're
    already a single concatenated String, not a LocalizedStringKey, so a
    translation table lookup can't substitute the value. */
-"Choose a Google AI model in Settings." = "اختر نموذج Google AI من الإعدادات.";
+"Choose an AI model in Settings." = "اختر نموذج ذكاء اصطناعي من الإعدادات.";
 "The request took too long. Try again." = "استغرق الطلب وقتًا طويلاً. حاول مرة أخرى.";
 "The request was cancelled." = "تم إلغاء الطلب.";
 "That API key isn't valid. Check it in Settings." = "مفتاح API هذا غير صالح. تحقق منه في الإعدادات.";
 "Your API key doesn't have permission for this request." = "مفتاح API الخاص بك لا يملك صلاحية لهذا الطلب.";
-"You've hit Google's rate limit. Wait a moment and try again." = "لقد وصلت إلى حد الاستخدام لدى Google. انتظر لحظة وحاول مرة أخرى.";
-"Google's servers had a problem. Try again in a bit." = "واجهت خوادم Google مشكلة. حاول مرة أخرى بعد قليل.";
+"You've hit the provider's rate limit. Wait a moment and try again." = "لقد وصلت إلى حد الاستخدام لدى المزوّد. انتظر لحظة وحاول مرة أخرى.";
+"The provider's servers had a problem. Try again in a bit." = "واجهت خوادم المزوّد مشكلة. حاول مرة أخرى بعد قليل.";
 "The response was blocked." = "تم حظر الاستجابة.";
 "The response was cut off before it finished. Try again." = "تم قطع الاستجابة قبل اكتمالها. حاول مرة أخرى.";
-"Google didn't return any usable models." = "لم تُرجع Google أي نماذج قابلة للاستخدام.";
+"No usable models were returned." = "لم تُرجَع أي نماذج قابلة للاستخدام.";
 
 /* Dynamic strings interpolated directly inside a Text/confirmationDialog
    literal — SwiftUI turns these into %@/%lld-style format keys automatically,
@@ -395,18 +395,18 @@
 "The request timed out" = "انتهت مهلة الطلب";
 "Too many requests" = "طلبات كثيرة جداً";
 "Quota used up" = "انتهت الحصة";
-"Google had a problem" = "واجهت Google مشكلة";
+"The provider had a problem" = "واجه المزوّد مشكلة";
 "The reply was cut off" = "انقطع الرد";
 "The reply was incomplete" = "الرد غير مكتمل";
 "Key rejected" = "تم رفض المفتاح";
 "Key not allowed" = "المفتاح غير مسموح";
 "Something went wrong" = "حدث خطأ ما";
-"Google is asking us to slow down" = "تطلب منا Google التمهل";
+"The provider is asking us to slow down" = "يطلب منا المزوّد التمهل";
 "This API key is out of quota" = "انتهت حصة مفتاح API هذا";
 "Your API key was rejected" = "تم رفض مفتاح API الخاص بك";
 "Your API key isn't allowed to do this" = "مفتاح API الخاص بك غير مسموح له بهذا";
-"Google is taking too long" = "Google تستغرق وقتاً طويلاً";
-"Google's servers are struggling" = "خوادم Google تواجه صعوبة";
+"The provider is taking too long" = "المزوّد يستغرق وقتاً طويلاً";
+"The provider's servers are struggling" = "خوادم المزوّد تواجه صعوبة";
 "Your chosen model is gone" = "النموذج الذي اخترته لم يعد متاحاً";
 "The request was blocked" = "تم حظر الطلب";
 "This didn't work" = "لم ينجح هذا";
@@ -416,12 +416,12 @@
 "Waiting a bit usually clears it. A backup key from another account would avoid the wait." = "الانتظار قليلاً يحل المشكلة عادةً. مفتاح احتياطي من حساب آخر يتجنب الانتظار.";
 "Both keys are out of quota. Try again later, or use a key from another account." = "انتهت حصة المفتاحين. حاول لاحقاً، أو استخدم مفتاحاً من حساب آخر.";
 "Waiting won't help until the quota resets. Add a key from another account in Settings to keep going." = "الانتظار لن يفيد حتى تتجدد الحصة. أضف مفتاحاً من حساب آخر في الإعدادات للمتابعة.";
-"Google doesn't accept this key. Check it in Settings, or add a backup key." = "لا تقبل Google هذا المفتاح. تحقق منه في الإعدادات، أو أضف مفتاحاً احتياطياً.";
+"The provider doesn't accept this key. Check it in Settings, or add a backup key." = "لا يقبل المزوّد هذا المفتاح. تحقق منه في الإعدادات، أو أضف مفتاحاً احتياطياً.";
 "This key can't use that model. Pick another model, or use a different key." = "لا يستطيع هذا المفتاح استخدام ذلك النموذج. اختر نموذجاً آخر، أو استخدم مفتاحاً مختلفاً.";
-"This is usually temporary on Google's side. Waiting longer between tries often works." = "هذا مؤقت عادةً من جانب Google. الانتظار لفترة أطول بين المحاولات ينفع غالباً.";
+"This is usually temporary on the provider's side. Waiting longer between tries often works." = "هذا مؤقت عادةً من جانب المزوّد. الانتظار لفترة أطول بين المحاولات ينفع غالباً.";
 "Your chosen model no longer exists. Choose another one in Settings." = "النموذج الذي اخترته لم يعد موجوداً. اختر نموذجاً آخر في الإعدادات.";
 "The model \"%@\" no longer exists. Choose another one in Settings." = "النموذج \"%@\" لم يعد موجوداً. اختر نموذجاً آخر في الإعدادات.";
-"Google's safety filter blocked this. Trying again won't change that." = "حجب مرشح الأمان في Google هذا الطلب. إعادة المحاولة لن تغيّر ذلك.";
+"The provider's safety filter blocked this. Trying again won't change that." = "حجب مرشح الأمان لدى المزوّد هذا الطلب. إعادة المحاولة لن تغيّر ذلك.";
 "It may work on another try." = "قد ينجح في محاولة أخرى.";
 "Add a Backup Key" = "إضافة مفتاح احتياطي";
 "Switched to your backup key" = "تم التحويل إلى مفتاحك الاحتياطي";
@@ -448,12 +448,12 @@
 "Paste a key from another account" = "الصق مفتاحاً من حساب آخر";
 "Verify and Save" = "تحقق واحفظ";
 "Backup API Key" = "مفتاح API الاحتياطي";
-"Used automatically when your main key keeps failing, for example when it runs out of quota. Use a key from a different Google account, since keys from the same account share one quota." = "يُستخدم تلقائياً عندما يستمر فشل مفتاحك الرئيسي، مثلاً عند انتهاء حصته. استخدم مفتاحاً من حساب Google مختلف، لأن المفاتيح من الحساب نفسه تتشارك حصة واحدة.";
+"Used automatically when your main key keeps failing, for example when it runs out of quota. Use a key from a different account, since keys from the same account share one quota." = "يُستخدم تلقائياً عندما يستمر فشل مفتاحك الرئيسي، مثلاً عند انتهاء حصته. استخدم مفتاحاً من حساب مختلف، لأن المفاتيح من الحساب نفسه تتشارك حصة واحدة.";
 "Using now" = "قيد الاستخدام الآن";
 "Main key" = "المفتاح الرئيسي";
 "Main key is rate limited. It will be tried again in about a minute." = "المفتاح الرئيسي مقيّد مؤقتاً. ستُعاد تجربته بعد نحو دقيقة.";
 "Main key is out of quota. It will be tried again in about an hour." = "انتهت حصة المفتاح الرئيسي. ستُعاد تجربته بعد نحو ساعة.";
-"Main key was rejected by Google. Check it in Settings." = "رفضت Google المفتاح الرئيسي. تحقق منه في الإعدادات.";
+"Main key was rejected by the provider. Check it in Settings." = "رفض المزوّد المفتاح الرئيسي. تحقق منه في الإعدادات.";
 "Main key kept failing. It will be tried again shortly." = "استمر فشل المفتاح الرئيسي. ستُعاد تجربته قريباً.";
 "That's the same as your main key. Use a key from a different account." = "هذا هو نفسه مفتاحك الرئيسي. استخدم مفتاحاً من حساب مختلف.";
 "Couldn't save that key." = "تعذر حفظ هذا المفتاح.";
@@ -598,8 +598,8 @@
 "Not available on this device." = "غير متاح على هذا الجهاز.";
 "Turn on AI to use this." = "فعّل الذكاء الاصطناعي لاستخدام هذا.";
 "Use AI" = "استخدم الذكاء الاصطناعي";
-"Fresh example sentences, written answers checked for you, and tips on your mistakes at the end. Uses your Gemini key. Everything else works without it." = "جمل أمثلة جديدة، وتصحيح لإجاباتك المكتوبة، ونصائح حول أخطائك في النهاية. يستخدم مفتاح Gemini الخاص بك. كل شيء آخر يعمل بدونه.";
-"Add a Gemini key in Settings to turn this on. The exam works fully without it." = "أضف مفتاح Gemini في الإعدادات لتفعيل هذا. يعمل الاختبار بالكامل بدونه.";
+"Fresh example sentences, written answers checked for you, and tips on your mistakes at the end. Uses your AI key. Everything else works without it." = "جمل أمثلة جديدة، وتصحيح لإجاباتك المكتوبة، ونصائح حول أخطائك في النهاية. يستخدم مفتاح الذكاء الاصطناعي الخاص بك. كل شيء آخر يعمل بدونه.";
+"Add an AI key in Settings to turn this on. The exam works fully without it." = "أضف مفتاح الذكاء الاصطناعي في الإعدادات لتفعيل هذا. يعمل الاختبار بالكامل بدونه.";
 "Start Exam" = "ابدأ الاختبار";
 "Past Exams" = "الاختبارات السابقة";
 "Typing" = "الكتابة";
@@ -1019,3 +1019,72 @@
 "Time to review" = "حان وقت المراجعة";
 "1 card is waiting for you" = "بطاقة واحدة بانتظارك";
 "%lld cards are waiting for you" = "%lld بطاقات بانتظارك";
+"Taking longer than usual…" = "الرد يستغرق وقتًا أطول من المعتاد…";
+"Trying a lighter request…" = "تجربة طلب أخف…";
+"Stopped. Tap Retry to send it again." = "تم الإيقاف. اضغط إعادة المحاولة لإرساله مجددًا.";
+"The assistant didn't answer in time. Tap Retry, or try a shorter message." = "لم يرد المساعد في الوقت المناسب. اضغط إعادة المحاولة أو جرّب رسالة أقصر.";
+"%lld lines" = "%lld سطرًا";
+"No lines changed from the saved version." = "لم يتغير أي سطر عن النسخة المحفوظة.";
+"No lines changed from the previous draft." = "لم يتغير أي سطر عن المسودة السابقة.";
+"Lines added and removed since the saved version." = "الأسطر المضافة والمحذوفة منذ النسخة المحفوظة.";
+"Lines added and removed since the previous draft." = "الأسطر المضافة والمحذوفة منذ المسودة السابقة.";
+"Prompts" = "التعليمات";
+"The rules that make an artifact compatible with Palabra: edit them, add your own, or replace the whole prompt." = "القواعد التي تجعل القطعة متوافقة مع Palabra: عدّلها أو أضف قواعدك أو استبدل التعليمات كاملة.";
+"Intro" = "المقدمة";
+"What the other AI is told it is building. Leave it empty to use the built-in intro." = "ما يُقال للذكاء الاصطناعي الآخر عمّا سيبنيه. اتركه فارغًا لاستخدام المقدمة الجاهزة.";
+"Built-in" = "الجاهز";
+"Edited" = "معدّل";
+"Off" = "متوقف";
+"None" = "لا شيء";
+"Replaced" = "مستبدل";
+"Size limit" = "حد الحجم";
+"Sandbox rules" = "قواعد البيئة المعزولة";
+"Never invent my data" = "عدم اختلاق بياناتي";
+"Extra Rules" = "قواعد إضافية";
+"Your own rules, one per line. They are added after the built-in ones." = "قواعدك الخاصة، قاعدة في كل سطر. تُضاف بعد القواعد الجاهزة.";
+"Include Capability List" = "تضمين قائمة الإمكانات";
+"Prompt for Another AI" = "تعليمات لذكاء اصطناعي آخر";
+"What \"Copy artifact prompt rules\" gives Claude, ChatGPT or any other AI. Switch a rule off, reword it, or add your own. The capability list tells it what the page can ask Palabra for." = "ما يعطيه «نسخ قواعد تعليمات القطعة» إلى Claude أو ChatGPT أو أي ذكاء اصطناعي آخر. أوقف قاعدة أو أعد صياغتها أو أضف قواعدك. قائمة الإمكانات تخبره بما يمكن للصفحة طلبه من Palabra.";
+"In-App Extra Rules" = "قواعد إضافية داخل التطبيق";
+"Your own rules for the in-app AI, one per line. They are added after the built-in ones." = "قواعدك الخاصة للذكاء الاصطناعي داخل التطبيق، قاعدة في كل سطر. تُضاف بعد القواعد الجاهزة.";
+"In-App AI" = "الذكاء الاصطناعي داخل التطبيق";
+"Added to the instruction Palabra sends with every request it makes for an artifact." = "تُضاف إلى التعليمات التي يرسلها Palabra مع كل طلب لإنشاء قطعة.";
+"Replace the Whole Prompt" = "استبدال التعليمات كاملة";
+"Your text replaces the built-in prompt. The built-in rules, intro and capability list are only used where you put their placeholders. If you leave out {{REQUEST}}, the request is added at the end." = "نصك يحل محل التعليمات الجاهزة. القواعد والمقدمة وقائمة الإمكانات الجاهزة لا تُستخدم إلا حيث تضع عناصرها النائبة. إذا تركت {{REQUEST}} فسيُضاف الطلب في النهاية.";
+"Replace the In-App Instruction" = "استبدال التعليمات داخل التطبيق";
+"Palabra reads the AI's answer by a fixed format. If you leave out {{OUTPUT_FORMAT}} (or {{APP_RULES}} while interactive apps are on), it is added at the end so artifacts keep working." = "يقرأ Palabra إجابة الذكاء الاصطناعي بصيغة ثابتة. إذا تركت {{OUTPUT_FORMAT}} (أو {{APP_RULES}} مع تفعيل التطبيقات التفاعلية) فستُضاف في النهاية كي تبقى القطع تعمل.";
+"In-App Instruction" = "التعليمات داخل التطبيق";
+"Advanced" = "متقدم";
+"For full control. A prompt that breaks the page rules makes artifacts that Palabra refuses to run." = "للتحكم الكامل. التعليمات التي تخالف قواعد الصفحة تنتج قطعًا يرفض Palabra تشغيلها.";
+"Preview the Prompt for Another AI" = "معاينة التعليمات لذكاء اصطناعي آخر";
+"Preview the In-App Instruction" = "معاينة التعليمات داخل التطبيق";
+"Reset All Prompt Changes" = "إعادة كل تغييرات التعليمات";
+"Use This Rule" = "استخدام هذه القاعدة";
+"Wording" = "الصياغة";
+"{{MAX_SIZE}} and {{LANGUAGE}} are filled in from your settings." = "يتم ملء {{MAX_SIZE}} و{{LANGUAGE}} من إعداداتك.";
+"Use Built-in Wording" = "استخدام الصياغة الجاهزة";
+"Use Built-in Text" = "استخدام النص الجاهز";
+"Replace the Built-in Prompt" = "استبدال التعليمات الجاهزة";
+"Prompt" = "التعليمات";
+"Start Again From Built-in Text" = "البدء من جديد بالنص الجاهز";
+"Reading the photo on your phone…" = "قراءة الصورة على هاتفك…";
+"Read on your phone" = "قُرئت على هاتفك";
+"Read Photos With" = "قراءة الصور بواسطة";
+"The AI Model" = "نموذج الذكاء الاصطناعي";
+"This Phone" = "هذا الهاتف";
+"Phone First" = "الهاتف أولًا";
+"The photo is sent to your AI model with your message. Best for handwriting and anything that is not plain printed text." = "تُرسل الصورة إلى نموذج الذكاء الاصطناعي مع رسالتك. الأفضل للخط اليدوي ولكل ما ليس نصًا مطبوعًا عاديًا.";
+"Your phone copies the text out of the photo and only that text is sent. The photo never leaves your phone, but it can miss handwriting and make mistakes with unusual layouts." = "ينسخ هاتفك النص من الصورة ويُرسل هذا النص فقط. لا تغادر الصورة هاتفك، لكنه قد يفوّت الخط اليدوي ويخطئ مع التنسيقات غير المعتادة.";
+"Your phone reads the photo first. If it finds no text, the photo is sent to your AI model instead." = "يقرأ هاتفك الصورة أولًا. إذا لم يجد نصًا فتُرسل الصورة إلى نموذج الذكاء الاصطناعي بدلًا من ذلك.";
+
+/* AI providers (Gemini, OpenRouter, Groq). */
+"Provider" = "المزوّد";
+"Google Gemini" = "Google Gemini";
+"OpenRouter" = "OpenRouter";
+"Groq" = "Groq";
+"OpenRouter API Key" = "مفتاح OpenRouter API";
+"Groq API Key" = "مفتاح Groq API";
+"Get a key at %@." = "احصل على مفتاح من %@.";
+"This model can't read photos, so photos sent in chat are read on this device." = "هذا النموذج لا يقرأ الصور، لذا تُقرأ الصور المرسلة في المحادثة على هذا الجهاز.";
+"Pronunciation needs a Google Gemini key. Switch the provider to Google Gemini above and add one; the other provider keeps answering everything else." = "يحتاج النطق إلى مفتاح Google Gemini. بدّل المزوّد إلى Google Gemini أعلاه وأضف مفتاحاً؛ ويواصل المزوّد الآخر الإجابة عن كل شيء آخر.";
+"Pronunciation needs a Google Gemini key." = "يحتاج النطق إلى مفتاح Google Gemini.";

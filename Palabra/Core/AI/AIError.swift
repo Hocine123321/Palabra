@@ -57,9 +57,9 @@ enum AIError: Error, Equatable, Sendable {
     var userMessage: String {
         switch self {
         case .missingAPIKey:
-            return "Add your Google API key in Settings to use AI features."
+            return "Add your API key in Settings to use AI features."
         case .noModelSelected:
-            return "Choose a Google AI model in Settings."
+            return "Choose an AI model in Settings."
         case .modelUnavailable(let id):
             return "The model \"\(id)\" is no longer available. Choose another in Settings."
         case .offline:
@@ -71,11 +71,11 @@ enum AIError: Error, Equatable, Sendable {
         case .permissionDenied:
             return "Your API key doesn't have permission for this request."
         case .rateLimited:
-            return "You've hit Google's rate limit. Wait a moment and try again."
+            return "You've hit the provider's rate limit. Wait a moment and try again."
         case .quotaExhausted:
             return "This API key has used up its quota. Add a fallback key in Settings, or try again later."
         case .serverError:
-            return "Google's servers had a problem. Try again in a bit."
+            return "The provider's servers had a problem. Try again in a bit."
         case .blocked(let reason):
             if let reason, !reason.isEmpty {
                 return "The response was blocked (\(reason))."
@@ -88,7 +88,7 @@ enum AIError: Error, Equatable, Sendable {
         case .validationFailed:
             return "The AI response was incomplete. Try again."
         case .emptyCatalogue:
-            return "Google didn't return any usable models."
+            return "No usable models were returned."
         case .cancelled:
             return "The request was cancelled."
         case .unknown(_, let message):

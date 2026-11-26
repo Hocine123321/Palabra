@@ -332,6 +332,7 @@ struct ArtifactDraftView: View {
                             .padding(.vertical, Theme.Spacing.xs)
                             .background(Theme.accentSoft, in: Capsule())
                     }
+                    if let size = model.size { sizeRow(size, change: model.change, againstSaved: model.baselineIsSaved) }
                     previewBody(model, draft)
                 }
             }
@@ -387,6 +388,38 @@ struct ArtifactDraftView: View {
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.bottom, Theme.Spacing.sm)
         }
+    }
+
+    /// How much came back, and (once there is something to compare with) what changed, like a commit summary.
+    private func sizeRow(_ size: ArtifactSize, change: ArtifactChange?, againstSaved: Bool) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            HStack(spacing: Theme.Spacing.sm) {
+                Image(systemName: "chevron.left.forwardslash.chevron.right").accessibilityHidden(true)
+                Text("\(size.lines) lines")
+                Text(verbatim: "·")
+                Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(size.bytes), countStyle: .file))
+                if let change {
+                    Text(verbatim: "·")
+                    Text(verbatim: "+\(change.added)").foregroundStyle(Theme.success)
+                    Text(verbatim: "−\(change.removed)").foregroundStyle(Theme.error)
+                }
+            }
+            .font(.footnote.monospacedDigit())
+            .foregroundStyle(Theme.inkSecondary)
+            if let change {
+                Group {
+                    if change.isEmpty {
+                        Text(againstSaved ? "No lines changed from the saved version." : "No lines changed from the previous draft.")
+                    } else {
+                        Text(againstSaved ? "Lines added and removed since the saved version." : "Lines added and removed since the previous draft.")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(Theme.inkSecondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("artifactSizeRow")
     }
 
     /// Dry run: nothing the artifact does here can change app data.

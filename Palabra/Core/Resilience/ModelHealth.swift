@@ -10,7 +10,7 @@ enum ModelStatus: Equatable, Sendable {
     case rateLimited
     /// Its daily or billing quota is used up.
     case quotaUsed
-    /// Google's servers are struggling with it right now.
+    /// The provider's servers are struggling with it right now.
     case unstable
     /// Google says it doesn't exist (any more) for this key.
     case unavailable

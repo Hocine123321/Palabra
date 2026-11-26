@@ -30,6 +30,8 @@ struct ArtifactGenerator {
     var appByteLimit: Int?
     /// The person's cap for a page from another AI (Settings → Artifacts), in KB.
     var externalMaxKB = ArtifactOutputBudget.externalDefaultKB
+    /// The person's changes to the in-app instruction (extra rules, or a replacement template).
+    var promptConfig = ArtifactPromptSettings.default
 
     /// The size an app's HTML may reach: the external limit when there is one, else the in-app setting.
     private var allowedAppBytes: Int { appByteLimit ?? ArtifactOutputBudget.bytes(forKB: maxOutputKB) }
@@ -93,7 +95,7 @@ struct ArtifactGenerator {
     }
 
     private func attempt(prompt: String, userPrompt: String, fixedTitle: String?, expectedKind: ArtifactKind?, apiKey: String, model: AIModel) async -> Result<ArtifactDraft, ArtifactGenError> {
-        let instruction = ArtifactPrompts.systemInstruction(registry: registry, language: language, allowedKinds: allowedKinds, maxKB: maxOutputKB)
+        let instruction = ArtifactPrompts.systemInstruction(registry: registry, language: language, allowedKinds: allowedKinds, maxKB: maxOutputKB, config: promptConfig)
         // The output budget travels as a task-local so the AIClient protocol (and every mock) stays as it is.
         let result = await ArtifactOutputBudget.$requestedTokens.withValue(ArtifactOutputBudget.tokens(forKB: maxOutputKB)) {
             await ai.generateJSON(

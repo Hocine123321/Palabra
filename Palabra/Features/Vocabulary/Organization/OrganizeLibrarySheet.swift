@@ -74,7 +74,7 @@ struct OrganizeLibrarySheet: View {
                 .padding(Theme.Spacing.md)
             }
 
-            Text("This uses your Google AI key. About \(estimatedCalls) request(s) will be made.")
+            Text("This uses your AI key. About \(estimatedCalls) request(s) will be made.")
                 .font(.footnote).foregroundStyle(Theme.inkSecondary)
 
             NavigationLink {

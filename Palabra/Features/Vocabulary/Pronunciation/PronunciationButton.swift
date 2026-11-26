@@ -70,7 +70,7 @@ struct PronunciationButton: View {
         // (free, offline) instead of a dead end. The failure notice stays visible.
         var failed = false
         if case .failed = status { failed = true }
-        if failed || !environment.hasAPIKey || environment.selectedTTSModel == nil {
+        if failed || !environment.hasSpeechKey || environment.selectedTTSModel == nil {
             WordQuickSpeaker.shared.hearWithPhoneVoice(word.spanish)
             return
         }

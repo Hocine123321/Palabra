@@ -24,17 +24,28 @@ protocol TextRecognizer: Sendable {
 
 /// On-device (Apple Vision): free and offline, but weak on maths notation and handwriting.
 struct VisionTextRecognizer: TextRecognizer {
+    /// Maths (the default): English, no language correction, because "correction" turns symbols and variables into words.
+    /// Prose, such as a page of a book: pass the languages and turn the correction on.
+    var languages: [String] = ["en-US"]
+    var usesLanguageCorrection = false
+
     func recognize(imageData: Data) async -> Result<String, RecognitionError> {
-        await Task.detached(priority: .userInitiated) { Self.run(imageData) }.value
+        let languages = languages, correction = usesLanguageCorrection
+        return await Task.detached(priority: .userInitiated) { Self.run(imageData, languages: languages, usesLanguageCorrection: correction) }.value
     }
 
-    static func run(_ data: Data) -> Result<String, RecognitionError> {
+    /// Spanish words first, then English for the translations printed beside them.
+    static let prose = VisionTextRecognizer(languages: ["es-ES", "en-US"], usesLanguageCorrection: true)
+
+    static func run(_ data: Data, languages: [String] = ["en-US"], usesLanguageCorrection: Bool = false) -> Result<String, RecognitionError> {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
-        // Language "correction" turns symbols and variables into words.
-        request.usesLanguageCorrection = false
+        request.usesLanguageCorrection = usesLanguageCorrection
         request.automaticallyDetectsLanguage = false
-        request.recognitionLanguages = ["en-US"]
+        // A language this iOS cannot read is dropped (asking for it would fail the whole request).
+        let supported = Set((try? request.supportedRecognitionLanguages()) ?? [])
+        let usable = languages.filter { supported.isEmpty || supported.contains($0) }
+        request.recognitionLanguages = usable.isEmpty ? ["en-US"] : usable
         do {
             try VNImageRequestHandler(data: data, options: [:]).perform([request])
         } catch {

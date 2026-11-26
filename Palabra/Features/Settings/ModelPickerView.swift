@@ -215,8 +215,7 @@ struct ModelPickerView: View {
     }
 
     private func refresh() async {
-        guard let apiKey = environment.apiKey else { return }
-        await catalogue.refresh(apiKey: apiKey, using: environment.ai)
+        await environment.refresh(catalogue)
     }
 }
 

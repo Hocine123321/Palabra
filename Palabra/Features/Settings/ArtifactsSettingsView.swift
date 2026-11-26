@@ -89,6 +89,18 @@ struct ArtifactsSettingsView: View {
 
             Section {
                 NavigationLink {
+                    ArtifactPromptSettingsView()
+                } label: {
+                    Label("Prompts", systemImage: "text.badge.checkmark")
+                }
+                .accessibilityIdentifier("artifactPromptsLink")
+            } footer: {
+                Text("The rules that make an artifact compatible with Palabra: edit them, add your own, or replace the whole prompt.")
+            }
+            .themedSection()
+
+            Section {
+                NavigationLink {
                     ArtifactCapabilitiesView()
                 } label: {
                     Label("Capabilities", systemImage: "puzzlepiece.extension")

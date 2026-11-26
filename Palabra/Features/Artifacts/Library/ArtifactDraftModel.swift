@@ -34,8 +34,24 @@ final class ArtifactDraftModel {
     var format: ArtifactFormat = .auto
     private(set) var draft: ArtifactDraft?
     private(set) var phase: Phase = .input
+    /// What the draft is measured against, commit-style: the saved version when updating, otherwise the draft before the
+    /// latest change. Nil for a first draft.
+    private(set) var baseline: Data?
+    /// Whether `baseline` is the saved version (true) or the previous draft (false).
+    private(set) var baselineIsSaved = false
     /// Set when saving failed (payload too large, artifact gone); cleared on the next attempt.
     private(set) var saveError: String?
+
+    /// Size of the draft as received.
+    var size: ArtifactSize? {
+        draft.map { ArtifactMetrics.size(of: $0.payload, kind: $0.kind) }
+    }
+
+    /// Lines added and removed compared with the baseline.
+    var change: ArtifactChange? {
+        guard let draft else { return nil }
+        return ArtifactMetrics.change(from: baseline, to: draft.payload, kind: draft.kind)
+    }
 
     /// Capabilities the person allowed in this draft (on top of what the artifact already had).
     private(set) var approved: Set<String> = []
@@ -108,7 +124,7 @@ final class ArtifactDraftModel {
             guard let current = currentSnapshot(artifactID), current.kind == .app else { return nil }
             userPrompt = ArtifactPrompts.externalUpdateRequest(change: asked, currentTitle: current.title, currentHTML: String(decoding: current.payload, as: UTF8.self))
         }
-        return ArtifactPrompts.exportPrompt(userPrompt: userPrompt, registry: environment.capabilities, language: environment.aiLanguage, maxKB: environment.artifactSettings.externalMaxKB)
+        return ArtifactPrompts.exportPrompt(userPrompt: userPrompt, registry: environment.capabilities, language: environment.aiLanguage, maxKB: environment.artifactSettings.externalMaxKB, config: environment.artifactSettings.prompt)
     }
 
     /// Whether the copy-prompt route can work at all: always when creating, and when updating only for an HTML page.
@@ -144,7 +160,7 @@ final class ArtifactDraftModel {
         }
         switch result {
         case .success(let value):
-            draft = value
+            take(value)
             if !pending.isEmpty { decided = false }
             phase = .preview
         case .failure(let error):
@@ -183,7 +199,20 @@ final class ArtifactDraftModel {
         phase = draft == nil ? .input : .preview
     }
 
+    /// Makes `value` the draft and fixes what it is compared with: the saved version when updating, else the draft it replaces.
+    private func take(_ value: ArtifactDraft) {
+        if case .update(let artifactID) = mode, let saved = currentSnapshot(artifactID) {
+            baseline = saved.payload
+            baselineIsSaved = true
+        } else {
+            baseline = draft?.payload
+            baselineIsSaved = false
+        }
+        draft = value
+    }
+
     func discard() {
+        baseline = nil
         draft = nil
         approved = []
         decided = false
@@ -256,7 +285,8 @@ final class ArtifactDraftModel {
         let generator = ArtifactGenerator(
             ai: environment.ai, registry: environment.capabilities, language: environment.aiLanguage,
             allowedKinds: artifactSettings.allowAppArtifacts ? [.spec, .app] : [.spec],
-            maxOutputKB: artifactSettings.maxOutputKB
+            maxOutputKB: artifactSettings.maxOutputKB,
+            promptConfig: artifactSettings.prompt
         )
         let result: Result<ArtifactDraft, ArtifactGenError>
         switch operation {
@@ -288,7 +318,7 @@ final class ArtifactDraftModel {
         }
         switch result {
         case .success(let value):
-            draft = value
+            take(value)
             // A refined draft that asks for something new is asked about again; the same ask is not.
             if !pending.isEmpty { decided = false }
             phase = .preview

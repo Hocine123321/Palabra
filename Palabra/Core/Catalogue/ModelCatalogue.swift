@@ -23,14 +23,18 @@ final class ModelCatalogue {
     private(set) var models: [AIModel] = []
     private(set) var status: Status = .idle
 
+    /// Which provider's list this is. `refresh` asks that provider, whichever one is active.
+    let provider: AIProvider
     private let cacheURL: URL
     private let filter: ([AIModel]) -> [AIModel]
 
     init(
         cacheFileName: String = "ModelCatalogue.json",
         filter: @escaping ([AIModel]) -> [AIModel] = ModelFilter.apply,
-        cacheDirectory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        cacheDirectory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0],
+        provider: AIProvider = .gemini
     ) {
+        self.provider = provider
         cacheURL = cacheDirectory.appendingPathComponent(cacheFileName)
         self.filter = filter
     }
@@ -51,7 +55,8 @@ final class ModelCatalogue {
 
     func refresh(apiKey: String, using client: AIClient) async {
         status = .loading
-        switch await client.listModels(apiKey: apiKey) {
+        let provider = self.provider
+        switch await AIProviderContext.$listing.withValue(provider, operation: { await client.listModels(apiKey: apiKey) }) {
         case .failure(let error):
             status = .failed(error, hasCache: !models.isEmpty)
         case .success(let raw):

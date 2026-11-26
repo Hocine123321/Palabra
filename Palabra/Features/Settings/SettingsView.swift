@@ -28,13 +28,19 @@ struct SettingsView: View {
     @State private var showTTSModelPicker = false
     @State private var exported: LibraryBackupService.ExportSummary?
     @State private var isExporting = false
-    @State private var isImporting = false
+    @State private var seenImport = 0
     @State private var showImporter = false
     @State private var dataMessage: DataMessage?
 
     var body: some View {
         Form {
-            Section("AI") {
+            Section {
+                Picker("Provider", selection: providerBinding) {
+                    ForEach(AIProvider.allCases) { provider in
+                        Text(LocalizedStringKey(provider.displayName)).tag(provider)
+                    }
+                }
+                .accessibilityIdentifier("aiProviderPicker")
                 keyRow
                 Button {
                     showModelPicker = true
@@ -60,6 +66,14 @@ struct SettingsView: View {
                 }
                 .disabled(!environment.hasAPIKey)
                 catalogueStatusRow(environment.catalogue.status)
+            } header: {
+                Text("AI")
+            } footer: {
+                if !environment.hasAPIKey {
+                    Text("Get a key at \(environment.activeProvider.keyHost).")
+                } else if environment.selectedModel?.acceptsImages == false {
+                    Text("This model can't read photos, so photos sent in chat are read on this device.")
+                }
             }
             .themedSection()
 
@@ -107,12 +121,16 @@ struct SettingsView: View {
                         if case .loading = environment.ttsCatalogue.status { ProgressView() }
                     }
                 }
-                .disabled(!environment.hasAPIKey)
+                .disabled(!environment.hasSpeechKey)
                 catalogueStatusRow(environment.ttsCatalogue.status)
             } header: {
                 Text("Pronunciation")
             } footer: {
-                Text("Used to generate spoken audio for the words you save.")
+                if environment.hasSpeechKey {
+                    Text("Used to generate spoken audio for the words you save.")
+                } else {
+                    Text("Pronunciation needs a Google Gemini key. Switch the provider to Google Gemini above and add one; the other provider keeps answering everything else.")
+                }
             }
             .themedSection()
 
@@ -277,12 +295,12 @@ struct SettingsView: View {
                 } label: {
                     Label("Export Library", systemImage: "square.and.arrow.up.on.square")
                 }
-                .disabled(isExporting || isImporting)
+                .disabled(isExporting || importing)
                 Button { showImporter = true } label: {
                     Label("Import Library", systemImage: "square.and.arrow.down")
                 }
-                .disabled(isExporting || isImporting)
-                if isExporting || isImporting {
+                .disabled(isExporting || importing)
+                if isExporting || importing {
                     HStack(spacing: Theme.Spacing.sm) {
                         ProgressView()
                         Group {
@@ -318,7 +336,9 @@ struct SettingsView: View {
                 selection: Binding(get: { environment.selectedTTSModelID }, set: { environment.selectedTTSModelID = $0 })
             )
         }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.data, .json], onCompletion: handleImport)
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.palabraLibrary, .data, .json], onCompletion: handleImport)
+        .onChange(of: environment.libraryImport.generation) { _, _ in showImportOutcome() }
+        .onAppear { showImportOutcome() }
         .confirmationDialog("Remove your API key?", isPresented: $showRemoveKeyConfirm) {
             Button("Remove", role: .destructive) { environment.removeAPIKey() }
             Button("Cancel", role: .cancel) {}
@@ -344,7 +364,7 @@ struct SettingsView: View {
             Button("Replace Key") { isEditingKey = true; keyInput = "" }
             Button("Remove Key", role: .destructive) { showRemoveKeyConfirm = true }
         } else {
-            SecureField("Google API Key", text: $keyInput)
+            SecureField(LocalizedStringKey(environment.activeProvider.keyLabel), text: $keyInput)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             if let keyError {
@@ -360,6 +380,21 @@ struct SettingsView: View {
                 Button("Cancel") { isEditingKey = false; keyError = nil }
             }
         }
+    }
+
+    /// Switching provider drops a half-typed key (it belonged to the other one) and gets the new provider ready.
+    private var providerBinding: Binding<AIProvider> {
+        Binding(
+            get: { environment.activeProvider },
+            set: { provider in
+                guard provider != environment.activeProvider else { return }
+                isEditingKey = false
+                keyInput = ""
+                keyError = nil
+                environment.activeProvider = provider
+                Task { await environment.useProvider(provider) }
+            }
+        )
     }
 
     private var appLanguageBinding: Binding<SupportedLanguage> {
@@ -451,13 +486,11 @@ struct SettingsView: View {
     }
 
     private func refreshModels() async {
-        guard let apiKey = environment.apiKey else { return }
-        await environment.catalogue.refresh(apiKey: apiKey, using: environment.ai)
+        await environment.refresh(environment.catalogue)
     }
 
     private func refreshTTSModels() async {
-        guard let apiKey = environment.apiKey else { return }
-        await environment.ttsCatalogue.refresh(apiKey: apiKey, using: environment.ai)
+        await environment.refresh(environment.ttsCatalogue)
     }
 
     private func runExport() async {
@@ -516,26 +549,29 @@ struct SettingsView: View {
         }
     }
 
+    private var importing: Bool { environment.libraryImport.isImporting }
+
     private func handleImport(_ result: Result<URL, Error>) {
         guard case .success(let url) = result else {
-            dataMessage = .unreadable
+            // Cancelling the picker is not an error; only a real failure is reported.
+            if case .failure(let error) = result, (error as? CocoaError)?.code != .userCancelled { dataMessage = .unreadable }
             return
         }
-        isImporting = true
         dataMessage = nil
-        Task {
-            let accessed = url.startAccessingSecurityScopedResource()
-            defer {
-                if accessed { url.stopAccessingSecurityScopedResource() }
-                isImporting = false
-            }
-            do {
-                dataMessage = .imported(try await environment.makeBackupService().importLibrary(from: url))
-            } catch let failure as LibraryBackupService.Failure {
-                dataMessage = .importFailed(failure)
-            } catch {
-                dataMessage = .unreadable
-            }
+        environment.libraryImport.clear()
+        environment.importLibraryFile(url)
+    }
+
+    /// Shows the newest import result once (the file picker here, or a file opened from Files / the share sheet).
+    private func showImportOutcome() {
+        let coordinator = environment.libraryImport
+        guard coordinator.generation != seenImport else { return }
+        seenImport = coordinator.generation
+        switch coordinator.outcome {
+        case .imported(let summary)?: dataMessage = .imported(summary)
+        case .failed(let failure)?: dataMessage = .importFailed(failure)
+        case .unreadable?: dataMessage = .unreadable
+        case nil: break
         }
     }
 }

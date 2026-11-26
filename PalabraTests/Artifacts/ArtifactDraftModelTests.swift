@@ -120,6 +120,33 @@ final class ArtifactDraftModelTests: XCTestCase {
         XCTAssertFalse(model.needsDecision)
     }
 
+    func testFirstDraftShowsSizeButNoChangeAndARefineShowsWhatItAdded() async {
+        let (env, client) = await makeEnvironment()
+        client.generateJSONResult = .success(appReply(requests: "[]", html: "<html>\n<p>a</p>\n</html>"))
+        let model = ArtifactDraftModel(environment: env)
+        model.request = "a practice app"
+        await model.generate()
+        XCTAssertEqual(model.size?.lines, 3)
+        XCTAssertNil(model.change)
+        client.generateJSONResult = .success(appReply(requests: "[]", html: "<html>\n<p>a</p>\n<p>b</p>\n<p>c</p>\n</html>"))
+        await model.refine(change: "add two paragraphs")
+        XCTAssertEqual(model.size?.lines, 5)
+        XCTAssertEqual(model.change, ArtifactChange(added: 2, removed: 0))
+        XCTAssertFalse(model.baselineIsSaved)
+    }
+
+    func testAnUpdateIsMeasuredAgainstTheSavedVersion() async {
+        let (env, client) = await makeEnvironment()
+        let created = artifacts.create(title: "Practice", kind: .app, payload: Data("<html>\n<p>a</p>\n</html>".utf8), requested: [], prompt: "p", now: Date())
+        guard case .success(let artifact) = created else { return XCTFail("create failed") }
+        client.generateJSONResult = .success(appReply(requests: "[]", html: "<html>\n<p>b</p>\n</html>"))
+        let model = ArtifactDraftModel(environment: env, mode: .update(artifactID: artifact.id))
+        model.request = "change the paragraph"
+        await model.generate()
+        XCTAssertEqual(model.change, ArtifactChange(added: 1, removed: 1))
+        XCTAssertTrue(model.baselineIsSaved)
+    }
+
     func testUpdateGrantsAreUnionedAndOnlyTheDeltaIsPending() async {
         let (env, client) = await makeEnvironment()
         guard case .success(let artifact) = artifacts.create(title: "Practice", kind: .app, payload: Data("<html>1</html>".utf8), requested: ["library.words"], prompt: "p", now: Date()) else {

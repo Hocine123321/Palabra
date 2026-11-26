@@ -7,4 +7,8 @@ struct AIModel: Identifiable, Codable, Equatable, Sendable {
     var description: String?
     var inputTokenLimit: Int?
     var outputTokenLimit: Int?
+    /// Who serves it. Nil means Gemini (models saved before providers existed have no value).
+    var provider: AIProvider?
+    /// Whether it can read a photo. Nil means unknown (treated as yes: the request itself decides).
+    var acceptsImages: Bool?
 }

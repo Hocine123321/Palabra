@@ -9,6 +9,8 @@ struct GeminiTextRecognizer: TextRecognizer {
 
     func recognize(imageData: Data) async -> Result<String, RecognitionError> {
         guard let credentials = await link.credentials() else { return .failure(.unavailable) }
+        // A model that cannot look at pictures: the on-device reader answers at once.
+        if credentials.model.acceptsImages == false { return .failure(.unavailable) }
         guard let image = PhotoPreparer.prepare(imageData) else { return .failure(.unreadable) }
         // One try: if Gemini is offline or busy the on-device reader should answer at once, not after a retry countdown.
         let client = (credentials.ai as? ResilientAIClient)?.failingFast() ?? credentials.ai

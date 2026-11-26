@@ -8,10 +8,17 @@ enum ChatLimits {
     static let maxResultLength = 3_000
     static let maxCallsPerReply = 5
     static let maxRoundsPerMessage = 4
+    /// Seconds of the app's own waiting before a reply is given up on; and when the screen starts saying it is slow.
+    static let replyDeadline = 90
+    static let slowAfter = 15
+    /// The shorter conversation sent on the lighter second attempt.
+    static let lightTranscriptBudget = 4_000
     static let maxTitleLength = 40
     /// A photo is sent at this size (a book page needs the detail); the copy kept in the chat is a thumbnail.
     static let photoPixelSize = 1800
     static let thumbnailPixelSize = 360
+    /// The most text kept from one photo read on the device.
+    static let maxPhotoTextLength = 6_000
 }
 
 /// One thing the assistant did (a read, already run) or proposes to do (a write, waiting for the person).
@@ -67,8 +74,11 @@ struct ChatTurn: Identifiable, Codable, Equatable, Sendable {
     var actions: [ChatAction]
     /// A small JPEG of the photo the person attached (the full photo is only sent, never stored).
     var thumbnail: Data?
+    /// The text this phone read from the attached photo (Settings → Assistant → Photos). It stays with the message, so
+    /// later questions about the photo still have it; the photo itself was never sent.
+    var photoText: String?
 
-    init(id: UUID = UUID(), role: Role, text: String, createdAt: Date = Date(), status: Status = .sent, errorText: String? = nil, actions: [ChatAction] = [], thumbnail: Data? = nil) {
+    init(id: UUID = UUID(), role: Role, text: String, createdAt: Date = Date(), status: Status = .sent, errorText: String? = nil, actions: [ChatAction] = [], thumbnail: Data? = nil, photoText: String? = nil) {
         self.id = id
         self.role = role
         self.text = text
@@ -77,9 +87,10 @@ struct ChatTurn: Identifiable, Codable, Equatable, Sendable {
         self.errorText = errorText
         self.actions = actions
         self.thumbnail = thumbnail
+        self.photoText = photoText
     }
 
-    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, status, errorText, actions, thumbnail }
+    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, status, errorText, actions, thumbnail, photoText }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -91,6 +102,7 @@ struct ChatTurn: Identifiable, Codable, Equatable, Sendable {
         errorText = try c.decodeIfPresent(String.self, forKey: .errorText)
         actions = try c.decodeIfPresent([ChatAction].self, forKey: .actions) ?? []
         thumbnail = try c.decodeIfPresent(Data.self, forKey: .thumbnail)
+        photoText = try c.decodeIfPresent(String.self, forKey: .photoText)
     }
 }
 

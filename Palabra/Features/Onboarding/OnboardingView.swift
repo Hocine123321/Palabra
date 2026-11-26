@@ -49,14 +49,20 @@ struct OnboardingView: View {
     private var keyPage: some View {
         VStack(spacing: Theme.Spacing.lg) {
             Spacer()
-            Text("Add your Google API key")
+            Text("Add your API key")
                 .font(Theme.Font.title)
                 .foregroundStyle(Theme.ink)
-            Text("Palabra uses your own Google AI API key to generate explanations. Get one free at aistudio.google.com.")
+            Text("Palabra uses your own AI API key to generate explanations. Google Gemini gives one free at aistudio.google.com; OpenRouter and Groq work too.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.inkSecondary)
                 .padding(.horizontal, Theme.Spacing.xl)
-            SecureField("Google API Key", text: $keyInput)
+            Picker("Provider", selection: providerBinding) {
+                ForEach(AIProvider.allCases) { provider in
+                    Text(LocalizedStringKey(provider.displayName)).tag(provider)
+                }
+            }
+            .pickerStyle(.menu)
+            SecureField(LocalizedStringKey(environment.activeProvider.keyLabel), text: $keyInput)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .padding(Theme.Spacing.md)
@@ -77,6 +83,16 @@ struct OnboardingView: View {
             Spacer(minLength: Theme.Spacing.xl)
         }
         .padding()
+    }
+
+    private var providerBinding: Binding<AIProvider> {
+        Binding(
+            get: { environment.activeProvider },
+            set: { provider in
+                keyError = nil
+                environment.activeProvider = provider
+            }
+        )
     }
 
     private func saveAndFinish() async {

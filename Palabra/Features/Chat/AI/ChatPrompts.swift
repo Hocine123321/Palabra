@@ -5,7 +5,7 @@ enum ChatPrompts {
     static let actionLinePrefix = "  ["
     static let transcriptBudget = 24_000
 
-    static func systemInstruction(manual: String, language: SupportedLanguage, linkedWord: (id: UUID, title: String)?, settings: AssistantSettings = .default, autoApplies: Bool = false, hasPhoto: Bool = false) -> String {
+    static func systemInstruction(manual: String, language: SupportedLanguage, linkedWord: (id: UUID, title: String)?, settings: AssistantSettings = .default, autoApplies: Bool = false, hasPhoto: Bool = false, hasPhotoText: Bool = false) -> String {
         var text = """
         You are the assistant inside Palabra, an iPhone app for learning Spanish vocabulary. You help the user learn Spanish and manage their word library, flashcard decks and review list.
 
@@ -36,6 +36,9 @@ enum ChatPrompts {
         if hasPhoto {
             text += "\n\nThe user's latest photo is attached to this request (for example a page of a Spanish book). Read the Spanish words and phrases on it. List the useful words you find (skip very common ones unless asked) with a short meaning each, and offer to add them to the library with the words capability; when there are many, propose the most useful ten or so and ask. Never invent words that are not in the photo, and say so plainly when the photo is unreadable."
         }
+        if hasPhotoText {
+            text += "\n\nThe user attached a photo. It was read on their phone and only the text it found is in the conversation (after \"[Text read from the photo on the user's phone]\"). That text can contain recognition mistakes, missing words and a jumbled order: use common sense, say so when a part is unclear, and never invent words that are not in it."
+        }
         return text
     }
 
@@ -45,7 +48,9 @@ enum ChatPrompts {
         for turn in turns where turn.status == .sent {
             switch turn.role {
             case .user:
-                blocks.append("USER: " + (turn.thumbnail != nil ? "[photo attached] " : "") + turn.text)
+                var block = "USER: " + (turn.thumbnail != nil ? "[photo attached] " : "") + turn.text
+                if let photoText = turn.photoText { block += "\n[Text read from the photo on the user's phone]\n" + photoText }
+                blocks.append(block)
             case .assistant:
                 var block = "ASSISTANT: \(turn.text)"
                 for action in turn.actions { block += "\n" + line(for: action) }

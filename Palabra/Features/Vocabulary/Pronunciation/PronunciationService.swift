@@ -33,7 +33,7 @@ final class PronunciationService {
         guard status(for: word.id) != .loading else { return }
         statuses[word.id] = .loading
 
-        guard environment.hasAPIKey, let apiKey = environment.apiKey else {
+        guard environment.hasSpeechKey, let apiKey = environment.speechKey else {
             statuses[word.id] = .failed(.missingAPIKey)
             return
         }
@@ -42,7 +42,10 @@ final class PronunciationService {
             statuses[word.id] = .failed(environment.selectedTTSModelID == nil ? .noModelSelected : .modelUnavailable(environment.selectedTTSModelID ?? ""))
             return
         }
-        switch await (quiet ? environment.backgroundAI : environment.ai).synthesizeSpeech(word.content.word, apiKey: apiKey, model: model) {
+        // Speech is Gemini's alone. With another provider active the retry layer's backup key would be that provider's, so the
+        // plain client is used.
+        let speaker: AIClient = environment.activeProvider == .gemini ? (quiet ? environment.backgroundAI : environment.ai) : environment.rawAI
+        switch await speaker.synthesizeSpeech(word.content.word, apiKey: apiKey, model: model) {
         case .success(let audio):
             environment.repository.updatePronunciation(id: word.id, audio: audio)
             statuses[word.id] = .idle

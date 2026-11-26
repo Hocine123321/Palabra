@@ -48,27 +48,54 @@ final class AppEnvironment {
     @ObservationIgnored let aiGateway: AIGateway
     /// Side effects capabilities trigger (draining the word queue); filled in at the end of `init`.
     @ObservationIgnored let capabilityHooks: CapabilityHooks
-    let catalogue: ModelCatalogue
+    /// The model list of the active provider.
+    var catalogue: ModelCatalogue { providerCatalogues[activeProvider] ?? geminiCatalogue }
     let ttsCatalogue: ModelCatalogue
     let pronunciation = PronunciationService()
     /// Added while offline, waiting to be generated once the connection
     /// returns — see `WordQueueProcessor`.
     let wordQueue: WordQueueRepository
     @ObservationIgnored let queueProcessor = WordQueueProcessor()
+    /// Imports `.palabra` files, from the Settings picker or opened from Files / the share sheet.
+    let libraryImport = LibraryImportCoordinator()
     /// Instant online/offline snapshot, shared with the resilient client so
     /// both see the same answer. Real device state outside of tests.
     let connectivity: ConnectivityWaiting
     var router = Router()
+    @ObservationIgnored private var chatSessions: [UUID: ChatSession] = [:]
 
-    private let keychain: KeychainStore
-    private let fallbackKeychain: KeychainStore
+    private let geminiCatalogue: ModelCatalogue
+    @ObservationIgnored private let providerCatalogues: [AIProvider: ModelCatalogue]
+    @ObservationIgnored private let providerKeychains: [AIProvider: KeychainStore]
+    @ObservationIgnored private let providerBackupKeychains: [AIProvider: KeychainStore]
+    @ObservationIgnored private let providerState: ProviderState
     private let settings: SettingsStore
 
-    private(set) var hasAPIKey: Bool
-    private(set) var hasFallbackKey: Bool
+    /// Providers that have a main key / a backup key saved.
+    private(set) var keyedProviders: Set<AIProvider>
+    private(set) var backupKeyedProviders: Set<AIProvider>
+    /// Whether the active provider has a key.
+    var hasAPIKey: Bool { keyedProviders.contains(activeProvider) }
+    var hasFallbackKey: Bool { backupKeyedProviders.contains(activeProvider) }
+    /// Pronunciation is Gemini's alone: it needs a Gemini key whichever provider answers the rest.
+    var hasSpeechKey: Bool { keyedProviders.contains(.gemini) }
+    var speechKey: String? { providerKeychains[.gemini]?.read() }
+    /// Who answers the AI requests. Each provider keeps its own key, backup key, model list and chosen model, so switching
+    /// back and forth loses nothing.
+    var activeProvider: AIProvider {
+        didSet {
+            guard activeProvider != oldValue else { return }
+            settings.aiProvider = activeProvider
+            providerState.active = activeProvider
+            (rawAI as? RoutingAIClient)?.activeProvider = activeProvider
+            selectedModelID = settings.selectedModelID(for: activeProvider)
+            // What was learned about the other provider's keys says nothing about this one.
+            resilience.updateHealth { $0.reset(.primary); $0.reset(.fallback) }
+        }
+    }
     var retryPolicy: RetryPolicy { didSet { settings.retryPolicy = retryPolicy; policyBox.value = retryPolicy } }
     @ObservationIgnored private let policyBox: PolicyBox
-    var selectedModelID: String? { didSet { settings.selectedModelID = selectedModelID } }
+    var selectedModelID: String? { didSet { settings.setSelectedModelID(selectedModelID, for: activeProvider) } }
     var selectedTTSModelID: String? { didSet { settings.selectedTTSModelID = selectedTTSModelID } }
     var libraryLayout: SettingsStore.LibraryLayout { didSet { settings.libraryLayout = libraryLayout } }
     var appearanceMode: SettingsStore.AppearanceMode { didSet { settings.appearanceMode = appearanceMode } }
@@ -91,6 +118,9 @@ final class AppEnvironment {
         settings: SettingsStore,
         wordQueue: WordQueueRepository,
         fallbackKeychain: KeychainStore = .fallback(),
+        providerKeychains extraKeychains: [AIProvider: KeychainStore] = [:],
+        providerBackupKeychains extraBackupKeychains: [AIProvider: KeychainStore] = [:],
+        providerCatalogues extraCatalogues: [AIProvider: ModelCatalogue] = [:],
         modelHealth: ModelHealthStore? = nil,
         resilient: Bool = false,
         connectivity: ConnectivityWaiting? = nil,
@@ -106,6 +136,31 @@ final class AppEnvironment {
         mirrorService: MirrorService? = nil
     ) {
         self.rawAI = ai
+        var keychains: [AIProvider: KeychainStore] = [:]
+        var backupKeychains: [AIProvider: KeychainStore] = [:]
+        var catalogues: [AIProvider: ModelCatalogue] = [:]
+        for provider in AIProvider.allCases {
+            keychains[provider] = KeychainStore.key(for: provider)
+            backupKeychains[provider] = KeychainStore.backupKey(for: provider)
+            if provider != .gemini {
+                catalogues[provider] = ModelCatalogue(cacheFileName: provider.catalogueFileName, filter: ProviderModelFilter.apply, provider: provider)
+            }
+        }
+        keychains[.gemini] = keychain
+        backupKeychains[.gemini] = fallbackKeychain
+        catalogues[.gemini] = catalogue
+        keychains.merge(extraKeychains) { _, new in new }
+        backupKeychains.merge(extraBackupKeychains) { _, new in new }
+        catalogues.merge(extraCatalogues) { _, new in new }
+        self.providerKeychains = keychains
+        self.providerBackupKeychains = backupKeychains
+        let catalogueMap = catalogues
+        self.providerCatalogues = catalogueMap
+        let startProvider = settings.aiProvider
+        let state = ProviderState(active: startProvider, backupKeychains: backupKeychains)
+        self.providerState = state
+        self.activeProvider = startProvider
+        (ai as? RoutingAIClient)?.activeProvider = startProvider
         let policyBox = PolicyBox(settings.retryPolicy)
         self.policyBox = policyBox
         let center = resilience
@@ -114,11 +169,10 @@ final class AppEnvironment {
         let resolvedConnectivity = connectivity ?? NetworkMonitor()
         self.connectivity = resolvedConnectivity
         if resilient {
-            let fallbackStore = fallbackKeychain
             let wrapped = ResilientAIClient(
                 base: ai,
                 center: center,
-                fallbackKey: { fallbackStore.read() },
+                fallbackKey: { state.backupKey() },
                 policy: { policyBox.value },
                 connectivity: resolvedConnectivity,
                 sleep: sleep ?? { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) },
@@ -126,7 +180,7 @@ final class AppEnvironment {
                 backupModels: { failed in
                     // The catalogue lives on the main actor; ask it for models that are not known to be failing.
                     await MainActor.run {
-                        BackupModelPicker.candidates(failed: failed, models: catalogue.models, health: health, preferredID: policyBox.value.backupModelID)
+                        BackupModelPicker.candidates(failed: failed, models: (catalogueMap[state.active] ?? catalogue).models, health: health, preferredID: policyBox.value.backupModelID)
                     }
                 }
             )
@@ -136,8 +190,8 @@ final class AppEnvironment {
             self.ai = ai
             self.backgroundAI = ai
         }
-        self.fallbackKeychain = fallbackKeychain
-        hasFallbackKey = fallbackKeychain.read() != nil
+        backupKeyedProviders = Set(AIProvider.allCases.filter { backupKeychains[$0]?.read() != nil })
+        keyedProviders = Set(AIProvider.allCases.filter { keychains[$0]?.read() != nil })
         retryPolicy = settings.retryPolicy
         self.repository = repository
         let resolvedCards = cardRepository ?? SwiftDataCardRepository.inMemory()
@@ -165,13 +219,11 @@ final class AppEnvironment {
             hooks: hooks,
             aiGateway: gateway
         )
-        self.catalogue = catalogue
+        self.geminiCatalogue = catalogue
         self.ttsCatalogue = ttsCatalogue
         self.wordQueue = wordQueue
-        self.keychain = keychain
         self.settings = settings
-        hasAPIKey = keychain.read() != nil
-        selectedModelID = settings.selectedModelID
+        selectedModelID = settings.selectedModelID(for: startProvider)
         selectedTTSModelID = settings.selectedTTSModelID
         libraryLayout = settings.libraryLayout
         appearanceMode = settings.appearanceMode
@@ -182,7 +234,7 @@ final class AppEnvironment {
         assistantSettings = settings.assistantSettings
         artifactSettings = settings.artifactSettings
         hasCompletedOnboarding = settings.hasCompletedOnboarding
-        catalogue.loadCacheIfPresent()
+        for list in catalogueMap.values { list.loadCacheIfPresent() }
         ttsCatalogue.loadCacheIfPresent()
         wireAIGateway()
         wireCapabilityHooks()
@@ -249,7 +301,10 @@ final class AppEnvironment {
         }
     }
 
-    var apiKey: String? { keychain.read() }
+    var apiKey: String? { providerKeychains[activeProvider]?.read() }
+
+    /// A provider's main key, whether or not it is the active one.
+    func apiKey(for provider: AIProvider) -> String? { providerKeychains[provider]?.read() }
 
     /// Called when Google says the selected model no longer exists. Refreshes the list and
     /// switches to the best remaining model so the next request works, and says so.
@@ -283,11 +338,17 @@ final class AppEnvironment {
 
     @discardableResult
     func saveAPIKey(_ value: String) -> Bool {
-        let ok = keychain.save(value)
-        hasAPIKey = keychain.read() != nil
+        guard let store = providerKeychains[activeProvider] else { return false }
+        let ok = store.save(value)
+        refreshKeyState()
         resilience.updateHealth { $0.reset(.primary) }
         if ok { retryQueuedWordsWaitingForAKey() }
         return ok
+    }
+
+    private func refreshKeyState() {
+        keyedProviders = Set(AIProvider.allCases.filter { providerKeychains[$0]?.read() != nil })
+        backupKeyedProviders = Set(AIProvider.allCases.filter { providerBackupKeychains[$0]?.read() != nil })
     }
 
     /// Words queued while there was no key were marked failed ("add a key"); now there is one, so they should not
@@ -303,12 +364,12 @@ final class AppEnvironment {
     }
 
     func removeAPIKey() {
-        keychain.delete()
-        hasAPIKey = false
+        providerKeychains[activeProvider]?.delete()
+        refreshKeyState()
         resilience.updateHealth { $0.reset(.primary) }
     }
 
-    var fallbackAPIKey: String? { fallbackKeychain.read() }
+    var fallbackAPIKey: String? { providerBackupKeychains[activeProvider]?.read() }
 
     /// Stores the backup key. Refuses to store the same key as the primary, since
     /// it would add nothing. Returns false if it could not be saved.
@@ -316,15 +377,16 @@ final class AppEnvironment {
     func saveFallbackKey(_ value: String) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
-        let ok = fallbackKeychain.save(trimmed)
-        hasFallbackKey = fallbackKeychain.read() != nil
+        guard let store = providerBackupKeychains[activeProvider] else { return false }
+        let ok = store.save(trimmed)
+        refreshKeyState()
         resilience.updateHealth { $0.reset(.fallback) }
         return ok
     }
 
     func removeFallbackKey() {
-        fallbackKeychain.delete()
-        hasFallbackKey = false
+        providerBackupKeychains[activeProvider]?.delete()
+        refreshKeyState()
         resilience.updateHealth { $0.reset(.fallback) }
     }
 
@@ -336,9 +398,9 @@ final class AppEnvironment {
     /// existing choice; failures are silent here (Settings shows catalogue
     /// errors, and `PronunciationService.generate` reports "no model").
     func ensureTTSModelSelected() async {
-        guard selectedTTSModelID == nil, let key = self.apiKey else { return }
+        guard selectedTTSModelID == nil, speechKey != nil else { return }
         if ttsCatalogue.models.isEmpty {
-            await ttsCatalogue.refresh(apiKey: key, using: ai)
+            await refresh(ttsCatalogue)
         }
         if selectedTTSModelID == nil {
             selectedTTSModelID = DefaultModelPicker.pick(from: ttsCatalogue.models)?.id
@@ -420,11 +482,14 @@ final class AppEnvironment {
             repository: chat,
             registry: capabilities,
             language: { [weak self] in self?.aiLanguage ?? .english },
-            settings: { [weak self] in self?.assistantSettings ?? .default },
+            settings: { [weak self] in self?.effectiveAssistantSettings ?? .default },
             generateWithImage: { [weak self] prompt, system, image in
                 guard let self else { return .failure(.unknown(nil, "The app was closed.")) }
                 return await self.chatGenerate(prompt: prompt, system: system, image: image)
             },
+            lightFallback: true,
+            readPhotoOnDevice: { data in await VisionTextRecognizer.prose.recognize(imageData: data) },
+            isWaitingOnPerson: { [weak self] in self?.resilience.pendingDecision != nil },
             generate: { [weak self] prompt, system in
                 guard let self else { return .failure(.unknown(nil, "The app was closed.")) }
                 return await self.chatGenerate(prompt: prompt, system: system)
@@ -432,8 +497,39 @@ final class AppEnvironment {
         )
     }
 
+    /// The open session of a conversation. Leaving a chat does not end it: a reply still on its way lands in the saved
+    /// conversation, and coming back finds the same session (still "thinking", or finished) instead of a second one that
+    /// knows nothing about the first and overwrites its work.
+    func chatSession(for conversationID: UUID) -> ChatSession? {
+        guard let conversation = chat.conversation(id: conversationID) else {
+            chatSessions[conversationID] = nil
+            return nil
+        }
+        if let existing = chatSessions[conversationID] {
+            existing.reload(from: conversation)
+            return existing
+        }
+        guard let created = makeChatSession(conversationID: conversationID) else { return nil }
+        // Idle sessions of other chats are only a cache; keep a handful.
+        if chatSessions.count >= 8 { chatSessions = chatSessions.filter { $0.value.isBusy } }
+        chatSessions[conversationID] = created
+        return created
+    }
+
+    /// The assistant settings as they apply right now: a model that cannot look at pictures never gets one, so the photo is
+    /// always read on the phone, whatever the setting says.
+    var effectiveAssistantSettings: AssistantSettings {
+        var effective = assistantSettings
+        if selectedModel?.acceptsImages == false { effective.photoReading = .onDevice }
+        return effective
+    }
+
     /// Removes every saved conversation (Settings → Assistant).
     func deleteAllChats() {
+        chatSessions = chatSessions.filter { $0.value.isBusy }
+        // A reply still on its way is abandoned: its conversation is about to be deleted.
+        for session in chatSessions.values { session.stop() }
+        chatSessions = [:]
         for conversation in chat.conversations() { chat.delete(id: conversation.id) }
     }
 
@@ -464,7 +560,7 @@ final class AppEnvironment {
         let artifactRepository = SwiftDataArtifactRepository(context: modelContext, mirror: mirrorArtifacts ? ArtifactFileMirror() : nil)
         artifactRepository.syncMirror()
         return AppEnvironment(
-            ai: GeminiClient(),
+            ai: RoutingAIClient(),
             repository: SwiftDataWordRepository(context: modelContext),
             catalogue: ModelCatalogue(),
             ttsCatalogue: ModelCatalogue(cacheFileName: "TTSModelCatalogue.json", filter: TTSModelFilter.apply),

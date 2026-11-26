@@ -31,6 +31,24 @@ struct AssistantSettingsView: View {
             .themedSection()
 
             Section {
+                Picker("Read Photos With", selection: $env.assistantSettings.photoReading) {
+                    Text("The AI Model").tag(AssistantSettings.PhotoReading.model)
+                    Text("This Phone").tag(AssistantSettings.PhotoReading.onDevice)
+                    Text("Phone First").tag(AssistantSettings.PhotoReading.onDeviceFirst)
+                }
+                .accessibilityIdentifier("chatPhotoReadingPicker")
+            } header: {
+                Text("Photos")
+            } footer: {
+                if environment.selectedModel?.acceptsImages == false {
+                    Text("This model can't read photos, so photos sent in chat are read on this device.")
+                } else {
+                    photoReadingFooter
+                }
+            }
+            .themedSection()
+
+            Section {
                 Toggle("Ask Before Making Changes", isOn: $env.assistantSettings.askBeforeChanging)
             } header: {
                 Text("Changes")
@@ -67,6 +85,18 @@ struct AssistantSettingsView: View {
         .confirmationDialog("Delete all chats? This can't be undone.", isPresented: $showDeleteChats) {
             Button("Delete All", role: .destructive) { environment.deleteAllChats() }
             Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private var photoReadingFooter: some View {
+        switch environment.assistantSettings.photoReading {
+        case .model:
+            Text("The photo is sent to your AI model with your message. Best for handwriting and anything that is not plain printed text.")
+        case .onDevice:
+            Text("Your phone copies the text out of the photo and only that text is sent. The photo never leaves your phone, but it can miss handwriting and make mistakes with unusual layouts.")
+        case .onDeviceFirst:
+            Text("Your phone reads the photo first. If it finds no text, the photo is sent to your AI model instead.")
         }
     }
 

@@ -6,6 +6,8 @@ import Foundation
 enum DefaultModelPicker {
     static func pick(from models: [AIModel]) -> AIModel? {
         guard !models.isEmpty else { return nil }
+        // A list from OpenRouter or Groq has its own preferences ("flash" means nothing there).
+        if models.contains(where: { $0.resolvedProvider != .gemini }) { return ProviderModelFilter.pick(from: models) }
         let flashCandidates = models.filter {
             $0.id.localizedCaseInsensitiveContains("flash") && !$0.id.localizedCaseInsensitiveContains("lite")
         }

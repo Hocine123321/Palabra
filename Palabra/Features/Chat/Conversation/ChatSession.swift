@@ -12,11 +12,18 @@ final class ChatSession {
     typealias Generate = @MainActor (_ prompt: String, _ system: String) async -> Result<String, AIError>
     /// The same call with a photo attached.
     typealias GenerateWithImage = @MainActor (_ prompt: String, _ system: String, _ image: AIImage) async -> Result<String, AIError>
+    /// Reads the text of a photo on this device (Settings → Assistant → Photos).
+    typealias ReadPhoto = @Sendable (_ imageData: Data) async -> Result<String, RecognitionError>
 
     let conversationID: UUID
     private(set) var title: String
     private(set) var turns: [ChatTurn]
     private(set) var phase: Phase = .idle
+    /// True once a reply has taken longer than `ChatLimits.slowAfter` seconds of our own waiting (not counting a question
+    /// that waits for the person), so the screen can say so and offer Stop.
+    private(set) var isSlow = false
+    /// A one-line explanation of what the assistant is doing when it is not the plain first attempt.
+    private(set) var statusNote: String?
     var draft: String = ""
     /// A photo waiting to be sent with the next message, and why the last one could not be attached.
     private(set) var attachment: ChatAttachment?
@@ -34,6 +41,17 @@ final class ChatSession {
     @ObservationIgnored private let sessionID = UUID()
     @ObservationIgnored private let settings: @MainActor () -> AssistantSettings
     @ObservationIgnored private let chatCapabilityNames: Set<String>
+    /// Seconds a reply may take before the app gives up on it (counted only while the app is the one waiting).
+    @ObservationIgnored private let replyDeadline: Int
+    /// A question for the person (a retry card) is open: the clock pauses, because the wait is theirs.
+    @ObservationIgnored private let isWaitingOnPerson: @MainActor () -> Bool
+    /// One second of the watchdog clock; tests make it instant.
+    @ObservationIgnored private let tick: @Sendable () async -> Void
+    /// After a failed reply, try once more with a shorter conversation and no photo.
+    @ObservationIgnored private let lightFallback: Bool
+    @ObservationIgnored private let readPhotoOnDevice: ReadPhoto?
+    @ObservationIgnored private var activeRace: CallRace?
+    @ObservationIgnored private var activeWork: Task<Void, Never>?
 
     init(
         conversation: ChatConversation,
@@ -43,8 +61,18 @@ final class ChatSession {
         settings: @escaping @MainActor () -> AssistantSettings = { .default },
         now: @escaping () -> Date = { Date() },
         generateWithImage: GenerateWithImage? = nil,
+        replyDeadline: Int = ChatLimits.replyDeadline,
+        lightFallback: Bool = false,
+        readPhotoOnDevice: ReadPhoto? = nil,
+        isWaitingOnPerson: @escaping @MainActor () -> Bool = { false },
+        tick: @escaping @Sendable () async -> Void = { try? await Task.sleep(nanoseconds: 1_000_000_000) },
         generate: @escaping Generate
     ) {
+        self.replyDeadline = replyDeadline
+        self.lightFallback = lightFallback
+        self.readPhotoOnDevice = readPhotoOnDevice
+        self.isWaitingOnPerson = isWaitingOnPerson
+        self.tick = tick
         conversationID = conversation.id
         title = conversation.title
         turns = conversation.turns
@@ -106,13 +134,43 @@ final class ChatSession {
         let trimmed = (text ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
         let photo = generateWithImage == nil ? nil : attachment
         guard !trimmed.isEmpty || photo != nil, !isBusy else { return }
+
+        // Who reads the photo: this phone (only its text is sent) or the model (the photo is sent).
+        var photoText: String?
+        var imageForModel = photo?.image
+        let reading = settings().photoReading
+        if let photo, reading != .model, let read = readPhotoOnDevice {
+            phase = .thinking
+            statusNote = "Reading the photo on your phone…"
+            let outcome = await read(photo.image.data)
+            phase = .idle
+            statusNote = nil
+            switch outcome {
+            case .success(let found):
+                photoText = String(found.prefix(ChatLimits.maxPhotoTextLength))
+                imageForModel = nil
+            case .failure(let failure):
+                if reading == .onDevice {
+                    // Nothing leaves the phone, so there is nothing to send: the message and photo stay for another try.
+                    attachmentProblem = failure.userMessage
+                    return
+                }
+                // On-device first, and it found nothing: the model gets the photo.
+            }
+        }
+
         draft = ""
         attachment = nil
         attachmentProblem = nil
-        if let photo { currentPhoto = photo.image }
+        if let imageForModel {
+            currentPhoto = imageForModel
+        } else if photo != nil {
+            // A new photo read on the phone replaces the last one the model was given.
+            currentPhoto = nil
+        }
         // Typing on instead of tapping a card means "not that".
         if let index = pendingTurnIndex { markPending(in: index, as: .declined) }
-        turns.append(ChatTurn(role: .user, text: String(trimmed.prefix(ChatLimits.maxTextLength)), createdAt: now(), thumbnail: photo?.thumbnail))
+        turns.append(ChatTurn(role: .user, text: String(trimmed.prefix(ChatLimits.maxTextLength)), createdAt: now(), thumbnail: photo?.thumbnail, photoText: photoText))
         if title == ChatConversation.defaultTitle, linkedWord == nil {
             let source = trimmed.isEmpty ? "Photo" : trimmed
             title = String(source.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression).prefix(ChatLimits.maxTitleLength))
@@ -145,6 +203,21 @@ final class ChatSession {
         await run()
     }
 
+    /// The person tapped Stop: the reply being waited for is abandoned at once and the turn can be retried.
+    func stop() {
+        guard let activeRace else { return }
+        activeRace.resolve(.failure(.cancelled))
+        activeWork?.cancel()
+    }
+
+    /// Coming back to a chat that kept running (or finished) while its screen was closed: show what is saved, unless a
+    /// reply is still on its way (then the live state is the truth).
+    func reload(from conversation: ChatConversation) {
+        guard !isBusy else { return }
+        turns = conversation.turns
+        title = conversation.title
+    }
+
     func clear() {
         guard !isBusy else { return }
         turns = []
@@ -155,7 +228,11 @@ final class ChatSession {
     // MARK: - The loop
 
     private func run() async {
-        defer { phase = .idle }
+        defer {
+            phase = .idle
+            isSlow = false
+            statusNote = nil
+        }
         for _ in 0..<ChatLimits.maxRoundsPerMessage {
             phase = .thinking
             let current = settings()
@@ -166,17 +243,34 @@ final class ChatSession {
                 linkedWord: linkedWord,
                 settings: current,
                 autoApplies: !current.askBeforeChanging,
-                hasPhoto: currentPhoto != nil && generateWithImage != nil
+                hasPhoto: currentPhoto != nil && generateWithImage != nil,
+                hasPhotoText: turns.contains { $0.photoText != nil }
             )
             let prompt = ChatPrompts.transcript(turns: turns)
             let photo = generateWithImage == nil ? nil : currentPhoto
             let plain = generate, withImage = generateWithImage
-            let call: (String) async -> Result<String, AIError> = { text in
-                if let photo, let withImage { return await withImage(text, system, photo) }
-                return await plain(text, system)
+            let call: (String) async -> Result<String, AIError> = { [self] text in
+                await timed {
+                    if let photo, let withImage { return await withImage(text, system, photo) }
+                    return await plain(text, system)
+                }
             }
             let reply: ChatReply
-            switch await call(prompt) {
+            var outcome = await call(prompt)
+            // A reply that could not be had: one lighter attempt (short conversation, no photo) before giving up.
+            if case .failure(let error) = outcome, lightFallback, Self.worthALighterTry(error) {
+                statusNote = "Trying a lighter request…"
+                let lightSystem = ChatPrompts.systemInstruction(
+                    manual: registry.manual(including: [.read, .write], only: allowed),
+                    language: language(), linkedWord: linkedWord, settings: current,
+                    autoApplies: !current.askBeforeChanging, hasPhoto: false,
+                    hasPhotoText: turns.contains { $0.photoText != nil }
+                )
+                let light = ChatPrompts.transcript(turns: turns, budget: ChatLimits.lightTranscriptBudget)
+                outcome = await timed { await plain(light, lightSystem) }
+                statusNote = nil
+            }
+            switch outcome {
             case .failure(let error):
                 appendFailure(error)
                 return
@@ -262,8 +356,63 @@ final class ChatSession {
     }
 
     private func appendFailure(_ error: AIError) {
-        turns.append(ChatTurn(role: .assistant, text: "", createdAt: now(), status: .failed, errorText: error.userMessage))
+        let text: String
+        switch error {
+        case .cancelled: text = "Stopped. Tap Retry to send it again."
+        case .timeout: text = "The assistant didn't answer in time. Tap Retry, or try a shorter message."
+        default: text = error.userMessage
+        }
+        turns.append(ChatTurn(role: .assistant, text: "", createdAt: now(), status: .failed, errorText: text))
         persist()
+    }
+
+    /// Failures a smaller request can get past (slowness, a hiccup, a reply that could not be read); not a missing key.
+    static func worthALighterTry(_ error: AIError) -> Bool {
+        switch error {
+        case .timeout, .serverError, .truncated, .malformedResponse, .validationFailed, .unknown: return true
+        default: return false
+        }
+    }
+
+    /// One model call with a watchdog: it ends with whatever comes first, the answer, the deadline, or Stop. The call
+    /// itself is cancelled, but the wait never depends on the call being polite about it.
+    private func timed(_ operation: @escaping @MainActor () async -> Result<String, AIError>) async -> Result<String, AIError> {
+        let race = CallRace()
+        let work = Task { @MainActor in race.resolve(await operation()) }
+        activeRace = race
+        activeWork = work
+        isSlow = false
+        let limit = replyDeadline
+        let tick = tick
+        let watchdog = Task { @MainActor [weak self] in
+            var waited = 0
+            while !Task.isCancelled {
+                await tick()
+                guard let self, !Task.isCancelled else { return }
+                if self.isWaitingOnPerson() { continue }
+                waited += 1
+                if waited >= ChatLimits.slowAfter { self.isSlow = true }
+                if waited >= limit {
+                    race.resolve(.failure(.timeout))
+                    work.cancel()
+                    return
+                }
+            }
+        }
+        let result = await withTaskCancellationHandler {
+            await race.value()
+        } onCancel: {
+            Task { @MainActor in
+                race.resolve(.failure(.cancelled))
+                work.cancel()
+            }
+        }
+        watchdog.cancel()
+        work.cancel()
+        activeRace = nil
+        activeWork = nil
+        isSlow = false
+        return result
     }
 
     private func persist() {
@@ -285,4 +434,23 @@ final class ChatSession {
 struct ChatAttachment: Equatable, Sendable {
     let image: AIImage
     let thumbnail: Data
+}
+
+/// Whichever of "the answer", "the deadline" and "Stop" happens first decides the result; later ones are ignored.
+@MainActor
+private final class CallRace {
+    private var result: Result<String, AIError>?
+    private var continuation: CheckedContinuation<Result<String, AIError>, Never>?
+
+    func resolve(_ value: Result<String, AIError>) {
+        guard result == nil else { return }
+        result = value
+        continuation?.resume(returning: value)
+        continuation = nil
+    }
+
+    func value() async -> Result<String, AIError> {
+        if let result { return result }
+        return await withCheckedContinuation { continuation = $0 }
+    }
 }

@@ -354,7 +354,7 @@ private func aiCapabilities(gateway: AIGateway, limiter: AIUsageLimiter) -> [Cap
     let generate = Capability(
         name: "ai.generate",
         kind: .ai,
-        summary: "Ask the AI a question or give it a task, using your Google AI key (spends your AI quota).",
+        summary: "Ask the AI a question or give it a task, using your AI key (spends your AI quota).",
         argsSchema: .object([
             "prompt": .string("string, 1-\(AIGenerateLimits.maxPromptLength) characters"),
             "schema": .string("optional JSON schema object; when given the text is JSON of that shape"),

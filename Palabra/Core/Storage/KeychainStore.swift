@@ -18,6 +18,12 @@ struct KeychainStore {
     /// The backup key the app switches to when the primary one keeps failing.
     static func fallback() -> KeychainStore { KeychainStore(account: "api-key-fallback") }
 
+    /// The main key of a provider (Gemini's keeps the original slot).
+    static func key(for provider: AIProvider) -> KeychainStore { KeychainStore(account: provider.keychainAccount) }
+
+    /// The backup key of a provider.
+    static func backupKey(for provider: AIProvider) -> KeychainStore { KeychainStore(account: provider.backupKeychainAccount) }
+
     func read() -> String? {
         var query = baseQuery()
         query[kSecReturnData as String] = true

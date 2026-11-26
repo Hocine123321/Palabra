@@ -64,6 +64,8 @@ struct ArtifactSettings: Codable, Equatable, Sendable {
     var allowAppArtifacts: Bool = true
     /// The Format the draft screen starts on.
     var defaultFormat: DefaultFormat = .auto
+    /// Changes to the prompts that make an artifact compatible with the app (rules, intro, or the whole prompt).
+    var prompt = ArtifactPromptSettings()
 
     static let `default` = ArtifactSettings()
 
@@ -77,6 +79,7 @@ struct ArtifactSettings: Codable, Equatable, Sendable {
         externalMaxKB = ArtifactOutputBudget.clampedExternalKB((try? c.decodeIfPresent(Int.self, forKey: .externalMaxKB)) ?? d.externalMaxKB)
         allowAppArtifacts = (try? c.decodeIfPresent(Bool.self, forKey: .allowAppArtifacts)) ?? d.allowAppArtifacts
         defaultFormat = (try? c.decodeIfPresent(DefaultFormat.self, forKey: .defaultFormat)) ?? d.defaultFormat
+        prompt = (try? c.decodeIfPresent(ArtifactPromptSettings.self, forKey: .prompt)) ?? d.prompt
     }
 
     var externalBytes: Int { ArtifactOutputBudget.externalBytes(forKB: externalMaxKB) }

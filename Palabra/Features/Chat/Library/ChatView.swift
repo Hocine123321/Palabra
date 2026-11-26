@@ -39,7 +39,7 @@ struct ChatView: View {
             Button("Cancel", role: .cancel) {}
         }
         .onAppear {
-            if session == nil { session = environment.makeChatSession(conversationID: conversationID) }
+            if session == nil { session = environment.chatSession(for: conversationID) }
             didLoad = true
         }
     }
@@ -66,7 +66,14 @@ private struct ChatContent: View {
                     ForEach(session.turns) { turn in
                         ChatTurnView(turn: turn, session: session, isLast: turn.id == session.turns.last?.id)
                     }
-                    if session.phase == .thinking { ChatTypingIndicator() }
+                    if session.phase == .thinking {
+                        ChatTypingIndicator()
+                        if let note = session.statusNote {
+                            Text(LocalizedStringKey(note)).font(.caption).foregroundStyle(Theme.inkSecondary)
+                        } else if session.isSlow {
+                            Text("Taking longer than usual…").font(.caption).foregroundStyle(Theme.inkSecondary)
+                        }
+                    }
                     if session.phase == .running {
                         HStack(spacing: Theme.Spacing.sm) {
                             ProgressView()
@@ -141,19 +148,33 @@ private struct ChatContent: View {
                     // Growing and shrinking follows the text at once; animating it makes the bar lag and jump.
                     .transaction { $0.animation = nil }
                     .accessibilityIdentifier("chatField")
-                Button {
-                    Task { await session.send() }
-                } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(canSend ? Theme.onTint : Theme.inkSecondary)
-                        .frame(width: 38, height: 38)
-                        .background(canSend ? Theme.accent : Theme.fill, in: Circle())
+                if session.phase == .thinking {
+                    // The way out of a reply that is not coming: it ends the wait at once and leaves Retry.
+                    Button { session.stop() } label: {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Theme.onTint)
+                            .frame(width: 38, height: 38)
+                            .background(Theme.accent, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Stop")
+                    .accessibilityIdentifier("chatStopButton")
+                } else {
+                    Button {
+                        Task { await session.send() }
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(canSend ? Theme.onTint : Theme.inkSecondary)
+                            .frame(width: 38, height: 38)
+                            .background(canSend ? Theme.accent : Theme.fill, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSend)
+                    .accessibilityLabel("Send")
+                    .accessibilityIdentifier("chatSendButton")
                 }
-                .buttonStyle(.plain)
-                .disabled(!canSend)
-                .accessibilityLabel("Send")
-                .accessibilityIdentifier("chatSendButton")
             }
         }
         .padding(.leading, Theme.Spacing.xs + 2)
@@ -265,6 +286,12 @@ private struct ChatTurnView: View {
                             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
                             .accessibilityLabel("Attached photo")
                             .accessibilityIdentifier("chatTurnPhoto")
+                        if turn.photoText != nil {
+                            Label("Read on your phone", systemImage: "iphone")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.inkSecondary)
+                                .accessibilityIdentifier("chatPhotoOnDevice")
+                        }
                     }
                     if !turn.text.isEmpty {
                         Text(verbatim: turn.text)

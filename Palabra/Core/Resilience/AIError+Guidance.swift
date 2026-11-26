@@ -10,7 +10,7 @@ extension AIError {
         case .timeout: return "The request timed out"
         case .rateLimited: return "Too many requests"
         case .quotaExhausted: return "Quota used up"
-        case .serverError: return "Google had a problem"
+        case .serverError: return "The provider had a problem"
         case .truncated: return "The reply was cut off"
         case .malformedResponse, .validationFailed: return "The reply was incomplete"
         case .invalidAPIKey: return "Key rejected"
@@ -21,13 +21,13 @@ extension AIError {
 
     var headline: String {
         switch self {
-        case .rateLimited: return "Google is asking us to slow down"
+        case .rateLimited: return "The provider is asking us to slow down"
         case .quotaExhausted: return "This API key is out of quota"
         case .invalidAPIKey: return "Your API key was rejected"
         case .permissionDenied: return "Your API key isn't allowed to do this"
         case .offline: return "You're offline"
-        case .timeout: return "Google is taking too long"
-        case .serverError: return "Google's servers are struggling"
+        case .timeout: return "The provider is taking too long"
+        case .serverError: return "The provider's servers are struggling"
         case .modelUnavailable: return "Your chosen model is gone"
         case .blocked: return "The request was blocked"
         default: return "This didn't work"
@@ -66,15 +66,15 @@ extension AIError {
             return hasBackupKey ? "Both keys are out of quota. Try again later, or use a key from another account."
                                 : "Waiting won't help until the quota resets. Add a key from another account in Settings to keep going."
         case .invalidAPIKey:
-            return "Google doesn't accept this key. Check it in Settings, or add a backup key."
+            return "The provider doesn't accept this key. Check it in Settings, or add a backup key."
         case .permissionDenied:
             return "This key can't use that model. Pick another model, or use a different key."
         case .serverError, .timeout:
-            return "This is usually temporary on Google's side. Waiting longer between tries often works."
+            return "This is usually temporary on the provider's side. Waiting longer between tries often works."
         case .modelUnavailable:
             return "Your chosen model no longer exists. Choose another one in Settings."
         case .blocked:
-            return "Google's safety filter blocked this. Trying again won't change that."
+            return "The provider's safety filter blocked this. Trying again won't change that."
         default:
             return "It may work on another try."
         }

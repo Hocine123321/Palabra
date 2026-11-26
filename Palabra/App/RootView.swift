@@ -93,6 +93,10 @@ struct RootView: View {
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             if let id = SpotlightIndexer.wordID(from: activity) { environment.router.openWord(id) }
         }
+        // A .palabra file opened from Files, the share sheet or AirDrop.
+        .onOpenURL { url in
+            if url.isFileURL { environment.openLibraryFile(url) }
+        }
         // A Shortcut or the Action button (Random Word, Open Study).
         .onChange(of: IntentBridge.shared.pending) { _, _ in consumeIntent() }
         .onAppear { consumeIntent() }

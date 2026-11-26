@@ -108,7 +108,7 @@ struct ReliabilitySettingsView: View {
         } header: {
             Text("Backup API Key")
         } footer: {
-            Text("Used automatically when your main key keeps failing, for example when it runs out of quota. Use a key from a different Google account, since keys from the same account share one quota.")
+            Text("Used automatically when your main key keeps failing, for example when it runs out of quota. Use a key from a different account, since keys from the same account share one quota.")
         }
         .themedSection()
     }
@@ -146,7 +146,7 @@ struct ReliabilitySettingsView: View {
         switch reason {
         case .rateLimited: return "Main key is rate limited. It will be tried again in about a minute."
         case .quotaExhausted: return "Main key is out of quota. It will be tried again in about an hour."
-        case .rejected: return "Main key was rejected by Google. Check it in Settings."
+        case .rejected: return "Main key was rejected by the provider. Check it in Settings."
         case .flaky: return "Main key kept failing. It will be tried again shortly."
         }
     }

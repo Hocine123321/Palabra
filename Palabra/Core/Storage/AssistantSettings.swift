@@ -31,6 +31,16 @@ struct AssistantSettings: Codable, Equatable, Sendable {
         }
     }
 
+    /// Who reads a photo attached in a chat.
+    enum PhotoReading: String, Codable, CaseIterable, Sendable {
+        /// The photo is sent to the AI model with the message (best at handwriting, layout and photos of objects).
+        case model
+        /// Apple's text reader on this phone copies the text; only that text is sent. The photo never leaves the device.
+        case onDevice
+        /// Read on the phone first; when it finds no text, the photo is sent to the model instead.
+        case onDeviceFirst
+    }
+
     static let maxInstructionsLength = 500
 
     var replyLength: ReplyLength = .balanced
@@ -40,6 +50,7 @@ struct AssistantSettings: Codable, Equatable, Sendable {
     var disabledGroups: Set<AssistantToolGroup> = []
     /// Optional standing instructions, e.g. "always add an example sentence".
     var customInstructions: String = ""
+    var photoReading: PhotoReading = .model
 
     static let `default` = AssistantSettings()
 
@@ -54,6 +65,7 @@ struct AssistantSettings: Codable, Equatable, Sendable {
         let raw = try c.decodeIfPresent([String].self, forKey: .disabledGroups) ?? []
         disabledGroups = Set(raw.compactMap(AssistantToolGroup.init(rawValue:)))
         customInstructions = Self.cleaned(try c.decodeIfPresent(String.self, forKey: .customInstructions) ?? "")
+        photoReading = (try? c.decodeIfPresent(PhotoReading.self, forKey: .photoReading)) ?? d.photoReading
     }
 
     func encode(to encoder: Encoder) throws {
@@ -62,10 +74,11 @@ struct AssistantSettings: Codable, Equatable, Sendable {
         try c.encode(askBeforeChanging, forKey: .askBeforeChanging)
         try c.encode(disabledGroups.map(\.rawValue).sorted(), forKey: .disabledGroups)
         try c.encode(customInstructions, forKey: .customInstructions)
+        try c.encode(photoReading, forKey: .photoReading)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case replyLength, askBeforeChanging, disabledGroups, customInstructions
+        case replyLength, askBeforeChanging, disabledGroups, customInstructions, photoReading
     }
 
     func isEnabled(_ group: AssistantToolGroup) -> Bool { !disabledGroups.contains(group) }
