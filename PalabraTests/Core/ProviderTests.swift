@@ -398,3 +398,49 @@ final class ProviderEnvironmentTests: XCTestCase {
         XCTAssertEqual(env.selectedModelID, "llama-3.3-70b-versatile")
     }
 }
+
+final class OpenAICompatibleResilienceTests: XCTestCase {
+    private let model = AIModel(id: "some/model", displayName: "m", description: nil, inputTokenLimit: nil, outputTokenLimit: nil, provider: .openRouter)
+
+    override func tearDown() {
+        MockURLProtocol.handler = nil
+        super.tearDown()
+    }
+
+    func testThinkingBlocksAreRemoved() {
+        XCTAssertEqual(OpenAICompatibleClient.withoutThinking("<think>hmm {\"a\":0}</think>\n{\"a\":1}"), "{\"a\":1}")
+        XCTAssertEqual(OpenAICompatibleClient.withoutThinking("plain"), "plain")
+        XCTAssertEqual(OpenAICompatibleClient.withoutThinking("<think>cut off"), "", "a reply cut inside its thinking has no answer")
+    }
+
+    func testTooLargeTokenLimitIsRetriedSmaller() async {
+        let limits = Box<[Int]>([])
+        MockURLProtocol.handler = { request in
+            let body = (try? JSONSerialization.jsonObject(with: request.httpBody ?? Data())) as? [String: Any]
+            let limit = body?["max_tokens"] as? Int ?? 0
+            limits.value.append(limit)
+            if limit > 4096 {
+                return (400, try! JSONSerialization.data(withJSONObject: ["error": ["message": "max_tokens is too large: 8192. This model supports at most 4096"]]))
+            }
+            return (200, try! JSONSerialization.data(withJSONObject: ["choices": [["message": ["content": "ok"], "finish_reason": "stop"]]]))
+        }
+        let client = OpenAICompatibleClient(provider: .openRouter, session: MockURLProtocol.session())
+        let result = await client.generateJSON(prompt: "p", systemInstruction: "s", schema: nil, apiKey: "k", model: model, temperature: 0)
+        XCTAssertEqual(try? result.get(), "ok")
+        XCTAssertEqual(limits.value, [8192, 4096])
+    }
+
+    func testWordGenerationAlsoFallsBackWhenJSONModeIsRefused() async {
+        let modes = Box<[Bool]>([])
+        MockURLProtocol.handler = { request in
+            let body = (try? JSONSerialization.jsonObject(with: request.httpBody ?? Data())) as? [String: Any]
+            let json = body?["response_format"] != nil
+            modes.value.append(json)
+            if json { return (400, try! JSONSerialization.data(withJSONObject: ["error": ["message": "json mode is not supported"]])) }
+            return (200, try! JSONSerialization.data(withJSONObject: ["choices": [["message": ["content": "not json"], "finish_reason": "stop"]]]))
+        }
+        let client = OpenAICompatibleClient(provider: .openRouter, session: MockURLProtocol.session())
+        _ = await client.generateWord("hablar", apiKey: "k", model: model, language: .english)
+        XCTAssertEqual(modes.value, [true, false])
+    }
+}

@@ -52,7 +52,7 @@ final class OpenAICompatibleClient: AIClient, RetryHintProviding, @unchecked Sen
 
     func generateWord(_ input: String, apiKey: String, model: AIModel, language: SupportedLanguage) async -> Result<WordContent, AIError> {
         let system = VocabularyPrompts.wordSystemInstructionWithSchemaDescribed(for: language)
-        let result = await complete(
+        let result = await completeJSON(
             model: model, apiKey: apiKey,
             messages: [message("system", system), message("user", input)],
             temperature: 0.7, maxTokens: Self.cap(8192, for: model), jsonObject: true, timeout: 60
@@ -132,12 +132,17 @@ final class OpenAICompatibleClient: AIClient, RetryHintProviding, @unchecked Sen
             ]
         }
         let messages = [message("system", system), user]
+        let result = await completeJSON(model: model, apiKey: apiKey, messages: messages, temperature: temperature, maxTokens: maxTokens, jsonObject: jsonObject, timeout: timeout)
+        return result.map { CodeFence.extractJSON($0) }
+    }
+
+    /// Asks for a JSON object; a model that refuses JSON mode is asked again without it (the prompt already says "JSON").
+    private func completeJSON(model: AIModel, apiKey: String, messages: [[String: Any]], temperature: Double, maxTokens: Int, jsonObject: Bool, timeout: TimeInterval) async -> Result<String, AIError> {
         let first = await complete(model: model, apiKey: apiKey, messages: messages, temperature: temperature, maxTokens: maxTokens, jsonObject: jsonObject, timeout: timeout)
         if case .failure(let error) = first, jsonObject, Self.refusesJSONMode(error) {
-            let second = await complete(model: model, apiKey: apiKey, messages: messages, temperature: temperature, maxTokens: maxTokens, jsonObject: false, timeout: timeout)
-            return second.map { CodeFence.extractJSON($0) }
+            return await complete(model: model, apiKey: apiKey, messages: messages, temperature: temperature, maxTokens: maxTokens, jsonObject: false, timeout: timeout)
         }
-        return first.map { CodeFence.extractJSON($0) }
+        return first
     }
 
     static func describe(_ schema: [String: Any]) -> String? {
@@ -172,7 +177,26 @@ final class OpenAICompatibleClient: AIClient, RetryHintProviding, @unchecked Sen
         }
     }
 
+    /// One chat-completions call. A host that says `max_tokens` is more than the model can write (a model list that gave no
+    /// limit) is asked again with a smaller one, instead of failing a request that would have worked.
     private func complete(model: AIModel, apiKey: String, messages: [[String: Any]], temperature: Double, maxTokens: Int, jsonObject: Bool, timeout: TimeInterval) async -> Result<String, AIError> {
+        let first = await send(model: model, apiKey: apiKey, messages: messages, temperature: temperature, maxTokens: maxTokens, jsonObject: jsonObject, timeout: timeout)
+        if case .failure(let error) = first, Self.refusesTokenLimit(error), maxTokens > Self.saferMaxTokens {
+            return await send(model: model, apiKey: apiKey, messages: messages, temperature: temperature, maxTokens: Self.saferMaxTokens, jsonObject: jsonObject, timeout: timeout)
+        }
+        return first
+    }
+
+    static let saferMaxTokens = 4096
+
+    static func refusesTokenLimit(_ error: AIError) -> Bool {
+        guard case .unknown(let status, let message) = error, status == 400 || status == 422 else { return false }
+        let lower = message.lowercased()
+        return lower.contains("max_tokens") || lower.contains("max_completion_tokens") || lower.contains("maximum context length")
+            || lower.contains("context_length_exceeded")
+    }
+
+    private func send(model: AIModel, apiKey: String, messages: [[String: Any]], temperature: Double, maxTokens: Int, jsonObject: Bool, timeout: TimeInterval) async -> Result<String, AIError> {
         var body: [String: Any] = [
             "model": model.id,
             "messages": messages,
@@ -266,10 +290,21 @@ final class OpenAICompatibleClient: AIClient, RetryHintProviding, @unchecked Sen
     private func extractText(from data: Data) -> Result<String, AIError> {
         guard let decoded = try? JSONDecoder().decode(CompletionResponse.self, from: data),
               let choice = decoded.choices?.first else { return .failure(.malformedResponse) }
-        let text = choice.message?.content?.text ?? ""
+        // Reasoning models may put their thinking in the reply; only what follows it is the answer.
+        let text = Self.withoutThinking(choice.message?.content?.text ?? "")
         if choice.finishReason == "content_filter" { return .failure(.blocked("content_filter")) }
         if choice.finishReason == "length" { return .failure(.truncated) }
         return text.isEmpty ? .failure(.malformedResponse) : .success(text)
+    }
+
+    static func withoutThinking(_ text: String) -> String {
+        var result = text
+        while let open = result.range(of: "<think>"), let close = result.range(of: "</think>", range: open.upperBound..<result.endIndex) {
+            result.removeSubrange(open.lowerBound..<close.upperBound)
+        }
+        // A reply cut inside its thinking has no answer at all.
+        if let open = result.range(of: "<think>") { result.removeSubrange(open.lowerBound..<result.endIndex) }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func decodeWord(_ text: String, language: SupportedLanguage) -> Result<WordContent, AIError> {
