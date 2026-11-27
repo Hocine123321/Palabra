@@ -5,9 +5,9 @@ import XCTest
 final class AppIconChoiceTests: XCTestCase {
     private let bundle = Bundle(for: AppEnvironment.self)
 
-    func testOriginalIconIsThePrimaryOne() {
-        XCTAssertNil(AppIconChoice.clasico.alternateName)
-        XCTAssertEqual(AppIconChoice(alternateName: nil), .clasico)
+    func testRecortesIsThePrimaryIcon() {
+        XCTAssertNil(AppIconChoice.recortes.alternateName)
+        XCTAssertEqual(AppIconChoice(alternateName: nil), .recortes)
     }
 
     func testEveryAlternateRoundTripsAndNamesAreUnique() {
@@ -19,8 +19,8 @@ final class AppIconChoiceTests: XCTestCase {
         }
     }
 
-    func testUnknownNameFallsBackToTheOriginal() {
-        XCTAssertEqual(AppIconChoice(alternateName: "RemovedInALaterVersion"), .clasico)
+    func testUnknownNameFallsBackToThePrimaryIcon() {
+        XCTAssertEqual(AppIconChoice(alternateName: "RemovedInALaterVersion"), .recortes)
     }
 
     func testEveryChoiceHasAPreviewImage() {

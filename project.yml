@@ -53,7 +53,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.palabra.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "Medianoche Sol Pregunta Recortes Olivo BelleEpoque Frontera"
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "Clasico Medianoche Sol Pregunta Olivo BelleEpoque Frontera"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         GENERATE_INFOPLIST_FILE: NO
   PalabraTests:

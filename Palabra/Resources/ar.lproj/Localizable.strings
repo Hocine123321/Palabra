@@ -1092,7 +1092,7 @@
 "This device can't change the app icon." = "لا يمكن لهذا الجهاز تغيير أيقونة التطبيق.";
 "Couldn't change the icon." = "تعذر تغيير الأيقونة.";
 "iOS shows a short notice when the icon changes." = "يعرض iOS إشعاراً قصيراً عند تغيير الأيقونة.";
-"The original" = "الأصلية";
+"The first icon" = "الأيقونة الأولى";
 "A day sky, a golden moon at night" = "سماء النهار، وهلال ذهبي في الليل";
 "Sunburst" = "أشعة الشمس";
 "A bold ¿" = "علامة ¿ جريئة";
