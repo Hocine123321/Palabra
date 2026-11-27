@@ -139,6 +139,7 @@ struct SettingsView: View {
                     Text("Light").tag(SettingsStore.AppearanceMode.light)
                     Text("Dark").tag(SettingsStore.AppearanceMode.dark)
                 }
+                AppIconSettingsRow()
             }
             .themedSection()
 

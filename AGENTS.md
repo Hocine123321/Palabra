@@ -300,3 +300,10 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 - Artifacts: `ArtifactMetrics` (size, lines, commit-style change); `ArtifactDraftModel` keeps the baseline. `ArtifactPromptSettings` (Core/Storage, inside `ArtifactSettings.prompt`, tolerant decoder) holds the rules, the intro and the advanced full-template replacements; the default path must produce the same text as before.
 - Photos in chat: `AssistantSettings.photoReading` (`model`, `onDevice`, `onDeviceFirst`); on-device text goes in `ChatTurn.photoText` and in the transcript block "[Text read from the photo on the user's phone]".
 - Visuals: a context-menu `preview:` must not round its own corners (`Theme.Radius.none`): the system clips it, and two radii show as mismatched corners. The Spanish-letter row lives in `AddWordBar` as its own capsule while the field is focused, not in a `.keyboard` toolbar (that floats over the field on recent iOS).
+
+## App icons
+
+- Settings → Appearance → App Icon (`AppIconPickerView`) switches the home-screen icon with `UIApplication.setAlternateIconName`. The list is `AppIconChoice` (Core/DesignSystem); `.clasico` is the primary `AppIcon` (`nil`).
+- Each alternate is an `<assetName>.appiconset` (one opaque 1024 px PNG, no alpha) plus an `IconPreview<assetName>.imageset` for the in-app thumbnail (an appiconset cannot be loaded with `Image(_:)`).
+- Adding an icon: add both sets, add the name to `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` in project.yml, add a case to `AppIconChoice` with a tagline, and add the tagline to `ar.lproj`. `AppIconChoiceTests` fails when one of those is missing.
+- Frozen once shipped: the asset names (`Medianoche`, `Sol`, `Azulejo`, `Pregunta`, `Recortes`, `Sangria`, `Olivo`, `Neon`, `BelleEpoque`, `Frontera`). iOS stores the name; a removed one falls back to the original icon.
