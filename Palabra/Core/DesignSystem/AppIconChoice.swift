@@ -7,7 +7,7 @@ import Foundation
 /// Those names are frozen once shipped: renaming one leaves the phone showing an icon the app no longer lists.
 /// The original icon (`AppIcon`) is the primary one, so choosing it means `setAlternateIconName(nil)`.
 enum AppIconChoice: String, CaseIterable, Identifiable {
-    case clasico, medianoche, sol, azulejo, pregunta, recortes, sangria, olivo, neon, belleEpoque, frontera
+    case clasico, medianoche, sol, pregunta, recortes, olivo, belleEpoque, frontera
 
     var id: String { rawValue }
 
@@ -17,12 +17,9 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
         case .clasico: nil
         case .medianoche: "Medianoche"
         case .sol: "Sol"
-        case .azulejo: "Azulejo"
         case .pregunta: "Pregunta"
         case .recortes: "Recortes"
-        case .sangria: "Sangria"
         case .olivo: "Olivo"
-        case .neon: "Neon"
         case .belleEpoque: "BelleEpoque"
         case .frontera: "Frontera"
         }
@@ -37,12 +34,9 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
         case .clasico: "Clásico"
         case .medianoche: "Medianoche"
         case .sol: "Sol"
-        case .azulejo: "Azulejo"
         case .pregunta: "Pregunta"
         case .recortes: "Recortes"
-        case .sangria: "Sangría"
         case .olivo: "Olivo"
-        case .neon: "Neón"
         case .belleEpoque: "Belle Époque"
         case .frontera: "Frontera"
         }
@@ -52,14 +46,11 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
     var tagline: String {
         switch self {
         case .clasico: "The original"
-        case .medianoche: "Night sky and a golden moon"
+        case .medianoche: "A day sky, a golden moon at night"
         case .sol: "Sunburst"
-        case .azulejo: "Painted Spanish tiles"
         case .pregunta: "A bold ¿"
         case .recortes: "Paper cutouts, like the app"
-        case .sangria: "Wine-red glass"
         case .olivo: "Olive branches"
-        case .neon: "Synthwave sunset"
         case .belleEpoque: "Art Nouveau, 1900"
         case .frontera: "1899 wanted poster"
         }
