@@ -57,4 +57,36 @@ final class HubSummaryTests: XCTestCase {
         XCTAssertEqual(summary.recent.map(\.spanish), ["cuatro", "tres", "dos"])
         XCTAssertEqual(summary.recent.map(\.key), ["cuatro", "tres", "dos"])
     }
+
+    func testWordOfTheDayIsStableWithinADayAndMovesOnTheNext() throws {
+        let container = try ModelContainer(for: Schema([Word.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        let repository = SwiftDataWordRepository(context: ModelContext(container))
+        let content = { (word: String) in
+            WordContent(
+                word: word,
+                examples: [
+                    .init(context: "a", spanish: "uno", english: "one"),
+                    .init(context: "b", spanish: "dos", english: "two"),
+                    .init(context: "c", spanish: "tres", english: "three")
+                ],
+                meaning: .init(translations: ["t"], explanation: "e"),
+                usage: .init(explanation: "u", register: "neutral", nuance: nil),
+                forms: .init(partOfSpeech: "verb", groups: [.init(label: "Present", items: [.init(form: word, note: nil)])]),
+                similarWords: [.init(word: "s", difference: "d")]
+            )
+        }
+        XCTAssertNil(HubSummary.wordOfTheDay(in: [], on: Date()))
+        for word in ["uno", "dos", "tres"] {
+            repository.insert(spanish: word, key: word, searchKey: word, content: content(word), rawJSON: Data())
+        }
+        let words = repository.allWords()
+        let noon = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        let evening = Calendar.current.date(bySettingHour: 21, minute: 0, second: 0, of: Date())!
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: noon)!
+        let today = try XCTUnwrap(HubSummary.wordOfTheDay(in: words, on: noon))
+        XCTAssertEqual(HubSummary.wordOfTheDay(in: words, on: evening), today, "the same word all day")
+        XCTAssertNotEqual(HubSummary.wordOfTheDay(in: words, on: tomorrow), today, "another word tomorrow")
+        XCTAssertEqual(HubSummary(newestFirst: words, on: noon).highlight, today)
+        XCTAssertEqual(today.translation, "t")
+    }
 }

@@ -5,6 +5,10 @@ import SwiftUI
 /// another feature's views.
 struct SpanishHomeView: View {
     @Environment(AppEnvironment.self) private var environment
+    /// Cards due on the Study tab and the way to get there; the App layer supplies both, so this feature never imports Study.
+    var studyDue = 0
+    var onOpenStudy: (() -> Void)?
+
     @State private var needCount = 0
     @State private var summary = HubSummary.empty
 
@@ -40,6 +44,17 @@ struct SpanishHomeView: View {
                 .buttonStyle(PressScaleStyle(scale: 0.97))
                 .accessibilityValue(Text(verbatim: "\(needCount)"))
                 .accessibilityIdentifier("spanishRow.needReview")
+
+                if onOpenStudy != nil {
+                    Button { onOpenStudy?() } label: { studyCard }
+                        .buttonStyle(PressScaleStyle(scale: 0.97))
+                        .accessibilityIdentifier("spanishRow.study")
+                }
+                if let highlight = summary.highlight {
+                    Button { environment.router.openWord(highlight.id) } label: { wordOfTheDayCard(highlight) }
+                        .buttonStyle(PressScaleStyle(scale: 0.97))
+                        .accessibilityIdentifier("spanishRow.wordOfDay")
+                }
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.top, Theme.Spacing.sm)
@@ -78,11 +93,19 @@ struct SpanishHomeView: View {
                 if !recentWords.isEmpty {
                     HStack(spacing: Theme.Spacing.sm + 2) {
                         ForEach(recentWords) { word in
-                            Text(verbatim: word.spanish)
-                                .font(Theme.Font.tile)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(verbatim: word.spanish)
+                                    .font(Theme.Font.tile)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.6)
+                                if !word.translation.isEmpty {
+                                    Text(verbatim: word.translation)
+                                        .font(.caption2.weight(.medium))
+                                        .opacity(0.65)
+                                        .lineLimit(1)
+                                }
+                            }
                                 .foregroundStyle(Theme.onTint)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.6)
                                 .frame(maxWidth: .infinity, minHeight: 72, alignment: .bottomLeading)
                                 .padding(10)
                                 .background(Theme.tint(for: word.key), in: tileShape)
@@ -130,5 +153,63 @@ struct SpanishHomeView: View {
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// The Study shortcut: what is due today, one tap from the Spanish tab.
+    private var studyCard: some View {
+        GlassSurface(cornerRadius: Theme.Radius.card) {
+            HStack(spacing: Theme.Spacing.md) {
+                IconTile(systemImage: "rectangle.stack", tint: Theme.tileTints[1], size: 48)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Study")
+                        .font(Theme.Font.heading)
+                        .foregroundStyle(Theme.ink)
+                    if studyDue > 0 {
+                        Text("\(studyDue) due").font(.subheadline).foregroundStyle(Theme.inkSecondary)
+                    } else {
+                        Text("Nothing due today").font(.subheadline).foregroundStyle(Theme.inkSecondary)
+                    }
+                }
+                Spacer(minLength: Theme.Spacing.sm)
+                Image(systemName: "chevron.forward")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(Theme.inkSecondary)
+                    .accessibilityHidden(true)
+            }
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// One saved word, big, on its own colour: the same word all day. Tap to open it.
+    private func wordOfTheDayCard(_ word: HubSummary.Highlight) -> some View {
+        CutoutCard(tint: Theme.tint(for: word.key)) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                HStack {
+                    Label("Word of the day", systemImage: "sun.max.fill")
+                        .font(.footnote.weight(.bold))
+                        .opacity(0.7)
+                    Spacer(minLength: Theme.Spacing.sm)
+                    Image(systemName: "chevron.forward")
+                        .font(.footnote.weight(.bold))
+                        .frame(width: 32, height: 32)
+                        .background(Color.white.opacity(0.45), in: Circle())
+                        .accessibilityHidden(true)
+                }
+                Text(verbatim: word.spanish)
+                    .font(Theme.Font.display)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.5)
+                if !word.translation.isEmpty {
+                    Text(verbatim: word.translation)
+                        .font(.title3.weight(.medium))
+                        .opacity(0.75)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Theme.Spacing.md + 2)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sheet, style: .continuous))
     }
 }

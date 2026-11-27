@@ -224,9 +224,11 @@ struct ModelValueLabel: View {
     @Environment(AppEnvironment.self) private var environment
     let id: String?
     var placeholder: LocalizedStringKey
+    /// Left-aligned, for a value shown under its title instead of beside it.
+    var leading = false
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 2) {
+        VStack(alignment: leading ? .leading : .trailing, spacing: 2) {
             if let id {
                 Text(environment.catalogue.models.first { $0.id == id }?.displayName ?? id)
                     .foregroundStyle(Theme.inkSecondary)
@@ -235,6 +237,6 @@ struct ModelValueLabel: View {
                 Text(placeholder).foregroundStyle(Theme.inkSecondary)
             }
         }
-        .multilineTextAlignment(.trailing)
+        .multilineTextAlignment(leading ? .leading : .trailing)
     }
 }

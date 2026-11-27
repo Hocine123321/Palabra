@@ -55,20 +55,24 @@ struct StudyProgressTrack: View {
 struct StudyProgressRing: View {
     let fraction: Double
     let label: Int
+    var track: Color = Theme.fill
+    var progress: Color = Theme.accent
+    var ink: Color = Theme.ink
+    var size: CGFloat = 76
 
     var body: some View {
         ZStack {
-            Circle().stroke(Theme.fill, lineWidth: 9)
+            Circle().stroke(track, lineWidth: 9)
             Circle()
                 .trim(from: 0, to: max(0.001, min(1, fraction)))
-                .stroke(Theme.accent, style: StrokeStyle(lineWidth: 9, lineCap: .round))
+                .stroke(progress, style: StrokeStyle(lineWidth: 9, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(Motion.reduced(Motion.standard), value: fraction)
             Text(verbatim: "\(label)")
                 .font(Theme.Font.heading.monospacedDigit())
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(ink)
         }
-        .frame(width: 76, height: 76)
+        .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
 }
@@ -76,13 +80,15 @@ struct StudyProgressRing: View {
 /// Seven small bars: answers per day for the last week, today on the trailing side.
 struct StudyWeekBars: View {
     let counts: [Int]
+    var active: Color = Theme.accent
+    var idle: Color = Theme.fill
 
     var body: some View {
         let peak = max(1, counts.max() ?? 1)
         HStack(alignment: .bottom, spacing: Theme.Spacing.xs + 2) {
             ForEach(Array(counts.enumerated()), id: \.offset) { index, count in
                 Capsule(style: .continuous)
-                    .fill(index == counts.count - 1 ? Theme.accent : (count == 0 ? Theme.fill : Theme.accent.opacity(0.4)))
+                    .fill(index == counts.count - 1 ? active : (count == 0 ? idle : active.opacity(0.45)))
                     .frame(width: 10, height: 6 + CGFloat(count) / CGFloat(peak) * 30)
             }
         }
@@ -150,49 +156,69 @@ struct StudyHomeView: View {
 
     private var todayCard: some View {
         let planned = stats.reviewedToday + totalDue + totalNew
-        return GlassSurface {
+        let nothingToDo = totalDue + totalNew == 0
+        return CutoutCard(tint: Theme.tileTints[1]) {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                HStack(spacing: Theme.Spacing.md) {
-                    StudyProgressRing(fraction: planned == 0 ? 0 : Double(stats.reviewedToday) / Double(planned), label: stats.reviewedToday)
+                HStack(spacing: Theme.Spacing.md + 2) {
+                    StudyProgressRing(
+                        fraction: planned == 0 ? 0 : Double(stats.reviewedToday) / Double(planned),
+                        label: stats.reviewedToday,
+                        track: Color.white.opacity(0.5),
+                        progress: Theme.accentDeep,
+                        ink: Theme.onTint,
+                        size: 88
+                    )
                     VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        Text("Today").font(.footnote.weight(.semibold)).foregroundStyle(Theme.inkSecondary)
-                        if totalDue + totalNew == 0 {
-                            Text("Nothing due today").font(Theme.Font.heading).foregroundStyle(Theme.ink)
+                        Text("Today").font(.footnote.weight(.bold)).opacity(0.65)
+                        if nothingToDo {
+                            Text("Nothing due today").font(Theme.Font.heading)
                         } else {
-                            Text("\(totalDue) due · \(totalNew) new").font(Theme.Font.heading).foregroundStyle(Theme.ink)
-                        }
-                        if stats.streak > 0 {
-                            Label("\(stats.streak)-day streak", systemImage: "flame.fill")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Theme.accentDeep)
-                                .accessibilityIdentifier("streakLabel")
-                        } else {
-                            Text("Review a card to start a streak").font(.subheadline).foregroundStyle(Theme.inkSecondary)
+                            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.lg) {
+                                stat(totalDue, caption: "due")
+                                stat(totalNew, caption: "new")
+                            }
                         }
                     }
                     Spacer(minLength: 0)
-                    StudyWeekBars(counts: stats.lastSevenDays)
+                }
+                HStack(alignment: .center, spacing: Theme.Spacing.md) {
+                    Group {
+                        if stats.streak > 0 {
+                            Label("\(stats.streak)-day streak", systemImage: "flame.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .accessibilityIdentifier("streakLabel")
+                        } else {
+                            Text("Review a card to start a streak").font(.subheadline).opacity(0.7)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    StudyWeekBars(counts: stats.lastSevenDays, active: Theme.accentDeep, idle: Color.white.opacity(0.5))
                 }
                 reviewAllButton
             }
-            .padding(Theme.Spacing.md)
+            .padding(Theme.Spacing.md + 2)
         }
-        .accessibilityIdentifier("todayCard")
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.sheet, style: .continuous))
+    }
+
+    /// A big number with its word under it: "39 / due". Never wraps, so a long count cannot push the card around.
+    private func stat(_ value: Int, caption: LocalizedStringKey) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(verbatim: "\(value)")
+                .font(Theme.Font.display.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(caption).font(.subheadline.weight(.semibold)).opacity(0.65)
+        }
     }
 
     private var reviewAllButton: some View {
         Button { path.append(.review(nil)) } label: {
-            HStack {
-                Image(systemName: "play.circle.fill")
-                Text("Review All Due")
-                Spacer()
-                Text("\(totalDue) due · \(totalNew) new")
-                    .font(.subheadline)
-            }
+            Label("Review All Due", systemImage: "play.fill")
         }
         .buttonStyle(.primary)
         .disabled(totalDue + totalNew == 0)
-        .accessibilityIdentifier("reviewAllButton")
+        .accessibilityIdentifier("todayCard")
     }
 
     // MARK: - Exam
@@ -251,12 +277,14 @@ struct StudyHomeView: View {
                             DeckTitle(name: row.name, kind: row.kind)
                                 .font(Theme.Font.heading)
                                 .foregroundStyle(Theme.ink)
-                            HStack(spacing: Theme.Spacing.sm) {
+                            FlowLayout(spacing: Theme.Spacing.sm) {
                                 countChip(Text("\(row.counts.due) due"), highlighted: row.counts.due > 0)
                                 countChip(Text("\(row.counts.new) new"), highlighted: false)
                                 Text("\(row.counts.total) cards")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Theme.inkSecondary)
+                                    .lineLimit(1)
+                                    .fixedSize()
                             }
                             StudyProgressTrack(fraction: started)
                         }
@@ -287,6 +315,8 @@ struct StudyHomeView: View {
     private func countChip(_ text: Text, highlighted: Bool) -> some View {
         text
             .font(.caption.weight(.bold))
+            .lineLimit(1)
+            .fixedSize()
             .foregroundStyle(highlighted ? Theme.onTint : Theme.inkSecondary)
             .padding(.horizontal, Theme.Spacing.sm + 1)
             .padding(.vertical, 4)

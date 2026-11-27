@@ -40,9 +40,14 @@ struct SettingsView: View {
             }
 
             Section {
-                Picker("Provider", selection: providerBinding) {
+                Picker(selection: providerBinding) {
                     ForEach(AIProvider.allCases) { provider in
                         Text(LocalizedStringKey(provider.displayName)).tag(provider)
+                    }
+                } label: {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "bolt.horizontal.fill", tint: Theme.tileTints[2], size: 30)
+                        Text("Provider")
                     }
                 }
                 .accessibilityIdentifier("aiProviderPicker")
@@ -52,18 +57,26 @@ struct SettingsView: View {
                 } label: {
                     HStack(spacing: Theme.Spacing.sm + 4) {
                         IconTile(systemImage: "cpu", tint: Theme.tileTints[0], size: 30)
-                        Text("Model")
-                        Spacer()
-                        ModelValueLabel(id: environment.selectedModel?.id, placeholder: "Not selected")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Model")
+                            ModelValueLabel(id: environment.selectedModel?.id, placeholder: "Not selected", leading: true)
+                                .font(.subheadline)
+                        }
+                        Spacer(minLength: 0)
                         if environment.selectedModelID != nil, environment.selectedModel == nil {
                             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.error)
                         }
+                        Image(systemName: "chevron.forward")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Theme.inkSecondary)
+                            .accessibilityHidden(true)
                     }
                 }
                 Button {
                     Task { await refreshModels() }
                 } label: {
-                    HStack {
+                    HStack(spacing: Theme.Spacing.sm + 4) {
+                        IconTile(systemImage: "arrow.clockwise", tint: Theme.tileTints[4], size: 30)
                         Text("Refresh Models")
                         Spacer()
                         if case .loading = environment.catalogue.status { ProgressView() }
@@ -360,14 +373,22 @@ struct SettingsView: View {
     @ViewBuilder
     private var keyRow: some View {
         if environment.hasAPIKey, !isEditingKey {
-            HStack {
+            HStack(spacing: Theme.Spacing.sm + 4) {
+                IconTile(systemImage: "key.fill", tint: Theme.tileTints[3], size: 30)
                 Text("API Key")
                 Spacer()
                 Text(KeychainStore.mask(environment.apiKey ?? ""))
                     .foregroundStyle(Theme.inkSecondary)
             }
-            Button("Replace Key") { isEditingKey = true; keyInput = "" }
-            Button("Remove Key", role: .destructive) { showRemoveKeyConfirm = true }
+            HStack(spacing: Theme.Spacing.sm) {
+                Button("Replace Key") { isEditingKey = true; keyInput = "" }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                Button("Remove Key", role: .destructive) { showRemoveKeyConfirm = true }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                Spacer(minLength: 0)
+            }
         } else {
             SecureField(LocalizedStringKey(environment.activeProvider.keyLabel), text: $keyInput)
                 .textInputAutocapitalization(.never)

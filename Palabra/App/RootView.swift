@@ -10,7 +10,7 @@ struct RootView: View {
         @Bindable var env = environment
         TabView(selection: $env.router.tab) {
             NavigationStack(path: $env.router.path) {
-                SpanishHomeView()
+                SpanishHomeView(studyDue: dueCount, onOpenStudy: { environment.router.tab = .study })
                     .navigationDestination(for: Router.Destination.self) { destination in
                         switch destination {
                         case .vocabulary:
