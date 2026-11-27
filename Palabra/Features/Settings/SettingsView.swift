@@ -34,6 +34,12 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
+                SettingsHeroCard()
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            }
+
+            Section {
                 Picker("Provider", selection: providerBinding) {
                     ForEach(AIProvider.allCases) { provider in
                         Text(LocalizedStringKey(provider.displayName)).tag(provider)

@@ -17,27 +17,27 @@ struct SpanishHomeView: View {
                 NavigationLink(value: Router.Destination.vocabulary) {
                     libraryCard
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressScaleStyle(scale: 0.97))
                 .accessibilityIdentifier("spanishRow.vocabulary")
 
                 HStack(spacing: Theme.Spacing.md) {
                     NavigationLink(value: Router.Destination.chatList) {
                         compactCard(title: "Chat", systemImage: "bubble.left.and.bubble.right", tint: Theme.tileTints[2])
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressScaleStyle(scale: 0.97))
                     .accessibilityIdentifier("spanishRow.chat")
 
                     NavigationLink(value: Router.Destination.artifacts) {
                         compactCard(title: "Artifacts", systemImage: "sparkles", tint: Theme.tileTints[1])
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressScaleStyle(scale: 0.97))
                     .accessibilityIdentifier("spanishRow.artifacts")
                 }
 
                 NavigationLink(value: Router.Destination.needReview) {
                     needReviewCard
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressScaleStyle(scale: 0.97))
                 .accessibilityValue(Text(verbatim: "\(needCount)"))
                 .accessibilityIdentifier("spanishRow.needReview")
             }

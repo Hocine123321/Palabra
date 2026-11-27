@@ -80,12 +80,26 @@ struct EmptyStateView: View {
 
     var body: some View {
         VStack(spacing: Theme.Spacing.md) {
-            Image(systemName: systemImage)
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(Theme.onTint)
-                .frame(width: 76, height: 76)
-                .background(Theme.accent, in: CutoutShape(kind: .roundedSquare))
-                .accessibilityHidden(true)
+            // The app icon's composition: an orange tile, tilted, on a couple of paper cutouts.
+            ZStack {
+                CutoutShape(kind: .circle)
+                    .fill(Theme.tileTints[1].opacity(0.55))
+                    .frame(width: 84, height: 84)
+                    .offset(x: 40, y: -26)
+                CutoutShape(kind: .pill)
+                    .fill(Theme.tileTints[3].opacity(0.6))
+                    .frame(width: 70, height: 26)
+                    .rotationEffect(.degrees(-18))
+                    .offset(x: 30, y: 38)
+                Image(systemName: systemImage)
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(Theme.onTint)
+                    .frame(width: 76, height: 76)
+                    .background(Theme.accent, in: CutoutShape(kind: .roundedSquare))
+                    .rotationEffect(.degrees(-6))
+            }
+            .frame(width: 150, height: 120)
+            .accessibilityHidden(true)
             Text(title)
                 .font(Theme.Font.heading)
                 .foregroundStyle(Theme.ink)

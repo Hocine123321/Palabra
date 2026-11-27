@@ -6,47 +6,86 @@ struct AppIconPickerView: View {
     @State private var current = AppIconChoice(alternateName: UIApplication.shared.alternateIconName)
     @State private var failed = false
     private let supported = UIApplication.shared.supportsAlternateIcons
+    private let thumb: CGFloat = 84
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: Theme.Spacing.sm), count: 3)
 
     var body: some View {
-        Form {
-            Section {
-                ForEach(AppIconChoice.allCases) { choice in
-                    Button { select(choice) } label: { row(choice) }
-                        .buttonStyle(.plain)
-                        .disabled(!supported)
-                        .accessibilityIdentifier("appIcon.\(choice.rawValue)")
-                        .accessibilityAddTraits(choice == current ? .isSelected : [])
+        ScrollView {
+            VStack(spacing: Theme.Spacing.lg) {
+                header
+                GlassSurface {
+                    LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
+                        ForEach(AppIconChoice.allCases) { choice in cell(choice) }
+                    }
+                    .padding(Theme.Spacing.md)
                 }
-            } footer: {
-                if !supported {
-                    Text("This device can't change the app icon.")
-                } else if failed {
-                    Text("Couldn't change the icon.").foregroundStyle(Theme.error)
-                } else {
-                    Text("iOS shows a short notice when the icon changes.")
-                }
+                footer
             }
-            .themedSection()
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.md)
         }
-        .glassScreen()
+        .background { ScreenBackdrop(style: .rich) }
         .navigationTitle("App Icon")
         .navigationBarTitleDisplayMode(.inline)
+        .sensoryFeedback(.selection, trigger: current)
         .onAppear { current = AppIconChoice(alternateName: UIApplication.shared.alternateIconName) }
     }
 
-    private func row(_ choice: AppIconChoice) -> some View {
-        HStack(spacing: Theme.Spacing.md) {
-            AppIconThumbnail(choice: choice, size: 60)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: choice.title).font(.headline).foregroundStyle(Theme.ink)
-                Text(LocalizedStringKey(choice.tagline)).font(.footnote).foregroundStyle(Theme.inkSecondary)
+    /// The icon in use, large, with its name and one line on its taste.
+    private var header: some View {
+        VStack(spacing: Theme.Spacing.sm) {
+            AppIconThumbnail(choice: current, size: 128)
+                .shadow(color: .black.opacity(0.22), radius: 18, y: 10)
+                .padding(.top, Theme.Spacing.sm)
+            Text(verbatim: current.title).font(Theme.Font.title).foregroundStyle(Theme.ink)
+            Text(LocalizedStringKey(current.tagline)).font(.subheadline).foregroundStyle(Theme.inkSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .animation(Motion.reduced(Motion.quick), value: current)
+    }
+
+    private func cell(_ choice: AppIconChoice) -> some View {
+        let selected = choice == current
+        return Button { select(choice) } label: {
+            VStack(spacing: Theme.Spacing.sm) {
+                AppIconThumbnail(choice: choice, size: thumb)
+                    .padding(4)
+                    .overlay {
+                        if selected {
+                            RoundedRectangle(cornerRadius: thumb * 0.2237 + 4, style: .continuous)
+                                .strokeBorder(Theme.accent, lineWidth: 3)
+                        }
+                    }
+                Text(verbatim: choice.title)
+                    .font(.footnote.weight(selected ? .bold : .medium))
+                    .foregroundStyle(selected ? Theme.accentDeep : Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            Spacer()
-            if choice == current {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent).font(.title3)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScaleStyle(scale: 0.95))
+        .disabled(!supported)
+        .accessibilityLabel(Text(verbatim: choice.title))
+        .accessibilityIdentifier("appIcon.\(choice.rawValue)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private var footer: some View {
+        Group {
+            if !supported {
+                Text("This device can't change the app icon.")
+            } else if failed {
+                Text("Couldn't change the icon.").foregroundStyle(Theme.error)
+            } else {
+                Text("iOS shows a short notice when the icon changes.")
             }
         }
-        .contentShape(Rectangle())
+        .font(.footnote)
+        .foregroundStyle(Theme.inkSecondary)
+        .multilineTextAlignment(.center)
     }
 
     private func select(_ choice: AppIconChoice) {
@@ -54,7 +93,7 @@ struct AppIconPickerView: View {
         Task { @MainActor in
             do {
                 try await UIApplication.shared.setAlternateIconName(choice.alternateName)
-                current = choice
+                Motion.animate(Motion.quick) { current = choice }
                 failed = false
             } catch {
                 failed = true
