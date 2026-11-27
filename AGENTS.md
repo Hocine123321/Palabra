@@ -304,6 +304,7 @@ A quiet warm-neutral ground, muted paper cutouts behind Liquid Glass, and one ac
 ## App icons
 
 - Settings → Appearance → App Icon (`AppIconPickerView`) switches the home-screen icon with `UIApplication.setAlternateIconName`. The list is `AppIconChoice` (Core/DesignSystem); `.clasico` is the primary `AppIcon` (`nil`).
-- Each alternate is an `<assetName>.appiconset` (one opaque 1024 px PNG, no alpha) plus an `IconPreview<assetName>.imageset` for the in-app thumbnail (an appiconset cannot be loaded with `Image(_:)`).
+- Each alternate is an `<assetName>.appiconset` (one opaque 1024 px PNG, no alpha; `Sol`, `Azulejo`, `Pregunta` and `Recortes`, the light ones, also carry a dark-appearance PNG; the others are dark by nature) plus an `IconPreview<assetName>.imageset` (with the same dark variant) for the in-app thumbnail (an appiconset cannot be loaded with `Image(_:)`).
+- The mark (n + tilde) is centred on the middle of the space it sits in, measured from the rendered pixels, not by eye; keep it that way when redrawing an icon.
 - Adding an icon: add both sets, add the name to `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` in project.yml, add a case to `AppIconChoice` with a tagline, and add the tagline to `ar.lproj`. `AppIconChoiceTests` fails when one of those is missing.
 - Frozen once shipped: the asset names (`Medianoche`, `Sol`, `Azulejo`, `Pregunta`, `Recortes`, `Sangria`, `Olivo`, `Neon`, `BelleEpoque`, `Frontera`). iOS stores the name; a removed one falls back to the original icon.
