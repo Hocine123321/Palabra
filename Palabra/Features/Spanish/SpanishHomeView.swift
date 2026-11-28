@@ -38,17 +38,21 @@ struct SpanishHomeView: View {
                     .accessibilityIdentifier("spanishRow.artifacts")
                 }
 
-                NavigationLink(value: Router.Destination.needReview) {
-                    needReviewCard
-                }
-                .buttonStyle(PressScaleStyle(scale: 0.97))
-                .accessibilityValue(Text(verbatim: "\(needCount)"))
-                .accessibilityIdentifier("spanishRow.needReview")
+                HStack(spacing: Theme.Spacing.md) {
+                    NavigationLink(value: Router.Destination.needReview) {
+                        compactCard(title: "Need Review", systemImage: "flag", tint: Theme.tileTints[0], badge: needCount, badgeTint: Theme.tileTints[0])
+                    }
+                    .buttonStyle(PressScaleStyle(scale: 0.97))
+                    .accessibilityValue(Text(verbatim: "\(needCount)"))
+                    .accessibilityIdentifier("spanishRow.needReview")
 
-                if onOpenStudy != nil {
-                    Button { onOpenStudy?() } label: { studyCard }
+                    if onOpenStudy != nil {
+                        Button { onOpenStudy?() } label: {
+                            compactCard(title: "Study", systemImage: "rectangle.stack", tint: Theme.tileTints[1], badge: studyDue, badgeTint: Theme.tileTints[1])
+                        }
                         .buttonStyle(PressScaleStyle(scale: 0.97))
                         .accessibilityIdentifier("spanishRow.study")
+                    }
                 }
                 if let highlight = summary.highlight {
                     Button { environment.router.openWord(highlight.id) } label: { wordOfTheDayCard(highlight) }
@@ -121,63 +125,22 @@ struct SpanishHomeView: View {
     }
 
     /// Chat and Artifacts: two glass cards side by side.
-    private func compactCard(title: LocalizedStringKey, systemImage: String, tint: Color) -> some View {
+    private func compactCard(title: LocalizedStringKey, systemImage: String, tint: Color, badge: Int = 0, badgeTint: Color = Theme.tileTints[0]) -> some View {
         GlassSurface(cornerRadius: Theme.Radius.card) {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm + 4) {
-                IconTile(systemImage: systemImage, tint: tint, size: 40)
+                HStack(alignment: .top) {
+                    IconTile(systemImage: systemImage, tint: tint, size: 40)
+                    Spacer(minLength: Theme.Spacing.sm)
+                    if badge > 0 {
+                        Chip(text: "\(badge)", tint: badgeTint)
+                    }
+                }
                 Text(title)
                     .font(Theme.Font.heading)
                     .foregroundStyle(Theme.ink)
             }
             .padding(Theme.Spacing.md)
             .frame(maxWidth: .infinity, minHeight: 124, alignment: .topLeading)
-        }
-    }
-
-    private var needReviewCard: some View {
-        GlassSurface(cornerRadius: Theme.Radius.card) {
-            HStack(spacing: Theme.Spacing.md) {
-                IconTile(systemImage: "flag", tint: Theme.tileTints[0], size: 48)
-                Text("Need Review")
-                    .font(Theme.Font.heading)
-                    .foregroundStyle(Theme.ink)
-                Spacer(minLength: Theme.Spacing.sm)
-                if needCount > 0 {
-                    Chip(text: "\(needCount)", tint: Theme.tileTints[0])
-                }
-                Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(Theme.inkSecondary)
-                    .accessibilityHidden(true)
-            }
-            .padding(Theme.Spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    /// The Study shortcut: what is due today, one tap from the Spanish tab.
-    private var studyCard: some View {
-        GlassSurface(cornerRadius: Theme.Radius.card) {
-            HStack(spacing: Theme.Spacing.md) {
-                IconTile(systemImage: "rectangle.stack", tint: Theme.tileTints[1], size: 48)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Study")
-                        .font(Theme.Font.heading)
-                        .foregroundStyle(Theme.ink)
-                    if studyDue > 0 {
-                        Text("\(studyDue) due").font(.subheadline).foregroundStyle(Theme.inkSecondary)
-                    } else {
-                        Text("Nothing due today").font(.subheadline).foregroundStyle(Theme.inkSecondary)
-                    }
-                }
-                Spacer(minLength: Theme.Spacing.sm)
-                Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(Theme.inkSecondary)
-                    .accessibilityHidden(true)
-            }
-            .padding(Theme.Spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

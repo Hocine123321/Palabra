@@ -367,7 +367,7 @@ struct SolveHomeView: View {
         recents = environment.solve.history.entries(limit: 10).map {
             RecentRow(
                 id: $0.id, query: $0.query,
-                answer: $0.result?.answerText.replacingOccurrences(of: "\n", with: ", ") ?? "",
+                answer: ($0.result?.answerText ?? "").split(whereSeparator: \.isNewline).first.map(String.init) ?? "",
                 fromPhoto: $0.result?.fromPhoto == true
             )
         }

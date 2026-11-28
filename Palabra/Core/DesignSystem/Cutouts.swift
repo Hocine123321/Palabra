@@ -112,7 +112,7 @@ struct CutoutCard<Content: View>: View {
                             .fill(Color.black.opacity(0.07))
                             .frame(width: side * 0.5, height: side * 0.18)
                             .rotationEffect(.degrees(-14))
-                            .offset(x: side * 0.08, y: proxy.size.height * 0.45)
+                            .offset(x: proxy.size.width - side * 0.46, y: proxy.size.height - side * 0.17)
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))

@@ -11,7 +11,7 @@ struct SpokenSentenceView: View {
     var onTapWord: (String) -> Void
 
     var body: some View {
-        FlowLayout(spacing: 4) {
+        FlowLayout(spacing: 0) {
             ForEach(Array(SentenceTokens.chunks(of: sentence).enumerated()), id: \.offset) { _, chunk in
                 word(chunk)
             }
@@ -29,7 +29,7 @@ struct SpokenSentenceView: View {
         let label = Text(verbatim: chunk.text)
             .underline(known, color: Theme.accentDeep)
             .foregroundStyle(Theme.ink)
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 3)
             .padding(.vertical, 3)
             .background(spoken ? Theme.accentSoft : Color.clear, in: RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous))
             .animation(Motion.reduced(Motion.quick), value: spoken)
